@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Real-Debrid Batch — download stack</title>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#3159D8"/>
+  <path d="M111 52H145V115H178L128 165L78 115H111Z" fill="#FFFFFF"/>
+  <rect x="60" y="181" width="136" height="18" rx="9" fill="#FFFFFF"/>
+  <rect x="82" y="212" width="92" height="10" rx="5" fill="#BFCEFF"/>
+</svg>

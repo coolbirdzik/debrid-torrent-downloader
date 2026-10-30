@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>RealDebridBatch</AssemblyName>
+    <RootNamespace>RdBatch.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/AppIcon.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\RdBatch.Core\RdBatch.Core.csproj" /></ItemGroup>
+  <ItemGroup><Resource Include="Assets/AppIcon.ico" /><Resource Include="Assets/AppIcon.png" /></ItemGroup>
+</Project>
