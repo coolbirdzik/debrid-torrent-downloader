@@ -14,6 +14,13 @@ App desktop Windows để dán hàng loạt magnet, URL `.torrent` hoặc thêm 
 
 Ảnh render trực tiếp từ giao diện WPF với dữ liệu minh họa, không dùng tài khoản hoặc tải torrent thật. [Xem giao diện tiếng Anh](docs/images/app-en.png).
 
+<details>
+<summary>Giao diện tối</summary>
+
+![Real-Debrid Batch với giao diện tối](docs/images/app-vi-dark.png)
+
+</details>
+
 ## Tính năng
 
 | Tính năng | Hoạt động |
@@ -24,7 +31,8 @@ App desktop Windows để dán hàng loạt magnet, URL `.torrent` hoặc thêm 
 | Tiếp tục tải | Retry / Resume / Stop từng dòng hoặc nhiều dòng; giữ file `.part`. |
 | Quản lý hàng đợi | Pause / Stop tất cả, xóa dòng đã chọn hoặc xóa toàn bộ; nhớ hàng đợi khi mở lại. |
 | Sắp xếp file | Lưu phẳng hoặc giữ thư mục torrent; tự tránh trùng tên, không ghi đè file có sẵn. |
-| Việt / Anh | Đổi ngôn ngữ ngay và nhớ lựa chọn. |
+| Việt / Anh | Mặc định tiếng Anh; đổi ngôn ngữ ngay và nhớ lựa chọn. |
+| Giao diện Fluent | Panel thiết lập riêng, hàng đợi rộng, theme sáng/tối/theo Windows và nhớ lựa chọn. |
 | Lưu token | Tùy chọn nhớ token, mã hóa bằng Windows DPAPI theo tài khoản hiện tại. |
 | Bản portable | Một file `.exe` cho Windows x64, kèm .NET runtime; không cần cài .NET riêng. |
 
@@ -39,7 +47,7 @@ Nếu chạy từ mã nguồn, mở `artifacts\RealDebridBatch\RealDebridBatch.e
 3. Dán mỗi dòng một magnet hoặc URL trả về nội dung `.torrent`. Có thể chọn nhiều file `.torrent`, hoặc kéo thả vào app. Không hỗ trợ URL của trang chi tiết torrent/HTML.
 4. Bấm **Thêm vào hàng đợi**, rồi **Bắt đầu / Resume**. Song song 1–5 torrent (mặc định 3); mỗi torrent tải từng file để giữ số kết nối vừa phải.
 
-Chọn **Tiếng Việt / English** ở góc trên bên phải để đổi ngôn ngữ ngay, kể cả khi đang tải. App nhớ lựa chọn cho lần mở sau. Giao diện, tooltip, trạng thái và thông báo lỗi của app có bản tiếng Anh; tên file và phản hồi gốc từ máy chủ được giữ nguyên.
+App mặc định dùng **English** khi chưa có lựa chọn ngôn ngữ. Chọn **Tiếng Việt / English** ở góc trên bên phải để đổi ngay, kể cả khi đang tải. Lựa chọn đã lưu được giữ khi cập nhật app. Bên cạnh là bộ chọn **Theo hệ thống / Sáng / Tối**; mặc định theo giao diện Windows. Tên file và phản hồi gốc từ máy chủ được giữ nguyên.
 
 Hai cột tiến trình tách riêng phần Real-Debrid đang tải torrent và phần app tải về máy. Torrent không có seed có thể chờ lâu trên Real-Debrid.
 

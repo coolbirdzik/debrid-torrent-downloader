@@ -45,7 +45,9 @@ static Task TestLanguages()
 {
     using var temp = new TempDirectory();
     var store = new SettingsStore(temp.Path);
-    Check(store.Load().Language == "vi", "Old/new settings should retain Vietnamese by default");
+    Check(store.Load().Language == "en", "New settings should default to English");
+    File.WriteAllText(Path.Combine(temp.Path, "settings.json"), "{\"Jobs\": []}");
+    Check(store.Load().Language == "en", "Settings without a language should default to English");
     try
     {
         Text.SetLanguage("en");
@@ -63,7 +65,9 @@ static Task TestLanguages()
         Text.SetLanguage("en");
         Check(restored.Detail.StartsWith("Saved 2 files"), "Second language change left stale details");
         Text.SetLanguage("invalid");
-        Check(Text.Language == "vi", "Unknown language should fall back to Vietnamese");
+        Check(Text.Language == "en", "Unknown language should fall back to English");
+        store.Save(new() { Language = "vi", Appearance = "dark" });
+        Check(store.Load().Language == "vi" && store.Load().Appearance == "dark", "Explicit language/theme choice should survive updates");
         return Task.CompletedTask;
     }
     finally { Text.SetLanguage("vi"); }

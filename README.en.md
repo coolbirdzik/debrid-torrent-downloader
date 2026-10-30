@@ -14,6 +14,13 @@ A Windows desktop app for adding batches of magnets, `.torrent` URLs and local `
 
 Rendered directly from the WPF interface using sample data, without a real account or torrent transfer. [View the Vietnamese interface](docs/images/app-vi.png).
 
+<details>
+<summary>Dark appearance</summary>
+
+![Real-Debrid Batch in dark appearance](docs/images/app-en-dark.png)
+
+</details>
+
 ## Features
 
 | Feature | Behavior |
@@ -24,7 +31,8 @@ Rendered directly from the WPF interface using sample data, without a real accou
 | Resumable downloads | Retry, resume or stop individual/multiple rows while keeping `.part` files. |
 | Queue management | Pause/stop all, remove selected rows or clear the entire queue; restore it after restarting. |
 | File layout | Flat output or torrent folders, with collision handling and no overwriting. |
-| English / Vietnamese | Switch immediately and remember the language choice. |
+| English / Vietnamese | English by default; switch immediately and remember the language choice. |
+| Fluent desktop UI | Separate setup panel, a spacious queue and saved light/dark/system appearance. |
 | Token storage | Optional token saving with Windows DPAPI encryption for the current account. |
 | Portable executable | A single Windows x64 `.exe` with the .NET runtime included. |
 
@@ -39,7 +47,7 @@ From source, run `artifacts\RealDebridBatch\RealDebridBatch.exe`, or use `run.ps
 3. Paste one magnet or direct `.torrent` URL per line. You can also choose multiple local `.torrent` files or drop them onto the window. HTML torrent detail pages are not supported.
 4. Click **Add to queue**, then **Start / Resume**. Set parallel processing from 1 to 5 torrents (default: 3). Each torrent downloads its files sequentially.
 
-Choose **English** from the language selector at the top right. The UI, tooltips, queue states and app error messages switch immediately, including during a download. Your choice is saved. Original filenames and raw server responses are preserved.
+**English is the default** when no language has been selected. Switch languages at the top right, including during a download. Saved choices are preserved when updating. The adjacent appearance selector offers **System theme / Light / Dark** and follows Windows by default. Original filenames and raw server responses are preserved.
 
 ## Queue actions
 

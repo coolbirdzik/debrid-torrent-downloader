@@ -1,106 +1,162 @@
-<Window x:Class="RdBatch.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:RdBatch.App"
-        Title="Real-Debrid Batch" Icon="Assets/AppIcon.ico" Width="1280" Height="900" MinWidth="1100" MinHeight="760" WindowStartupLocation="CenterScreen"
-        Background="#F3F5FA" Foreground="{StaticResource Ink}" FontFamily="Segoe UI" FontSize="13" Closing="OnClosing" AllowDrop="True" Drop="OnDrop" DragOver="OnDragOver">
-  <Grid Margin="28,20,28,16">
-    <Grid.RowDefinitions><RowDefinition Height="66"/><RowDefinition Height="Auto"/><RowDefinition Height="16"/><RowDefinition Height="204"/><RowDefinition Height="18"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+<Window x:Class="RdBatch.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:RdBatch.App"
+        Title="Real-Debrid Batch" Icon="Assets/AppIcon.ico" Width="1440" Height="940" MinWidth="1180" MinHeight="760"
+        WindowStartupLocation="CenterScreen" Background="{DynamicResource AppBackground}" Foreground="{DynamicResource Ink}"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" TextOptions.TextFormattingMode="Display" UseLayoutRounding="True"
+        Closing="OnClosing" AllowDrop="True" Drop="OnDrop" DragOver="OnDragOver">
+  <Grid Margin="28,20,28,0">
+    <Grid.RowDefinitions><RowDefinition Height="76"/><RowDefinition Height="*"/><RowDefinition Height="44"/></Grid.RowDefinitions>
     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
-        <Image Source="Assets/AppIcon.png" Width="42" Height="42" Margin="0,0,13,0" VerticalAlignment="Top"/>
-        <StackPanel><TextBlock Text="Real-Debrid Batch" FontSize="24" FontWeight="SemiBold" Margin="0,-3,0,1"/><TextBlock Text="{local:Tr 'Dán torrent. Chọn nơi lưu. Tải toàn bộ.'}" Foreground="{StaticResource Muted}"/></StackPanel>
+        <Image Source="Assets/AppIcon.png" Width="40" Height="40" Margin="0,3,14,0" VerticalAlignment="Top"/>
+        <StackPanel>
+          <TextBlock Text="Real-Debrid Batch" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="23" FontWeight="SemiBold"/>
+          <TextBlock Text="{local:Tr 'Không gian tải của bạn.'}" Style="{StaticResource Caption}" Margin="0,3,0,0"/>
+        </StackPanel>
       </StackPanel>
-      <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Orientation="Horizontal" Margin="0,6,0,0">
-        <Border Background="#E6EEFF" Padding="12,7" CornerRadius="5" Margin="0,0,14,0"><TextBlock Text="{local:Tr '✓  TỰ ĐỘNG CHỌN TẤT CẢ FILE'}" FontSize="11" FontWeight="SemiBold" Foreground="#3159D8"/></Border>
-        <ComboBox x:Name="LanguageBox" Width="112" Height="30" VerticalContentAlignment="Center" SelectionChanged="LanguageChanged" ToolTip="{local:Tr 'Ngôn ngữ'}" AutomationProperties.Name="{local:Tr 'Ngôn ngữ'}">
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,5,0,0">
+        <ComboBox x:Name="ThemeBox" Width="136" SelectionChanged="AppearanceChanged" Margin="0,0,10,0" ToolTip="{local:Tr 'Giao diện'}" AutomationProperties.Name="{local:Tr 'Giao diện'}">
+          <ComboBoxItem Content="{local:Tr 'Theo hệ thống'}" Tag="system"/><ComboBoxItem Content="{local:Tr 'Sáng'}" Tag="light"/><ComboBoxItem Content="{local:Tr 'Tối'}" Tag="dark"/>
+        </ComboBox>
+        <ComboBox x:Name="LanguageBox" Width="124" SelectionChanged="LanguageChanged" ToolTip="{local:Tr 'Ngôn ngữ'}" AutomationProperties.Name="{local:Tr 'Ngôn ngữ'}">
           <ComboBoxItem Content="Tiếng Việt" Tag="vi"/><ComboBoxItem Content="English" Tag="en"/>
         </ComboBox>
       </StackPanel>
     </Grid>
-    <Border Grid.Row="1" Background="White" CornerRadius="9" BorderBrush="#E2E7F0" BorderThickness="1" Padding="18,14">
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-        <Grid x:Name="AccountPanel"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="38"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <DockPanel><Button DockPanel.Dock="Right" Content="{local:Tr 'Lấy API token ↗'}" Click="OpenToken" Padding="0" MinHeight="0" Background="Transparent" BorderThickness="0" Foreground="{StaticResource Accent}" FontSize="12"/>
-            <TextBlock Text="{local:Tr 'TÀI KHOẢN REAL-DEBRID'}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/></DockPanel>
-          <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <PasswordBox x:Name="TokenBox" ToolTip="{local:Tr 'Dán private API token của bạn'}" AutomationProperties.Name="API token" PasswordChanged="TokenChanged"/>
-            <Button x:Name="ConnectButton" Grid.Column="2" Content="{local:Tr 'Kiểm tra'}" Click="Connect"/>
-          </Grid>
-          <DockPanel Grid.Row="3" Margin="0,8,0,0"><CheckBox x:Name="RememberToken" Content="{local:Tr 'Nhớ token trên máy này'}" IsChecked="True" FontSize="12" VerticalAlignment="Center" Click="RememberChanged"/>
-            <TextBlock x:Name="AccountStatus" Text="{local:Tr 'Chưa kết nối'}" FontSize="12" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" Margin="10,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/></DockPanel>
-        </Grid>
-        <Grid Grid.Column="2"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="38"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <TextBlock Text="{local:Tr 'NƠI LƯU TOÀN BỘ'}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource Muted}"/>
-          <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="300"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Background="{DynamicResource SidebarSurface}" CornerRadius="16" Padding="22,24">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel>
+            <TextBlock Text="{local:Tr 'Thiết lập tải'}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,28"/>
+            <StackPanel x:Name="AccountPanel">
+              <TextBlock Text="{local:Tr 'Tài khoản'}" Style="{StaticResource FieldLabel}"/>
+              <PasswordBox x:Name="TokenBox" ToolTip="{local:Tr 'Dán private API token của bạn'}" AutomationProperties.Name="API token" PasswordChanged="TokenChanged"/>
+              <Grid Margin="0,10,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <Button Content="{local:Tr 'Lấy API token'}" Click="OpenToken" Style="{StaticResource LinkButton}"/>
+                <Button x:Name="ConnectButton" Grid.Column="1" Content="{local:Tr 'Kiểm tra'}" Click="Connect" Padding="14,7"/>
+              </Grid>
+              <CheckBox x:Name="RememberToken" Content="{local:Tr 'Nhớ token trên máy này'}" IsChecked="True" Click="RememberChanged"/>
+              <TextBlock x:Name="AccountStatus" Text="{local:Tr 'Chưa kết nối'}" Style="{StaticResource Caption}" Margin="0,12,0,0"/>
+            </StackPanel>
+            <Border Background="{DynamicResource Stroke}" Height="1" Margin="0,26,0,26"/>
+            <TextBlock Text="{local:Tr 'Thư mục tải xuống'}" Style="{StaticResource FieldLabel}"/>
             <TextBox x:Name="FolderBox" AutomationProperties.Name="{local:Tr 'Thư mục lưu'}" LostFocus="FolderChanged"/>
-            <Button x:Name="BrowseButton" Grid.Column="2" Content="{local:Tr 'Chọn…'}" Click="BrowseFolder"/>
-          </Grid>
-          <CheckBox Grid.Row="3" x:Name="FlattenFilesBox" Content="{local:Tr 'Lưu phẳng · tất cả file vào thư mục đã chọn'}" IsChecked="True" FontSize="12" Margin="0,8,0,0" Click="OutputLayoutChanged"
-                    ToolTip="{local:Tr 'Bỏ chọn để tạo thư mục riêng và giữ cấu trúc torrent. Áp dụng cho torrent chưa bắt đầu lưu file; torrent tải dở giữ đường dẫn cũ để tiếp tục.'}"/>
-        </Grid>
-      </Grid>
-    </Border>
-    <Border Grid.Row="3" Background="White" CornerRadius="9" BorderBrush="#E2E7F0" BorderThickness="1" Padding="18,14">
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="174"/></Grid.ColumnDefinitions>
-        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-          <DockPanel><TextBlock Text="{local:Tr 'THÊM TORRENT HÀNG LOẠT'}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource Muted}"/>
-            <TextBlock Text="{local:Tr 'Mỗi dòng một magnet / URL .torrent / đường dẫn .torrent'}" Foreground="{StaticResource Muted}" FontSize="12" HorizontalAlignment="Right"/></DockPanel>
-          <Grid Grid.Row="2">
-            <TextBox x:Name="SourcesBox" AcceptsReturn="True" VerticalContentAlignment="Top" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Cascadia Code, Consolas" FontSize="12" TextChanged="SourcesChanged" AutomationProperties.Name="{local:Tr 'Danh sách torrent'}"/>
-            <TextBlock x:Name="SourcePlaceholder" IsHitTestVisible="False" Margin="12,10" Foreground="#98A2B5" Text="{local:Tr 'magnet:?xt=urn:btih:…&#10;https://example.com/file.torrent&#10;&#10;Hoặc kéo thả các file .torrent vào cửa sổ'}" FontFamily="Consolas" FontSize="12"/>
-          </Grid>
-        </Grid>
-        <StackPanel Grid.Column="2" VerticalAlignment="Bottom">
-          <Button x:Name="PasteButton" Content="{local:Tr 'Dán clipboard'}" Click="PasteSources" Margin="0,0,0,8"/>
-          <Button x:Name="AddFilesButton" Content="{local:Tr 'Chọn file .torrent…'}" Click="PickTorrents" Margin="0,0,0,8"/>
-          <Button x:Name="AddButton" Content="{local:Tr '＋  Thêm vào hàng đợi'}" Style="{StaticResource PrimaryButton}" Click="AddSources"/>
-        </StackPanel>
-      </Grid>
-    </Border>
-    <Border Grid.Row="5" Background="White" CornerRadius="9" BorderBrush="#E2E7F0" BorderThickness="1">
-      <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Grid Margin="18,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-          <StackPanel VerticalAlignment="Center"><TextBlock Text="{local:Tr 'Hàng đợi tải'}" FontSize="17" FontWeight="SemiBold"/><TextBlock x:Name="QueueSummary" Text="0 torrent" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,3,0,0"/></StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock Text="{local:Tr 'Song song'}" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <ComboBox x:Name="ConcurrencyBox" Width="52" Height="36" VerticalContentAlignment="Center" SelectedIndex="2" SelectionChanged="ConcurrencyChanged"><ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/></ComboBox>
-            <Button x:Name="PauseButton" Content="{local:Tr 'Pause tất cả'}" IsEnabled="False" Click="Pause" Margin="12,0,8,0"/>
-            <Button x:Name="StopAllButton" Content="{local:Tr 'Stop tất cả'}" IsEnabled="False" Click="StopAll" Margin="0,0,8,0"/>
-            <Button x:Name="StartButton" Content="{local:Tr '▶  Bắt đầu / Resume'}" Style="{StaticResource PrimaryButton}" Click="Start"/>
+            <Button x:Name="BrowseButton" Content="{local:Tr 'Chọn thư mục'}" Click="BrowseFolder" HorizontalAlignment="Left" Margin="0,10,0,18"/>
+            <CheckBox x:Name="FlattenFilesBox" Content="{local:Tr 'Lưu tất cả file cùng thư mục'}" IsChecked="True" Click="OutputLayoutChanged"
+                ToolTip="{local:Tr 'Bỏ chọn để tạo thư mục riêng và giữ cấu trúc torrent. Áp dụng cho torrent chưa bắt đầu lưu file; torrent tải dở giữ đường dẫn cũ để tiếp tục.'}"/>
+            <TextBlock Text="{local:Tr 'File tải dở giữ nguyên đường dẫn để tiếp tục.'}" Style="{StaticResource Caption}" Margin="0,12,0,0"/>
+            <Border Background="{DynamicResource Stroke}" Height="1" Margin="0,26,0,24"/>
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <TextBlock Text="&#xE73E;" Style="{StaticResource Symbol}" Foreground="{DynamicResource AccentText}" VerticalAlignment="Top" Margin="0,3,0,0"/>
+              <StackPanel Grid.Column="1"><TextBlock Text="{local:Tr 'Tự động chọn tất cả file'}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock Text="{local:Tr 'Thêm torrent. App lo phần còn lại.'}" Style="{StaticResource Caption}" Margin="0,6,0,0"/>
+              </StackPanel>
+            </Grid>
           </StackPanel>
-        </Grid>
-        <Grid Grid.Row="1">
-          <DataGrid x:Name="QueueGrid" ItemsSource="{Binding Jobs}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False" CanUserResizeRows="False" HeadersVisibility="Column" GridLinesVisibility="None" BorderThickness="0" Background="White" SelectionMode="Extended" SelectionUnit="FullRow" EnableRowVirtualization="True" RowHeaderWidth="0" HorizontalScrollBarVisibility="Auto" SelectionChanged="QueueSelectionChanged">
-            <DataGrid.Columns>
-              <DataGridTemplateColumn Header="{local:Tr 'TORRENT / FILE'}" Width="*" MinWidth="220"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel>
-                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
-                <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}"/>
-              </StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-              <DataGridTextColumn Header="{local:Tr 'DUNG LƯỢNG'}" Binding="{Binding SizeLabel}" Width="108"/>
-              <DataGridTemplateColumn Header="{local:Tr 'REAL-DEBRID'}" Width="130"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding RemoteProgress, StringFormat={}{0:0}%}" FontSize="12"/><ProgressBar Value="{Binding RemoteProgress}" Margin="0,7,0,0"/></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="{local:Tr 'TẢI VỀ MÁY'}" Width="148"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding LocalProgress, StringFormat={}{0:0}%}" FontSize="12"/><ProgressBar Value="{Binding LocalProgress}" Foreground="#1A9A77" Margin="0,7,0,0"/></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="{local:Tr 'TRẠNG THÁI'}" Width="125"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding StateLabel}" FontSize="12" FontWeight="SemiBold"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="#53647F"/><Style.Triggers><DataTrigger Binding="{Binding State}" Value="Completed"><Setter Property="Foreground" Value="#168563"/></DataTrigger><DataTrigger Binding="{Binding State}" Value="Failed"><Setter Property="Foreground" Value="#C24348"/></DataTrigger><DataTrigger Binding="{Binding State}" Value="Downloading"><Setter Property="Foreground" Value="#3159D8"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="{local:Tr 'THAO TÁC'}" Width="230" CanUserSort="False"><DataGridTemplateColumn.CellTemplate><DataTemplate>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                  <Button Content="{local:Tr 'Retry'}" IsEnabled="{Binding CanRetry}" Click="RetryRow" FontSize="11" Padding="6,6" MinHeight="28" Margin="0,0,4,0" ToolTip="{local:Tr 'Thử lại torrent bị lỗi ngay, tiếp tục phần đã tải nếu có'}"/>
-                  <Button Content="{local:Tr 'Resume'}" IsEnabled="{Binding CanResume}" Click="ResumeRow" FontSize="11" Padding="6,6" MinHeight="28" Margin="0,0,4,0" ToolTip="{local:Tr 'Bắt đầu hoặc tiếp tục torrent này'}"/>
-                  <Button Content="{local:Tr 'Stop'}" IsEnabled="{Binding CanStop}" Click="StopRow" FontSize="11" Padding="6,6" MinHeight="28" Margin="0,0,4,0" ToolTip="{local:Tr 'Dừng tác vụ này trong app; giữ file tạm để Resume. Torrent trên Real-Debrid tiếp tục xử lý.'}"/>
-                  <Button Content="{local:Tr 'Xóa'}" IsEnabled="{Binding CanRemove}" Click="RemoveRow" FontSize="11" Padding="6,6" MinHeight="28" Foreground="#C24348" ToolTip="{local:Tr 'Dừng tác vụ và xóa dòng khỏi danh sách. Giữ file trên máy và torrent trên Real-Debrid.'}"/>
+        </ScrollViewer>
+      </Border>
+
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="20"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Border Style="{StaticResource SectionSurface}" Padding="22,20">
+          <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="82"/><RowDefinition Height="12"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <StackPanel><TextBlock Text="{local:Tr 'Thêm torrent'}" FontSize="18" FontWeight="SemiBold"/>
+              <TextBlock Text="{local:Tr 'Mỗi dòng một magnet, URL hoặc file .torrent.'}" Style="{StaticResource Caption}" Margin="0,4,0,0"/>
+            </StackPanel>
+            <Grid Grid.Row="2">
+              <TextBox x:Name="SourcesBox" AcceptsReturn="True" VerticalContentAlignment="Top" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Cascadia Code, Consolas" FontSize="12" TextChanged="SourcesChanged" AutomationProperties.Name="{local:Tr 'Danh sách torrent'}"/>
+              <TextBlock x:Name="SourcePlaceholder" IsHitTestVisible="False" Margin="12,10" Foreground="{DynamicResource Muted}" Text="{local:Tr 'magnet:?xt=urn:btih:…&#10;https://example.com/file.torrent&#10;&#10;Hoặc kéo thả các file .torrent vào cửa sổ'}" FontFamily="Consolas" FontSize="12"/>
+            </Grid>
+            <Grid Grid.Row="4"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel Orientation="Horizontal">
+                <Button x:Name="PasteButton" Content="{local:Tr 'Dán clipboard'}" Click="PasteSources" Style="{StaticResource QuietButton}" Padding="10,8" Margin="-10,0,4,0"/>
+                <Button x:Name="AddFilesButton" Content="{local:Tr 'Chọn file .torrent…'}" Click="PickTorrents" Style="{StaticResource QuietButton}"/>
+              </StackPanel>
+              <Button x:Name="AddButton" Grid.Column="1" Content="{local:Tr 'Thêm vào hàng đợi'}" Style="{StaticResource PrimaryButton}" Click="AddSources"/>
+            </Grid>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Style="{StaticResource SectionSurface}">
+          <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <Grid Margin="22,16,22,14">
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+              <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBlock Text="{local:Tr 'Hàng đợi tải'}" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal"><TextBlock Text="{local:Tr 'Song song'}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                  <ComboBox x:Name="ConcurrencyBox" Width="68" SelectedIndex="2" SelectionChanged="ConcurrencyChanged" AutomationProperties.Name="{local:Tr 'Số torrent tải song song'}"><ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="3"/><ComboBoxItem Content="4"/><ComboBoxItem Content="5"/></ComboBox>
                 </StackPanel>
-              </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-            </DataGrid.Columns>
-          </DataGrid>
-          <StackPanel x:Name="EmptyState" IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,35,0,0"><TextBlock Text="{local:Tr 'Sẵn sàng cho loạt tải đầu tiên'}" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center"/><TextBlock Text="{local:Tr 'Thêm torrent ở trên, rồi bấm Bắt đầu tải.&#10;Toàn bộ file sẽ được chọn tự động.'}" Foreground="{StaticResource Muted}" TextAlignment="Center" Margin="0,9,0,0" LineHeight="21"/></StackPanel>
-        </Grid>
-        <DockPanel Grid.Row="2" Margin="14,10" LastChildFill="False">
-          <TextBlock Text="{local:Tr 'Dòng đã chọn:'}" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-          <Button x:Name="RetryButton" Content="{local:Tr 'Retry'}" Click="RetrySelected" Padding="11,6" MinHeight="30" IsEnabled="False"/>
-          <Button x:Name="ResumeSelectedButton" Content="{local:Tr 'Resume'}" Click="ResumeSelected" Padding="11,6" MinHeight="30" Margin="8,0,0,0" IsEnabled="False"/>
-          <Button x:Name="StopSelectedButton" Content="{local:Tr 'Stop'}" Click="StopSelected" Padding="11,6" MinHeight="30" Margin="8,0,0,0" IsEnabled="False"/>
-          <Button x:Name="RemoveButton" Content="{local:Tr 'Xóa khỏi danh sách'}" Click="RemoveSelected" Padding="11,6" MinHeight="30" Margin="8,0,0,0" IsEnabled="False" ToolTip="{local:Tr 'Dừng rồi bỏ dòng khỏi app, giữ file đã tải và torrent trên Real-Debrid'}"/>
-          <Button x:Name="ClearQueueButton" Content="{local:Tr 'Xóa toàn bộ'}" Click="ClearQueue" Padding="11,6" MinHeight="30" Margin="16,0,0,0" IsEnabled="False" Foreground="#C24348" ToolTip="{local:Tr 'Dừng mọi tác vụ rồi xóa toàn bộ hàng đợi. Giữ file đã tải, file tạm và torrent trên Real-Debrid.'}"/>
-          <Button DockPanel.Dock="Right" Content="{local:Tr 'Mở thư mục lưu ↗'}" Click="OpenOutput" Padding="11,6" MinHeight="30"/>
-        </DockPanel>
+              </Grid>
+              <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBlock x:Name="QueueSummary" Style="{StaticResource Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                  <Button x:Name="PauseButton" Content="{local:Tr 'Pause tất cả'}" IsEnabled="False" Click="Pause" Style="{StaticResource QuietButton}" Margin="0,0,4,0"/>
+                  <Button x:Name="StopAllButton" Content="{local:Tr 'Stop tất cả'}" IsEnabled="False" Click="StopAll" Style="{StaticResource QuietButton}" Margin="0,0,8,0"/>
+                  <Button x:Name="StartButton" Content="{local:Tr 'Bắt đầu / Resume'}" Style="{StaticResource PrimaryButton}" Click="Start"/>
+                </StackPanel>
+              </Grid>
+            </Grid>
+            <Grid Grid.Row="1">
+              <DataGrid x:Name="QueueGrid" ItemsSource="{Binding Jobs}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False" CanUserResizeRows="False" HeadersVisibility="Column" SelectionMode="Extended" SelectionUnit="FullRow" EnableRowVirtualization="True" RowHeaderWidth="0" HorizontalScrollBarVisibility="Auto" SelectionChanged="QueueSelectionChanged">
+                <DataGrid.Columns>
+                  <DataGridTemplateColumn Header="{local:Tr 'Torrent / File'}" Width="*" MinWidth="200"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel>
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
+                    <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,7,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}"/>
+                  </StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                  <DataGridTextColumn Header="{local:Tr 'Dung lượng'}" Binding="{Binding SizeLabel}" Width="90"/>
+                  <DataGridTemplateColumn Header="Real-Debrid" Width="108"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding RemoteProgress, StringFormat={}{0:0}%}" FontSize="12"/>
+                    <Border Background="{DynamicResource ProgressTrack}" Height="4" CornerRadius="2" Margin="0,9,0,0"><ProgressBar Value="{Binding RemoteProgress}" Height="4" Foreground="{DynamicResource ProgressFill}" Background="Transparent" BorderThickness="0"/></Border>
+                  </StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                  <DataGridTemplateColumn Header="{local:Tr 'Tải về máy'}" Width="108"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding LocalProgress, StringFormat={}{0:0}%}" FontSize="12"/>
+                    <Border Background="{DynamicResource ProgressTrack}" Height="4" CornerRadius="2" Margin="0,9,0,0"><ProgressBar Value="{Binding LocalProgress}" Height="4" Foreground="{DynamicResource ProgressFill}" Background="Transparent" BorderThickness="0"/></Border>
+                  </StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                  <DataGridTemplateColumn Header="{local:Tr 'Trạng thái'}" Width="112"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+                    <Border CornerRadius="6" Padding="8,5" HorizontalAlignment="Left"><Border.Style><Style TargetType="Border"><Setter Property="Background" Value="{DynamicResource SubtleSurface}"/>
+                      <Style.Triggers><DataTrigger Binding="{Binding State}" Value="Completed"><Setter Property="Background" Value="{DynamicResource SuccessSoft}"/></DataTrigger><DataTrigger Binding="{Binding State}" Value="Failed"><Setter Property="Background" Value="{DynamicResource DangerSoft}"/></DataTrigger><DataTrigger Binding="{Binding State}" Value="Downloading"><Setter Property="Background" Value="{DynamicResource AccentSoft}"/></DataTrigger></Style.Triggers>
+                    </Style></Border.Style>
+                      <TextBlock Text="{Binding StateLabel}" FontSize="11" FontWeight="SemiBold"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+                        <Style.Triggers><DataTrigger Binding="{Binding State}" Value="Completed"><Setter Property="Foreground" Value="{DynamicResource Success}"/></DataTrigger><DataTrigger Binding="{Binding State}" Value="Failed"><Setter Property="Foreground" Value="{DynamicResource Danger}"/></DataTrigger><DataTrigger Binding="{Binding State}" Value="Downloading"><Setter Property="Foreground" Value="{DynamicResource AccentText}"/></DataTrigger></Style.Triggers>
+                      </Style></TextBlock.Style></TextBlock>
+                    </Border>
+                  </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                  <DataGridTemplateColumn Header="{local:Tr 'Thao tác'}" Width="172" CanUserSort="False"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal">
+                    <Button Content="{local:Tr 'Retry'}" Visibility="{Binding CanRetry, Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding CanRetry}" Click="RetryRow" Style="{StaticResource RowButton}" ToolTip="{local:Tr 'Thử lại torrent bị lỗi ngay, tiếp tục phần đã tải nếu có'}"/>
+                    <Button Content="{local:Tr 'Resume'}" Visibility="{Binding CanResume, Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding CanResume}" Click="ResumeRow" Style="{StaticResource RowButton}" ToolTip="{local:Tr 'Bắt đầu hoặc tiếp tục torrent này'}"/>
+                    <Button Content="{local:Tr 'Stop'}" Visibility="{Binding CanStop, Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding CanStop}" Click="StopRow" Style="{StaticResource RowButton}" ToolTip="{local:Tr 'Dừng tác vụ này trong app; giữ file tạm để Resume. Torrent trên Real-Debrid tiếp tục xử lý.'}"/>
+                    <Button Content="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" AutomationProperties.Name="{local:Tr 'Xóa'}" IsEnabled="{Binding CanRemove}" Click="RemoveRow" Style="{StaticResource RowButton}" Foreground="{DynamicResource Danger}" Padding="6,4" MinWidth="28" Margin="0" ToolTip="{local:Tr 'Dừng tác vụ và xóa dòng khỏi danh sách. Giữ file trên máy và torrent trên Real-Debrid.'}"/>
+                  </StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                </DataGrid.Columns>
+              </DataGrid>
+              <StackPanel x:Name="EmptyState" IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,30,0,0">
+                <Border Background="{DynamicResource AccentSoft}" Width="56" Height="56" CornerRadius="16" HorizontalAlignment="Center" Margin="0,0,0,18"><TextBlock Text="&#xE896;" Style="{StaticResource Symbol}" Foreground="{DynamicResource AccentText}" FontSize="24" HorizontalAlignment="Center"/></Border>
+                <TextBlock Text="{local:Tr 'Sẵn sàng cho loạt tải đầu tiên'}" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                <TextBlock Text="{local:Tr 'Thêm torrent ở trên. Tất cả file sẽ được chọn tự động.'}" Style="{StaticResource Caption}" TextAlignment="Center" MaxWidth="340" Margin="0,8,0,0"/>
+              </StackPanel>
+            </Grid>
+            <Border Grid.Row="2" BorderBrush="{DynamicResource Stroke}" BorderThickness="0,1,0,0" Padding="14,12">
+              <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <WrapPanel>
+                  <TextBlock Text="{local:Tr 'Dòng đã chọn:'}" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" FontSize="11" Margin="0,0,10,0"/>
+                  <Button x:Name="RetryButton" Content="{local:Tr 'Retry'}" Click="RetrySelected" Style="{StaticResource QuietButton}" Padding="10,6" MinHeight="32" IsEnabled="False"/>
+                  <Button x:Name="ResumeSelectedButton" Content="{local:Tr 'Resume'}" Click="ResumeSelected" Style="{StaticResource QuietButton}" Padding="10,6" MinHeight="32" IsEnabled="False"/>
+                  <Button x:Name="StopSelectedButton" Content="{local:Tr 'Stop'}" Click="StopSelected" Style="{StaticResource QuietButton}" Padding="10,6" MinHeight="32" IsEnabled="False"/>
+                  <Button x:Name="RemoveButton" Content="{local:Tr 'Xóa khỏi danh sách'}" Click="RemoveSelected" Style="{StaticResource QuietButton}" Padding="10,6" MinHeight="32" IsEnabled="False" ToolTip="{local:Tr 'Dừng rồi bỏ dòng khỏi app, giữ file đã tải và torrent trên Real-Debrid'}"/>
+                </WrapPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
+                  <Button Content="{local:Tr 'Mở thư mục'}" Click="OpenOutput" Style="{StaticResource QuietButton}" Padding="10,6" MinHeight="32"/>
+                  <Button x:Name="ClearQueueButton" Content="{local:Tr 'Xóa toàn bộ'}" Click="ClearQueue" Style="{StaticResource DangerButton}" Padding="10,6" MinHeight="32" IsEnabled="False" ToolTip="{local:Tr 'Dừng mọi tác vụ rồi xóa toàn bộ hàng đợi. Giữ file đã tải, file tạm và torrent trên Real-Debrid.'}"/>
+                </StackPanel>
+              </Grid>
+            </Border>
+          </Grid>
+        </Border>
       </Grid>
-    </Border>
-    <TextBlock Grid.Row="6" x:Name="StatusText" Text="{local:Tr 'Sẵn sàng · Token được mã hóa bằng tài khoản Windows khi lưu.'}" FontSize="12" Foreground="{StaticResource Muted}" Margin="2,12,0,0" TextWrapping="Wrap"/>
+    </Grid>
+    <TextBlock Grid.Row="2" x:Name="StatusText" Text="{local:Tr 'Sẵn sàng · Token được mã hóa bằng tài khoản Windows khi lưu.'}" Foreground="{DynamicResource Muted}" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
   </Grid>
 </Window>

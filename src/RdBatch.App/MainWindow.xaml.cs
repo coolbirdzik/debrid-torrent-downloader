@@ -42,8 +42,12 @@ public partial class MainWindow : Window
     {
         _store = store;
         _settings = settings;
+        Text.SetLanguage(settings.Language);
+        _settings.Appearance = Appearance.Normalize(settings.Appearance);
+        Appearance.Apply(_settings.Appearance);
         InitializeComponent();
         LanguageBox.SelectedIndex = Text.Language == "en" ? 1 : 0;
+        ThemeBox.SelectedIndex = Appearance.Normalize(settings.Appearance) switch { "light" => 1, "dark" => 2, _ => 0 };
         var workArea = SystemParameters.WorkArea;
         MinHeight = Math.Min(MinHeight, workArea.Height - 24);
         MinWidth = Math.Min(MinWidth, workArea.Width - 24);
@@ -64,6 +68,7 @@ public partial class MainWindow : Window
         if (_store.LoadWarningMessage is not null) SetStatus(_store.LoadWarningMessage.Key, _store.LoadWarningMessage.Arguments.Cast<object?>().ToArray());
         _timer.Tick += (_, _) => RefreshSummary();
         _timer.Start();
+        SystemEvents.UserPreferenceChanged += SystemAppearanceChanged;
         UpdateControls();
         RefreshSummary();
     }
@@ -72,6 +77,22 @@ public partial class MainWindow : Window
     { _statusMessage = LocalizedMessage.Create(key, arguments); StatusText.Text = _statusMessage.Render(); }
     private void SetAccount(string key, params object?[] arguments)
     { _accountMessage = LocalizedMessage.Create(key, arguments); AccountStatus.Text = _accountMessage.Render(); }
+    protected override void OnSourceInitialized(EventArgs e)
+    { base.OnSourceInitialized(e); Appearance.ApplyTitleBar(this); }
+    private void AppearanceChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_initializing || ThemeBox.SelectedItem is not ComboBoxItem { Tag: string choice }) return;
+        _settings.Appearance = Appearance.Normalize(choice);
+        Appearance.Apply(_settings.Appearance, this);
+        Save();
+    }
+    private void SystemAppearanceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        if (_settings.Appearance == "system") Dispatcher.BeginInvoke(() =>
+        {
+            if (!_closing && !_readyToClose) Appearance.Apply("system", this);
+        });
+    }
     private void LanguageChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_initializing || LanguageBox.SelectedItem is not ComboBoxItem { Tag: string language }) return;
@@ -386,7 +407,8 @@ public partial class MainWindow : Window
     }
     private void RefreshSummary()
     {
-        QueueSummary.Text = Text.Get("{0} torrent · {1} xong · {2} đang xử lý · {3} dừng · {4} lỗi", Jobs.Count, Jobs.Count(j => j.State == JobState.Completed), Jobs.Count(j => j.IsActive), Jobs.Count(j => j.State is JobState.Paused or JobState.Stopped), Jobs.Count(j => j.State == JobState.Failed));
+        QueueSummary.Text = Text.Get("{0} torrent, {1} hoàn tất, {2} đang xử lý", Jobs.Count, Jobs.Count(j => j.State == JobState.Completed), Jobs.Count(j => j.IsActive));
+        QueueSummary.ToolTip = Text.Get("{0} torrent · {1} xong · {2} đang xử lý · {3} dừng · {4} lỗi", Jobs.Count, Jobs.Count(j => j.State == JobState.Completed), Jobs.Count(j => j.IsActive), Jobs.Count(j => j.State is JobState.Paused or JobState.Stopped), Jobs.Count(j => j.State == JobState.Failed));
         EmptyState.Visibility = Jobs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
     private void SaveToken()
@@ -434,5 +456,5 @@ public partial class MainWindow : Window
         }
         Save(); DisposeClients();
     }
-    private void DisposeClients() { _timer.Stop(); _apiHttp.Dispose(); _transferHttp.Dispose(); }
+    private void DisposeClients() { SystemEvents.UserPreferenceChanged -= SystemAppearanceChanged; _timer.Stop(); _apiHttp.Dispose(); _transferHttp.Dispose(); }
 }

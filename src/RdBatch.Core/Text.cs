@@ -7,9 +7,9 @@ namespace RdBatch.Core;
 public static class Text
 {
     private static readonly Dictionary<string, string> English = LoadEnglish();
-    public static string Language { get; private set; } = "vi";
+    public static string Language { get; private set; } = "en";
     public static event Action? LanguageChanged;
-    public static string NormalizeLanguage(string? language) => language == "en" ? "en" : "vi";
+    public static string NormalizeLanguage(string? language) => language == "vi" ? "vi" : "en";
 
     public static void SetLanguage(string? language)
     {

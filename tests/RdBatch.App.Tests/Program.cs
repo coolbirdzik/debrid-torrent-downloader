@@ -24,16 +24,23 @@ internal static class Program
                 Resources = (ResourceDictionary)Application.LoadComponent(new Uri("/RealDebridBatch;component/Styles.xaml", UriKind.Relative))
             };
             var store = new SettingsStore(directory);
-            Text.SetLanguage("vi");
             window = new MainWindow(store, store.Load());
+            Check(Text.Language == "en", "First launch should use English");
+            Get<ComboBox>(window, "ThemeBox").SelectedIndex = 1;
+            FlushBindings();
             Check(window.Icon is not null, "Window icon missing");
+            Check(Get<Button>(window, "ClearQueueButton").Content as string == "Clear queue", "English default label missing");
+            Get<TextBox>(window, "FolderBox").Text = @"C:\Downloads\Real-Debrid";
+            Render(window, "empty");
+            Get<ComboBox>(window, "LanguageBox").SelectedIndex = 0;
+            FlushBindings();
             Check(Get<Button>(window, "ClearQueueButton").Content as string == "Xóa toàn bộ", "Vietnamese clear label missing");
             Check(!Get<Button>(window, "ClearQueueButton").IsEnabled, "Empty queue should disable Clear");
             Get<ComboBox>(window, "LanguageBox").SelectedIndex = 1;
             FlushBindings();
             Check(Get<Button>(window, "ConnectButton").Content as string == "Connect", $"Live button binding did not switch to English: language={Text.Language}, revision={TranslationSource.Instance.Revision}, content={Get<Button>(window, "ConnectButton").Content}");
             Check(Get<Button>(window, "ClearQueueButton").Content as string == "Clear queue", "Clear label did not switch to English");
-            Check(Get<DataGrid>(window, "QueueGrid").Columns[1].Header as string == "SIZE", "DataGrid header translation missing");
+            Check(Get<DataGrid>(window, "QueueGrid").Columns[1].Header as string == "Size", "DataGrid header translation missing");
             Check(Get<TextBlock>(window, "SourcePlaceholder").Text.Contains("Or drop .torrent files"), "Multiline placeholder was not translated");
             Check(store.Load().Language == "en", "UI language choice was not saved");
 
@@ -47,16 +54,31 @@ internal static class Program
             window.Jobs[0].SetDetail("Đã lưu {0} file · {1}", 2, "C:\\Downloads");
             PrepareScreenshot(window);
             Render(window, "english");
+            Render(window, "compact-english", 1124, 696);
+            var grid = Get<DataGrid>(window, "QueueGrid");
+            grid.SelectedItem = window.Jobs[1];
+            Check(Get<Button>(window, "ResumeSelectedButton").IsEnabled && !Get<Button>(window, "StopSelectedButton").IsEnabled, "Selected stopped row should offer Resume");
+            grid.SelectedItem = null;
+            Get<ComboBox>(window, "ThemeBox").SelectedIndex = 2;
+            FlushBindings();
+            Check(Appearance.IsDark && store.Load().Appearance == "dark", "Dark appearance was not applied and persisted");
+            Check(((SolidColorBrush)window.Background).Color == Color.FromRgb(0x16, 0x19, 0x1F), "Window background did not update to dark tokens");
+            Render(window, "english-dark");
             Get<ComboBox>(window, "LanguageBox").SelectedIndex = 0;
             FlushBindings();
             Check(Get<Button>(window, "ConnectButton").Content as string == "Kiểm tra", "Switching back left a stale button");
             Check(Get<TextBlock>(window, "StatusText").Text.StartsWith("Đã thêm 1 torrent"), "Switching back left a stale status");
             Check(window.Jobs[0].Detail.StartsWith("Đã lưu 2 file"), "Switching back left a stale queue detail");
             Get<TextBlock>(window, "StatusText").Text = Text.Get("Sẵn sàng · Token được mã hóa bằng tài khoản Windows khi lưu.");
+            Render(window, "vietnamese-dark");
+            Get<ComboBox>(window, "ThemeBox").SelectedIndex = 1;
+            FlushBindings();
+            Check(!Appearance.IsDark && store.Load().Appearance == "light", "Light appearance did not persist");
             Render(window, "vietnamese");
+            Render(window, "compact-vietnamese", 1124, 696);
             ValidateCatalog();
             Console.WriteLine("PASS WPF language bindings, headers, multiline text, status, saved preference, queue controls and icon");
-            Console.WriteLine("PASS English/Vietnamese layout renders and translation format placeholders");
+            Console.WriteLine("PASS light/dark appearances, compact layouts, row selection and translation format placeholders");
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
@@ -91,15 +113,28 @@ internal static class Program
         Get<TextBlock>(window, "StatusText").Text = Text.Get("Sẵn sàng · Token được mã hóa bằng tài khoản Windows khi lưu.");
     }
 
-    private static void Render(MainWindow window, string language)
+    private static void Render(MainWindow window, string language, int width = 1384, int height = 900)
     {
-        const int width = 1224;
-        const int height = 920;
         var root = (FrameworkElement)window.Content;
         root.Measure(new Size(width, height));
         root.Arrange(new Rect(0, 0, width, height));
         root.UpdateLayout();
         FlushBindings();
+        foreach (var name in new[] { "AddButton", "StartButton", "ClearQueueButton", "LanguageBox", "ThemeBox" })
+        {
+            var control = (FrameworkElement)window.FindName(name);
+            var bounds = control.TransformToAncestor(root).TransformBounds(new Rect(control.RenderSize));
+            Check(bounds.Left >= -1 && bounds.Top >= -1 && bounds.Right <= width + 1 && bounds.Bottom <= height + 1, $"{language}: {name} is outside the visible layout: {bounds}");
+        }
+        if (width >= 1384)
+        {
+            var grid = Get<DataGrid>(window, "QueueGrid");
+            foreach (var button in Descendants<Button>(grid).Where(button => button.Visibility == Visibility.Visible && button.ActualWidth > 0))
+            {
+                var bounds = button.TransformToAncestor(grid).TransformBounds(new Rect(button.RenderSize));
+                Check(bounds.Left >= 0 && bounds.Right < grid.ActualWidth, $"{language}: row action is clipped: {button.Content}");
+            }
+        }
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         var background = new DrawingVisual();
         using (var drawing = background.RenderOpen()) drawing.DrawRectangle(window.Background, null, new Rect(0, 0, width, height));
@@ -122,6 +157,16 @@ internal static class Program
             var sourceArguments = Regex.Matches(source, @"\{\d+[^}]*\}").Select(match => match.Value).Order().ToArray();
             var translatedArguments = Regex.Matches(translation, @"\{\d+[^}]*\}").Select(match => match.Value).Order().ToArray();
             Check(sourceArguments.SequenceEqual(translatedArguments), "Translation arguments differ: " + source);
+        }
+    }
+
+    private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match) yield return match;
+            foreach (var descendant in Descendants<T>(child)) yield return descendant;
         }
     }
 }

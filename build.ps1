@@ -2,7 +2,7 @@ param(
     [switch]$FrameworkDependent,
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'artifacts\RealDebridBatch'),
     [ValidatePattern('^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$')]
-    [string]$Version = '0.1.0'
+    [string]$Version = '0.2.0'
 )
 $ErrorActionPreference = 'Stop'
 $projectPath = Join-Path $PSScriptRoot 'src\RdBatch.App\RdBatch.App.csproj'

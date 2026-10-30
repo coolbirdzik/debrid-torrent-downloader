@@ -73,7 +73,8 @@ public sealed class DownloadFile
 
 public sealed class AppSettings
 {
-    public string Language { get; set; } = "vi";
+    public string Language { get; set; } = "en";
+    public string Appearance { get; set; } = "system";
     public string OutputDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "Real-Debrid");
     public bool FlattenFiles { get; set; } = true;
     public int Concurrency { get; set; } = 3;
