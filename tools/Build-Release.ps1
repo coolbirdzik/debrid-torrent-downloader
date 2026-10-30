@@ -15,6 +15,7 @@ Compress-Archive -LiteralPath @(
     (Join-Path $publishDirectory 'RealDebridBatch.exe'),
     (Join-Path $repoDirectory 'README.md'),
     (Join-Path $repoDirectory 'README.en.md'),
+    (Join-Path $repoDirectory 'README.vi.md'),
     (Join-Path $repoDirectory 'docs')
 ) -DestinationPath $zipPath -Force
 $checksums = @($exePath, $zipPath) | ForEach-Object {

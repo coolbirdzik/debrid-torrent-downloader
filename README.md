@@ -1,78 +1,78 @@
-# Real-Debrid Batch
+# Real-Debrid Torrent Multiple Downloader
 
-[English](README.en.md) · Tiếng Việt
+English · [Tiếng Việt](README.vi.md)
 
 [![Build and release](https://github.com/coolbirdzik/realdebrid/actions/workflows/build-release.yml/badge.svg)](https://github.com/coolbirdzik/realdebrid/actions/workflows/build-release.yml)
 
-**[Tải bản Windows x64 (.exe)](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.exe)** · [Bản ZIP](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.zip) · [Tất cả phiên bản](https://github.com/coolbirdzik/realdebrid/releases)
+**[Download for Windows x64 (.exe)](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.exe)** · [ZIP package](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.zip) · [All releases](https://github.com/coolbirdzik/realdebrid/releases)
 
-App desktop Windows để dán hàng loạt magnet, URL `.torrent` hoặc thêm nhiều file `.torrent`. Chọn một nơi lưu chung, bấm **Bắt đầu / Resume**; app tự chọn **toàn bộ file** bằng `files=all`, chờ Real-Debrid tải xong, lấy link và tải về máy.
+Download multiple torrents with Real-Debrid from a single Windows desktop queue. Add magnets, direct `.torrent` URLs or local `.torrent` files in bulk. Choose a download folder, add sources to the queue and click **Start / Resume**. The app selects **all files**, waits for Real-Debrid, then downloads everything to your computer.
 
-## Giao diện
+## Screenshot
 
-![Giao diện tiếng Việt của Real-Debrid Batch với hàng đợi mẫu](docs/images/app-vi.png)
+![Real-Debrid Batch in English with a sample download queue](docs/images/app-en.png)
 
-Ảnh render trực tiếp từ giao diện WPF với dữ liệu minh họa, không dùng tài khoản hoặc tải torrent thật. [Xem giao diện tiếng Anh](docs/images/app-en.png).
+Rendered directly from the WPF interface using sample data, without a real account or torrent transfer. [View the Vietnamese interface](docs/images/app-vi.png).
 
 <details>
-<summary>Giao diện tối</summary>
+<summary>Dark appearance</summary>
 
-![Real-Debrid Batch với giao diện tối](docs/images/app-vi-dark.png)
+![Real-Debrid Batch in dark appearance](docs/images/app-en-dark.png)
 
 </details>
 
-## Tính năng
+## Features
 
-| Tính năng | Hoạt động |
+| Feature | Behavior |
 | --- | --- |
-| Thêm hàng loạt | Magnet, URL `.torrent`, nhiều file `.torrent` hoặc kéo thả. |
-| Tự chọn toàn bộ file | App chọn `files=all` trên Real-Debrid và tải lần lượt từng file. |
-| Tải song song | Xử lý 1–5 torrent; hiển thị riêng tiến trình Real-Debrid và tải về máy. |
-| Tiếp tục tải | Retry / Resume / Stop từng dòng hoặc nhiều dòng; giữ file `.part`. |
-| Quản lý hàng đợi | Pause / Stop tất cả, xóa dòng đã chọn hoặc xóa toàn bộ; nhớ hàng đợi khi mở lại. |
-| Sắp xếp file | Lưu phẳng hoặc giữ thư mục torrent; tự tránh trùng tên, không ghi đè file có sẵn. |
-| Việt / Anh | Mặc định tiếng Anh; đổi ngôn ngữ ngay và nhớ lựa chọn. |
-| Giao diện Fluent | Panel thiết lập riêng, hàng đợi rộng, theme sáng/tối/theo Windows và nhớ lựa chọn. |
-| Lưu token | Tùy chọn nhớ token, mã hóa bằng Windows DPAPI theo tài khoản hiện tại. |
-| Bản portable | Một file `.exe` cho Windows x64, kèm .NET runtime; không cần cài .NET riêng. |
+| Bulk input | Magnets, direct `.torrent` URLs, multiple local `.torrent` files and drag-and-drop. |
+| Automatic file selection | Selects `files=all` on Real-Debrid and downloads each file in sequence. |
+| Parallel torrents | Process 1–5 torrents with separate Real-Debrid and local progress. |
+| Resumable downloads | Retry, resume or stop individual/multiple rows while keeping `.part` files. |
+| Queue management | Pause/stop all, remove selected rows or clear the entire queue; restore it after restarting. |
+| File layout | Flat output or torrent folders, with collision handling and no overwriting. |
+| English / Vietnamese | English by default; switch immediately and remember the language choice. |
+| Fluent desktop UI | Separate setup panel, a spacious queue and saved light/dark/system appearance. |
+| Token storage | Optional token saving with Windows DPAPI encryption for the current account. |
+| Portable executable | A single Windows x64 `.exe` with the .NET runtime included. |
 
-## Mở app
+## Getting started
 
-Tải `RealDebridBatch-win-x64.exe` từ [GitHub Releases](https://github.com/coolbirdzik/realdebrid/releases/latest) rồi mở trực tiếp. Nếu dùng bản ZIP, giải nén rồi chạy `RealDebridBatch.exe`. Cần Windows x64 và tài khoản Real-Debrid Premium còn hạn; không cần cài .NET riêng.
+Download `RealDebridBatch-win-x64.exe` from [GitHub Releases](https://github.com/coolbirdzik/realdebrid/releases/latest) and run it directly. For the ZIP package, extract it and run `RealDebridBatch.exe`. Requires Windows x64 and an active Real-Debrid Premium account; no separate .NET installation is needed.
 
-Nếu chạy từ mã nguồn, mở `artifacts\RealDebridBatch\RealDebridBatch.exe` hoặc chạy `run.ps1` để tự build nếu chưa có exe.
+From source, run `artifacts\RealDebridBatch\RealDebridBatch.exe`, or use `run.ps1` to build it if needed.
 
-1. Lấy private API token tại https://real-debrid.com/apitoken sau khi đăng nhập. Dán vào app và bấm **Kiểm tra**. Cần tài khoản Premium còn hạn.
-2. Chọn nơi lưu toàn bộ. Mặc định bật **Lưu phẳng**: tất cả file nằm trực tiếp trong thư mục đã chọn. Bỏ chọn nếu muốn tạo thư mục riêng và giữ cấu trúc torrent.
-3. Dán mỗi dòng một magnet hoặc URL trả về nội dung `.torrent`. Có thể chọn nhiều file `.torrent`, hoặc kéo thả vào app. Không hỗ trợ URL của trang chi tiết torrent/HTML.
-4. Bấm **Thêm vào hàng đợi**, rồi **Bắt đầu / Resume**. Song song 1–5 torrent (mặc định 3); mỗi torrent tải từng file để giữ số kết nối vừa phải.
+1. Get your private API token from <https://real-debrid.com/apitoken>, paste it into the app and click **Connect**. An active Premium subscription is required.
+2. Choose a download folder. **Flat layout** puts all files directly in that folder; uncheck it to keep separate torrent folders and preserve their structure when possible.
+3. Paste one magnet or direct `.torrent` URL per line. You can also choose multiple local `.torrent` files or drop them onto the window. HTML torrent detail pages are not supported.
+4. Click **Add to queue**, then **Start / Resume**. Set parallel processing from 1 to 5 torrents (default: 3). Each torrent downloads its files sequentially.
 
-App mặc định dùng **English** khi chưa có lựa chọn ngôn ngữ. Chọn **Tiếng Việt / English** ở góc trên bên phải để đổi ngay, kể cả khi đang tải. Lựa chọn đã lưu được giữ khi cập nhật app. Bên cạnh là bộ chọn **Theo hệ thống / Sáng / Tối**; mặc định theo giao diện Windows. Tên file và phản hồi gốc từ máy chủ được giữ nguyên.
+**English is the default** when no language has been selected. Switch languages at the top right, including during a download. Saved choices are preserved when updating. The adjacent appearance selector offers **System theme / Light / Dark** and follows Windows by default. Original filenames and raw server responses are preserved.
 
-Hai cột tiến trình tách riêng phần Real-Debrid đang tải torrent và phần app tải về máy. Torrent không có seed có thể chờ lâu trên Real-Debrid.
+## Queue actions
 
-Mỗi dòng có nút **Retry**, **Resume**, **Stop**, **Xóa**; có thể chọn nhiều dòng rồi dùng các nút tương ứng bên dưới:
+- **Retry** retries a failed torrent, reusing its Real-Debrid ID and resuming partial files where supported. Other torrents can keep running.
+- **Resume** starts a queued torrent or resumes a paused/stopped torrent using its assigned paths. Completed files are skipped after checking their size.
+- **Stop** cancels the selected local task and keeps partial files. The remote torrent continues on Real-Debrid.
+- **Remove** stops a task and waits for it to finish before removing the row. Local files, partial files and the remote torrent are kept.
+- **Pause all / Stop all** stop local queue processing and preserve progress. Use **Start / Resume** to continue; failed rows need **Retry**.
+- **Clear queue** asks for confirmation, stops all tasks and waits for file writers to close before removing every queue record, including completed, failed and already-stopping rows. It also cancels a pending connection. Downloaded files, `.part` files, resume metadata and remote torrents are kept.
 
-- **Retry**: chạy lại ngay torrent bị lỗi, dùng lại ID Real-Debrid và tải tiếp phần `.part` nếu có. Có thể retry khi các torrent khác vẫn đang chạy; tác vụ mới tuân theo giới hạn song song đã chọn.
-- **Resume**: bắt đầu torrent đang chờ hoặc tiếp tục torrent đã pause/stop. Giữ tên file và thư mục đã được gán; bỏ qua file đã hoàn tất. Nếu máy chủ không hỗ trợ tải tiếp, app tải lại file đó từ đầu.
-- **Stop**: dừng tác vụ trong app và giữ file tạm để Resume sau. Torrent đang chờ lượt cũng có thể stop. Các torrent khác tiếp tục chạy. Stop chỉ dừng xử lý/tải về máy trong app; torrent trên Real-Debrid tiếp tục xử lý.
-- **Xóa**: dừng và chờ tác vụ thoát trước khi xóa dòng khỏi danh sách, kể cả khi dòng đó đang tải. Giữ file đã tải, file tạm và torrent trên Real-Debrid.
-- **Pause tất cả** / **Stop tất cả**: ngừng cả lượt xử lý và giữ phần đã tải. **Bắt đầu / Resume** tiếp tục các dòng đang chờ, pause hoặc stop; các dòng lỗi dùng **Retry** riêng.
-- **Xóa toàn bộ**: xác nhận rồi dừng mọi tác vụ, chờ file đang ghi đóng lại và xóa toàn bộ bản ghi hàng đợi, kể cả dòng đang dừng, hoàn tất hoặc lỗi. Hủy cả bước kết nối đang chờ. Giữ nguyên file đã tải, file `.part`, metadata tải tiếp và torrent trên Real-Debrid.
+Row actions also apply to multiple selected rows using the buttons below the queue. Real-Debrid and local progress are shown separately.
 
-## Lưu trữ
+## Storage and resume
 
-- **Lưu phẳng** (mặc định): `<nơi lưu>\<tên file>`. Không tạo thư mục torrent hoặc các thư mục con. File trùng tên được thêm hậu tố ` (2)`, ` (3)`... kể cả khi trùng giữa nhiều torrent tải song song, file đã có trên máy, hoặc file `.part` đang tải dở.
-- Bỏ chọn **Lưu phẳng**: file nằm trong `<nơi lưu>\<tên torrent>_<mã hàng đợi>\...`, giữ cây thư mục khi API cung cấp ánh xạ file rõ ràng. Nếu RD trả link archive/split thì app lưu các archive/split đó, không tự giải nén ở cả hai chế độ.
-- Lựa chọn được nhớ khi mở lại app. Khi tiếp tục torrent đã có file tải dở, app giữ chế độ và đường dẫn cũ. Thay đổi nơi lưu hoặc chế độ áp dụng cho torrent chưa bắt đầu lưu file; app không tự di chuyển các file cũ.
-- Hàng đợi và cài đặt: `%LOCALAPPDATA%\RealDebridBatch\settings.json`. Token được mã hóa bằng Windows DPAPI theo tài khoản hiện tại khi bật **Nhớ token trên máy này**. Không đưa token vào URL, mã nguồn hoặc log.
-- Bỏ dòng khỏi hàng đợi chỉ bỏ bản ghi trong app. File trên máy và torrent trên Real-Debrid vẫn giữ nguyên. App không tự xóa torrent trên tài khoản.
-- App không ghi đè file hoàn tất đã tồn tại. Tải tiếp dùng HTTP Range/If-Range nếu server hỗ trợ; nếu server trả cả file, app tải lại từ đầu. Kích thước được kiểm tra trước khi đổi `.part` thành file hoàn tất.
-- Đóng app sẽ hủy tác vụ và lưu hàng đợi. Mở lại rồi bấm **Bắt đầu / Resume**; không tự chạy nền khi đóng. Trạng thái Stop được nhớ khi mở lại app.
+Settings and queue data are stored in `%LOCALAPPDATA%\RealDebridBatch\settings.json`. Remembered tokens are encrypted with Windows DPAPI for the current Windows account. Tokens are not placed in URLs, source code or logs.
 
-## Build và kiểm tra
+Flat downloads use `<download folder>\<filename>`. Collisions with existing files, other torrents or partial downloads receive suffixes such as ` (2)`. Folder layout uses `<download folder>\<torrent name>_<queue ID>\...`. Archive or split links supplied by Real-Debrid are downloaded as supplied; the app does not extract them.
 
-Yêu cầu .NET 10 SDK để build. Không dùng thư viện NuGet bên ngoài.
+Changing the folder or layout only affects torrents that have not started allocating files. Existing partial downloads keep their original paths. HTTP Range/If-Range is used when supported; if a server ignores Range, the file restarts cleanly. Completed existing files are never overwritten, and sizes are checked before renaming `.part` files.
+
+Closing the app cancels local work and saves the queue. Reopen it and click **Start / Resume** to continue. The app does not keep downloading after closing and never automatically deletes remote torrents.
+
+## Build and verify
+
+Requires the .NET 10 SDK. No external NuGet packages are needed.
 
 ```powershell
 dotnet build src/RdBatch.App -c Release
@@ -81,33 +81,33 @@ dotnet run --project tests/RdBatch.App.Tests -c Release
 .\build.ps1
 ```
 
-`build.ps1 -FrameworkDependent` cho bản nhỏ hơn, cần .NET 10 Desktop Runtime trên máy đích. API chính thức: https://api.real-debrid.com/.
+`build.ps1 -FrameworkDependent` creates a smaller app that requires the .NET 10 Desktop Runtime. Automated core checks use fake HTTP responses and never upload real torrents. WPF checks use isolated settings and render both languages to `artifacts/ui-checks/`.
 
-Các kiểm tra tự động dùng HTTP giả lập, không cần token và không gửi torrent thật lên tài khoản.
+## CI/CD and releases
 
-## CI/CD và phát hành
+- **Push to `main` / pull request:** run core and WPF checks on Windows, build a portable executable and upload the `.exe`, ZIP, SHA-256 checksums and UI screenshots to the workflow's **Artifacts** section in [GitHub Actions](https://github.com/coolbirdzik/realdebrid/actions). Artifacts are retained for 14 days and require signing in to download.
+- **Manual build:** choose **Actions → Build and release → Run workflow** to run checks and download artifacts. A manual run does not publish a Release.
+- **Push a `vMAJOR.MINOR.PATCH` tag:** after all checks pass, publish a GitHub Release with generated notes, the executable, ZIP and `SHA256SUMS.txt`. Tags such as `v0.2.0-beta.1` create prereleases.
+- Uses the automatic `GITHUB_TOKEN`, with `contents: write` limited to the release job. No Real-Debrid token, GitHub PAT or SSH key needs to be added to repository secrets.
 
-- **Push lên `main` / pull request:** chạy kiểm tra core và WPF trên Windows, build bản portable, lưu `.exe`, ZIP, SHA-256 và ảnh giao diện trong mục **Artifacts** của [GitHub Actions](https://github.com/coolbirdzik/realdebrid/actions). Artifact được giữ 14 ngày và tải xuống khi đăng nhập GitHub.
-- **Chạy thủ công:** vào **Actions → Build and release → Run workflow** để kiểm tra và lấy artifact; thao tác này không tạo Release.
-- **Đẩy tag `vMAJOR.MINOR.PATCH`:** sau khi test và build thành công, workflow tự tạo GitHub Release với ghi chú thay đổi, file `.exe`, ZIP và `SHA256SUMS.txt`. Tag có hậu tố như `v0.2.0-beta.1` tạo prerelease.
-- Workflow dùng `GITHUB_TOKEN` sẵn có; chỉ job phát hành có quyền `contents: write`. Không cần thêm API token Real-Debrid, GitHub PAT hay SSH key vào secrets.
-
-Ví dụ phát hành phiên bản tiếp theo:
+To publish the next version:
 
 ```powershell
 git push origin main
-git tag -a v0.1.1 -m 'Release v0.1.1'
-git push origin v0.1.1
+git tag -a v0.2.1 -m 'Release v0.2.1'
+git push origin v0.2.1
 ```
 
-Build bộ file phát hành ngay trên máy:
+To build release assets locally:
 
 ```powershell
-.\tools\Build-Release.ps1 -Version 0.1.1
+.\tools\Build-Release.ps1 -Version 0.2.1
 ```
 
-Kết quả nằm trong `artifacts/release/`. Kiểm tra SHA-256 của file tải về bằng `Get-FileHash .\RealDebridBatch-win-x64.exe -Algorithm SHA256` và đối chiếu với `SHA256SUMS.txt` trong cùng Release. Release chưa ký số Authenticode.
+Output goes to `artifacts/release/`. Use `Get-FileHash .\RealDebridBatch-win-x64.exe -Algorithm SHA256` and compare it with `SHA256SUMS.txt` from the same Release. Releases are not Authenticode-signed.
 
-Kiểm tra WPF dùng thư mục cài đặt thử riêng, xác minh đổi ngôn ngữ và tạo ảnh giao diện ở `artifacts/ui-checks/`. Icon mới có nguồn vector tại `src/RdBatch.App/Assets/AppIcon.svg`; chạy `tools/Generate-Icon.ps1` để tạo lại PNG và ICO đa kích thước (16–256 px), dùng cho cửa sổ, taskbar và file exe.
+The icon source is `src/RdBatch.App/Assets/AppIcon.svg`. Run `tools/Generate-Icon.ps1` on Windows to rebuild its PNG and multi-resolution ICO (16–256 px). The icon is included in the window, taskbar and published executable.
 
-Để cập nhật ảnh trong README sau khi đổi UI, chạy kiểm tra WPF ở thư mục gốc repo rồi chép `artifacts/ui-checks/vietnamese.png` sang `docs/images/app-vi.png` và `english.png` sang `docs/images/app-en.png`.
+To refresh README screenshots after UI changes, run the WPF checks from the repository root, then copy `artifacts/ui-checks/english.png` to `docs/images/app-en.png` and `vietnamese.png` to `docs/images/app-vi.png`.
+
+Official API reference: <https://api.real-debrid.com/>.
