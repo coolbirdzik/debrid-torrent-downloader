@@ -2,11 +2,37 @@
 
 [English](README.en.md) · Tiếng Việt
 
+[![Build and release](https://github.com/coolbirdzik/realdebrid/actions/workflows/build-release.yml/badge.svg)](https://github.com/coolbirdzik/realdebrid/actions/workflows/build-release.yml)
+
+**[Tải bản Windows x64 (.exe)](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.exe)** · [Bản ZIP](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.zip) · [Tất cả phiên bản](https://github.com/coolbirdzik/realdebrid/releases)
+
 App desktop Windows để dán hàng loạt magnet, URL `.torrent` hoặc thêm nhiều file `.torrent`. Chọn một nơi lưu chung, bấm **Bắt đầu / Resume**; app tự chọn **toàn bộ file** bằng `files=all`, chờ Real-Debrid tải xong, lấy link và tải về máy.
+
+## Giao diện
+
+![Giao diện tiếng Việt của Real-Debrid Batch với hàng đợi mẫu](docs/images/app-vi.png)
+
+Ảnh render trực tiếp từ giao diện WPF với dữ liệu minh họa, không dùng tài khoản hoặc tải torrent thật. [Xem giao diện tiếng Anh](docs/images/app-en.png).
+
+## Tính năng
+
+| Tính năng | Hoạt động |
+| --- | --- |
+| Thêm hàng loạt | Magnet, URL `.torrent`, nhiều file `.torrent` hoặc kéo thả. |
+| Tự chọn toàn bộ file | App chọn `files=all` trên Real-Debrid và tải lần lượt từng file. |
+| Tải song song | Xử lý 1–5 torrent; hiển thị riêng tiến trình Real-Debrid và tải về máy. |
+| Tiếp tục tải | Retry / Resume / Stop từng dòng hoặc nhiều dòng; giữ file `.part`. |
+| Quản lý hàng đợi | Pause / Stop tất cả, xóa dòng đã chọn hoặc xóa toàn bộ; nhớ hàng đợi khi mở lại. |
+| Sắp xếp file | Lưu phẳng hoặc giữ thư mục torrent; tự tránh trùng tên, không ghi đè file có sẵn. |
+| Việt / Anh | Đổi ngôn ngữ ngay và nhớ lựa chọn. |
+| Lưu token | Tùy chọn nhớ token, mã hóa bằng Windows DPAPI theo tài khoản hiện tại. |
+| Bản portable | Một file `.exe` cho Windows x64, kèm .NET runtime; không cần cài .NET riêng. |
 
 ## Mở app
 
-Chạy `artifacts\RealDebridBatch\RealDebridBatch.exe`. Bản build mặc định có sẵn .NET runtime, dành cho Windows x64. Hoặc chạy `run.ps1` để tự build nếu chưa có exe.
+Tải `RealDebridBatch-win-x64.exe` từ [GitHub Releases](https://github.com/coolbirdzik/realdebrid/releases/latest) rồi mở trực tiếp. Nếu dùng bản ZIP, giải nén rồi chạy `RealDebridBatch.exe`. Cần Windows x64 và tài khoản Real-Debrid Premium còn hạn; không cần cài .NET riêng.
+
+Nếu chạy từ mã nguồn, mở `artifacts\RealDebridBatch\RealDebridBatch.exe` hoặc chạy `run.ps1` để tự build nếu chưa có exe.
 
 1. Lấy private API token tại https://real-debrid.com/apitoken sau khi đăng nhập. Dán vào app và bấm **Kiểm tra**. Cần tài khoản Premium còn hạn.
 2. Chọn nơi lưu toàn bộ. Mặc định bật **Lưu phẳng**: tất cả file nằm trực tiếp trong thư mục đã chọn. Bỏ chọn nếu muốn tạo thư mục riêng và giữ cấu trúc torrent.
@@ -51,4 +77,29 @@ dotnet run --project tests/RdBatch.App.Tests -c Release
 
 Các kiểm tra tự động dùng HTTP giả lập, không cần token và không gửi torrent thật lên tài khoản.
 
+## CI/CD và phát hành
+
+- **Push lên `main` / pull request:** chạy kiểm tra core và WPF trên Windows, build bản portable, lưu `.exe`, ZIP, SHA-256 và ảnh giao diện trong mục **Artifacts** của [GitHub Actions](https://github.com/coolbirdzik/realdebrid/actions). Artifact được giữ 14 ngày và tải xuống khi đăng nhập GitHub.
+- **Chạy thủ công:** vào **Actions → Build and release → Run workflow** để kiểm tra và lấy artifact; thao tác này không tạo Release.
+- **Đẩy tag `vMAJOR.MINOR.PATCH`:** sau khi test và build thành công, workflow tự tạo GitHub Release với ghi chú thay đổi, file `.exe`, ZIP và `SHA256SUMS.txt`. Tag có hậu tố như `v0.2.0-beta.1` tạo prerelease.
+- Workflow dùng `GITHUB_TOKEN` sẵn có; chỉ job phát hành có quyền `contents: write`. Không cần thêm API token Real-Debrid, GitHub PAT hay SSH key vào secrets.
+
+Ví dụ phát hành phiên bản tiếp theo:
+
+```powershell
+git push origin main
+git tag -a v0.1.1 -m 'Release v0.1.1'
+git push origin v0.1.1
+```
+
+Build bộ file phát hành ngay trên máy:
+
+```powershell
+.\tools\Build-Release.ps1 -Version 0.1.1
+```
+
+Kết quả nằm trong `artifacts/release/`. Kiểm tra SHA-256 của file tải về bằng `Get-FileHash .\RealDebridBatch-win-x64.exe -Algorithm SHA256` và đối chiếu với `SHA256SUMS.txt` trong cùng Release. Release chưa ký số Authenticode.
+
 Kiểm tra WPF dùng thư mục cài đặt thử riêng, xác minh đổi ngôn ngữ và tạo ảnh giao diện ở `artifacts/ui-checks/`. Icon mới có nguồn vector tại `src/RdBatch.App/Assets/AppIcon.svg`; chạy `tools/Generate-Icon.ps1` để tạo lại PNG và ICO đa kích thước (16–256 px), dùng cho cửa sổ, taskbar và file exe.
+
+Để cập nhật ảnh trong README sau khi đổi UI, chạy kiểm tra WPF ở thư mục gốc repo rồi chép `artifacts/ui-checks/vietnamese.png` sang `docs/images/app-vi.png` và `english.png` sang `docs/images/app-en.png`.
