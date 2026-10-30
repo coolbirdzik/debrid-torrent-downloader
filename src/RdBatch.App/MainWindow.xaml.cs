@@ -333,7 +333,8 @@ public partial class MainWindow : Window
         _runCancellation?.Cancel(); // Also cancel account validation before a session exists.
         await clearing;
         if (run is not null) await run;
-        Save(); RefreshSummary();
+        var saved = Save(); RefreshSummary();
+        if (!saved) return;
         SetStatus("Đã xóa toàn bộ hàng đợi. File đã tải, file tạm và torrent trên Real-Debrid được giữ nguyên.");
     }
 
@@ -393,9 +394,9 @@ public partial class MainWindow : Window
         _settings.ProtectedToken = RememberToken.IsChecked == true && TokenBox.Password.Trim().Length > 0
             ? Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(TokenBox.Password.Trim()), null, DataProtectionScope.CurrentUser)) : null;
     }
-    private void Save()
+    private bool Save()
     {
-        if (_initializing) return;
+        if (_initializing) return false;
         try
         {
             _settings.OutputDirectory = FolderBox.Text.Trim();
@@ -404,11 +405,13 @@ public partial class MainWindow : Window
             _settings.Jobs = Jobs.ToList();
             _store.Save(_settings);
             _storageErrorShown = false;
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             SetStatus("Không lưu được hàng đợi: {0}", ex.Message);
             if (!_storageErrorShown) { _storageErrorShown = true; MessageBox.Show(this, StatusText.Text, Text.Get("Lỗi lưu hàng đợi"), MessageBoxButton.OK, MessageBoxImage.Warning); }
+            return false;
         }
     }
 
@@ -421,7 +424,11 @@ public partial class MainWindow : Window
             if (_closing) return;
             _closing = true; _runCancellation?.Cancel(); UpdateControls();
             if (_runTask is not null) await _runTask;
-            if (_clearTask is not null) await _clearTask;
+            if (_clearTask is not null)
+            {
+                try { await _clearTask; }
+                catch (Exception ex) { SetStatus("Không thể xóa toàn bộ hàng đợi: {0}", ex.Message); }
+            }
             Save(); _readyToClose = true; Close();
             return;
         }
