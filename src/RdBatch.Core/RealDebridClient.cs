@@ -19,12 +19,38 @@ public sealed class RealDebridClient(HttpClient http, string token)
 
     public Task<RdUser> GetUserAsync(CancellationToken ct) => RequestAsync<RdUser>(HttpMethod.Get, "user", null, ct);
     public Task<TorrentInfo> GetInfoAsync(string id, CancellationToken ct) => RequestAsync<TorrentInfo>(HttpMethod.Get, "torrents/info/" + Uri.EscapeDataString(id), null, ct);
+    /// <summary>Every torrent on the token's account, page by page (the API caps a page at 5000).</summary>
+    public async Task<IReadOnlyList<RdTorrent>> ListTorrentsAsync(CancellationToken ct)
+    {
+        const int pageSize = 1000;
+        var torrents = new List<RdTorrent>();
+        for (var page = 1; page <= 100; page++)
+        {
+            // An empty account may answer with no body at all.
+            var batch = await RequestAsync<RdTorrent[]?>(HttpMethod.Get, $"torrents?page={page}&limit={pageSize}", null, ct);
+            if (batch is null || batch.Length == 0) break;
+            torrents.AddRange(batch);
+            if (batch.Length < pageSize) break;
+        }
+        return torrents.DistinctBy(torrent => torrent.Id).ToList();
+    }
+    public async Task DeleteTorrentAsync(string id, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Torrent ID is required.", nameof(id));
+        await RequestAsync<JsonElement>(HttpMethod.Delete, "torrents/delete/" + Uri.EscapeDataString(id), null, ct);
+    }
     public async Task<string> AddMagnetAsync(string magnet, CancellationToken ct)
         => (await RequestAsync<CreatedTorrent>(HttpMethod.Post, "torrents/addMagnet", () => Form("magnet", magnet), ct)).Id;
     public async Task<string> AddTorrentAsync(byte[] bytes, CancellationToken ct)
         => (await RequestAsync<CreatedTorrent>(HttpMethod.Put, "torrents/addTorrent", () => new ByteArrayContent(bytes), ct)).Id;
     public async Task SelectAllAsync(string id, CancellationToken ct)
         => await RequestAsync<JsonElement>(HttpMethod.Post, "torrents/selectFiles/" + Uri.EscapeDataString(id), () => Form("files", "all"), ct);
+    public async Task SelectFilesAsync(string id, IEnumerable<int> fileIds, CancellationToken ct)
+    {
+        var ids = fileIds.Distinct().Order().ToArray();
+        if (ids.Length == 0 || ids.Any(value => value <= 0)) throw new ArgumentException(Text.Get("Chọn ít nhất một file để tải."));
+        await RequestAsync<JsonElement>(HttpMethod.Post, "torrents/selectFiles/" + Uri.EscapeDataString(id), () => Form("files", string.Join(",", ids)), ct);
+    }
     public Task<UnrestrictedLink> UnrestrictAsync(string link, CancellationToken ct)
         => RequestAsync<UnrestrictedLink>(HttpMethod.Post, "unrestrict/link", () => Form("link", link), ct);
     private static FormUrlEncodedContent Form(string key, string value) => new([new(key, value)]);

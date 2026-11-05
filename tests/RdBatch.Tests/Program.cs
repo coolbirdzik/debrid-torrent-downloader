@@ -14,6 +14,11 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Reject wrong Content-Range and truncated content", TestInvalidResponses),
     ("Cancellation preserves partial download", TestCancellation),
     ("Complete batch flow: add, select all, poll, unrestrict, download every file", TestPipeline),
+    ("Torrent inspection waits for metadata without selecting or downloading", TestInspection),
+    ("Search videos through nested folders with exact folder boundaries", TestFileSearch),
+    ("Selected file IDs are sent to RD and survive restart/resume", TestSelectedPipeline),
+    ("A selected single file with zero seeds reports remote waiting without local transfers", TestWaitingForSources),
+    ("Cached torrents download only requested links and reject combined/missing mappings", TestSelectedCached),
     ("Flat batch avoids collisions across torrents, existing files and partials", TestFlatBatch),
     ("Flat resume keeps assigned names after changing the layout setting", TestFlatResume),
     ("Existing folder queue keeps its layout when flat mode is enabled", TestLegacyLayout),
@@ -27,6 +32,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Torrent upload sends raw bytes and auth only to API", TestTorrentUpload),
     ("Saved queue restores paused state and preserves remote IDs", TestPersistence),
     ("401 reports invalid token without leaking credentials", TestApiFailure),
+    ("Remote torrent deletion uses exact escaped IDs and never replays an ambiguous failure", TestRemoteDeletion),
     ("English and Vietnamese messages, errors and queue details survive switching and restart", TestLanguages),
     ("Clear a mixed queue waits for writers and preserves completed and partial files", TestClearQueue),
     ("Clear an idle queue and save an empty queue", TestClearIdleQueue)
@@ -41,6 +47,45 @@ Console.WriteLine($"{tests.Length - failed}/{tests.Length} passed");
 return failed == 0 ? 0 : 1;
 
 static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
+static async Task TestWaitingForSources()
+{
+    using var temp = new TempDirectory();
+    using var cancellation = new CancellationTokenSource();
+    using var api = Client((request, _) =>
+    {
+        Check(request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/info/waiting"), "Waiting for seeds selected or re-added an already selected torrent");
+        return Task.FromResult(Json(new { id = "waiting", filename = "Single file", status = "downloading", progress = 0, bytes = 3, seeders = 0, speed = 0,
+            files = new[] { new TorrentFile(1, "/video.mkv", 3, 1), new TorrentFile(2, "/notes.txt", 2, 0) }, links = Array.Empty<string>() }));
+    });
+    using var files = Client((_, _) => throw new Exception("Waiting torrent started a local transfer without a link"));
+    var job = new DownloadJob { TorrentId = "waiting", SelectedFileIds = [1] };
+    var engine = new DownloadEngine(new(api, "test"), files);
+    var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    engine.Changed += changed => { if (changed.State == JobState.Waiting && changed.Detail.Contains("0 seed")) waiting.TrySetResult(); };
+    var work = engine.RunAsync([job], temp.Path, 1, cancellation.Token);
+    await waiting.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    Check(job.Detail.Contains("0 B/s") && job.RemoteProgress == 0 && job.Files.Count == 0 && job.SelectedFileIds.SequenceEqual([1]), "Zero-seed status or selected-file state was lost");
+    cancellation.Cancel(); await work;
+}
+static async Task TestRemoteDeletion()
+{
+    var deletes = 0;
+    using var http = Client((request, _) =>
+    {
+        Check(request.Method == HttpMethod.Delete && request.RequestUri!.AbsolutePath == "/rest/1.0/torrents/delete/ID%2F%3F%23", "Delete escaped the selected ID incorrectly");
+        Check(request.RequestUri!.Query.Length == 0 && request.Headers.Authorization?.Parameter == "private-token", "Token or ID leaked into the delete URL");
+        deletes++;
+        return Task.FromResult(new HttpResponseMessage(deletes == 1 ? HttpStatusCode.NoContent : HttpStatusCode.InternalServerError));
+    });
+    var api = new RealDebridClient(http, "private-token");
+    await api.DeleteTorrentAsync("ID/?#", default);
+    try { await api.DeleteTorrentAsync("ID/?#", default); throw new Exception("Server failure was ignored"); }
+    catch (RdApiException error) { Check(error.Status == HttpStatusCode.InternalServerError && !error.Message.Contains("private-token"), "Delete error lost status or exposed the token"); }
+    Check(deletes == 2, "An ambiguous failed DELETE was replayed");
+    try { await api.DeleteTorrentAsync("", default); throw new Exception("Empty delete ID was accepted"); }
+    catch (ArgumentException) { }
+    Check(deletes == 2, "Empty ID sent a delete request");
+}
 static Task TestLanguages()
 {
     using var temp = new TempDirectory();
@@ -265,6 +310,109 @@ static async Task TestPipeline()
     Check(job.FlattenFiles == false && File.Exists(Path.Combine(job.OutputDirectory!, "Example", "sub", "b.txt")), "Changed layout of existing structured job");
 }
 
+static async Task TestInspection()
+{
+    var polls = 0;
+    using var apiHttp = Client((r, _) =>
+    {
+        Check(r.Method == HttpMethod.Get && r.RequestUri!.AbsolutePath.Contains("/info/"), "Inspection selected or uploaded a torrent");
+        var files = ++polls == 1 ? Array.Empty<TorrentFile>() : [new TorrentFile(7, "/Folder/video.mkv", 3, 0)];
+        return Task.FromResult(Json(new { id = "preview", filename = "Folder", status = "magnet_conversion", progress = 0, bytes = 3, files, links = Array.Empty<string>() }));
+    });
+    using var transferHttp = Client((_, _) => throw new Exception("Inspection downloaded a file"));
+    var engine = new DownloadEngine(new(apiHttp, "test"), transferHttp);
+    var info = await engine.InspectAsync("preview", default);
+    Check(polls == 2 && info.Files.Single().Id == 7, "Inspection did not wait for metadata");
+    using var canceled = new CancellationTokenSource();
+    canceled.Cancel();
+    try { await engine.InspectAsync("preview", canceled.Token); throw new Exception("Inspection ignored cancellation"); }
+    catch (OperationCanceledException) { }
+}
+
+static Task TestFileSearch()
+{
+    TorrentFile[] files = [new(1, "/Pack/Season 1/Episode.MKV", 3, 0), new(2, "/Pack/Season 10/Episode.mp4", 4, 0),
+        new(3, "/Pack/Season 1/Episode.srt", 5, 0), new(4, @"\Pack\Season 1\Extra\clip.WEBM", 6, 0)];
+    Check(TorrentFileSearch.Filter(files, "  ePISode   ", true, "/Pack/Season 1").Select(file => file.Id).SequenceEqual([1]), "Search included subtitles or a sibling folder");
+    Check(TorrentFileSearch.Filter(files, "", true, "Pack/Season 1").Select(file => file.Id).SequenceEqual([1, 4]), "Search missed a nested Windows path");
+    Check(TorrentFileSearch.Filter(files, "season episode", false).Count() == 3, "Search terms should match paths case-insensitively");
+    Check(!TorrentFileSearch.IsVideo("video.mkv.txt"), "Video type must use the final extension");
+    return Task.CompletedTask;
+}
+
+static async Task TestSelectedPipeline()
+{
+    using var temp = new TempDirectory();
+    var selected = false;
+    var selections = 0;
+    using var apiHttp = Client(async (r, ct) =>
+    {
+        var path = r.RequestUri!.AbsolutePath;
+        if (path.Contains("selectFiles"))
+        {
+            Check(await r.Content!.ReadAsStringAsync(ct) == "files=2", "Selection sent all files or the wrong file ID");
+            selected = true; selections++; return new(HttpStatusCode.NoContent);
+        }
+        if (path.Contains("/info/")) return Json(new
+        {
+            id = "selected", filename = "Pack", status = selected ? "downloaded" : "waiting_files_selection", progress = selected ? 100 : 0, bytes = 9,
+            files = new[] { new TorrentFile(1, "/Pack/readme.txt", 6, 0), new TorrentFile(2, "/Pack/sub/video.mkv", 3, selected ? 1 : 0) },
+            links = selected ? new[] { "https://rd.test/video" } : Array.Empty<string>()
+        });
+        Check(path.EndsWith("unrestrict/link"), "Resume unexpectedly added another torrent");
+        return Json(new { filename = "video.mkv", filesize = 3, download = "https://files.test/video" });
+    });
+    var transfers = 0;
+    using var files = Client((_, _) => { transfers++; return Task.FromResult(Bytes([1, 2, 3])); });
+    var job = new DownloadJob { Source = "magnet:test", SourceKey = "test", TorrentId = "selected", SelectedFileIds = [2] };
+    var engine = new DownloadEngine(new(apiHttp, "test"), files);
+    await engine.RunAsync([job], temp.Path, 1, default, flattenFiles: false);
+    Check(job.State == JobState.Completed && transfers == 1 && job.TotalBytes == 3, job.Detail);
+    Check(File.Exists(Path.Combine(job.OutputDirectory!, "Pack", "sub", "video.mkv")) && job.Files.Count == 1, "Selection lost folder structure or downloaded extras");
+    var store = new SettingsStore(Path.Combine(temp.Path, "settings"));
+    store.Save(new() { Jobs = [job], Library = [new() { Source = job.Source, SourceKey = "test", Files = [new(2, "/Pack/sub/video.mkv", 3, 0)] }] });
+    var restored = store.Load();
+    Check(restored.Jobs[0].SelectedFileIds!.SequenceEqual([2]) && restored.Library.Single().Files.Single().Id == 2, "Restart lost the selected IDs or metadata");
+    await engine.RunAsync(restored.Jobs, temp.Path, 1, default);
+    Check(transfers == 1 && selections == 1 && restored.Jobs[0].State == JobState.Completed, "Resume downloaded extra files or changed selection");
+}
+
+static async Task TestSelectedCached()
+{
+    using var temp = new TempDirectory();
+    using var apiHttp = CachedTorrentApi(3);
+    var transfers = 0;
+    using var files = Client((r, _) =>
+    {
+        Check(r.RequestUri!.AbsolutePath.EndsWith("/2"), "Downloaded an unselected file from a cached torrent");
+        transfers++; return Task.FromResult(Bytes([1, 2, 3]));
+    });
+    var job = new DownloadJob { TorrentId = "cached", SelectedFileIds = [2] };
+    await new DownloadEngine(new(apiHttp, "test"), files).RunAsync([job], temp.Path, 1, default);
+    Check(job.State == JobState.Completed && transfers == 1 && job.Files.Single().LinkIndex == 1 && job.TotalBytes == 3, job.Detail);
+    using (var mismatched = Client((r, _) => Task.FromResult(r.RequestUri!.AbsolutePath.Contains("/info/")
+        ? Json(new { id = "wrong", filename = "Pack", status = "downloaded", progress = 100, bytes = 3,
+            files = new[] { new TorrentFile(1, "/video.mkv", 3, 1) }, links = new[] { "https://rd.test/wrong" } })
+        : Json(new { filename = "archive.zip", filesize = 3, download = "https://files.test/wrong" }))))
+    {
+        var wrong = new DownloadJob { TorrentId = "wrong", SelectedFileIds = [1] };
+        await new DownloadEngine(new(mismatched, "test"), files).RunAsync([wrong], temp.Path, 1, default);
+        Check(wrong.State == JobState.Failed && wrong.Files.Count == 0 && transfers == 1, "Mismatched file name downloaded an unwanted archive");
+    }
+    foreach (var ids in new List<int>[] { [], [99], [1] })
+    {
+        using var combined = Client((_, _) => Task.FromResult(Json(new
+        {
+            id = "combined", filename = "Pack", status = "downloaded", progress = 100, bytes = 6,
+            files = new[] { new TorrentFile(1, "/a.mkv", 3, 1), new TorrentFile(2, "/b.txt", 3, 1) },
+            links = new[] { "https://rd.test/archive" }
+        })));
+        var rejected = new DownloadJob { TorrentId = "combined", SelectedFileIds = ids };
+        await new DownloadEngine(new(combined, "test"), files).RunAsync([rejected], temp.Path, 1, default);
+        Check(rejected.State == JobState.Failed && rejected.Files.Count == 0 && transfers == 1, "Ambiguous or empty selection transferred unwanted files");
+    }
+}
+
 static HttpClient CachedTorrentApi(int fileSize = 1) => Client(async (r, ct) =>
 {
     if (r.RequestUri!.AbsolutePath.Contains("torrents/info"))
@@ -309,7 +457,7 @@ static async Task TestStopAndResume()
         }
         return Task.FromResult(Bytes([0, 1, 2, 3, 4, 5]));
     });
-    var target = new DownloadJob { TorrentId = "target" };
+    var target = new DownloadJob { TorrentId = "target", SelectedFileIds = [1] };
     var other = new DownloadJob { TorrentId = "other" };
     using var session = new DownloadEngine(new(api, "t"), files).CreateSession([target, other], temp.Path, 2);
     var work = session.EnqueueAsync(target);
@@ -323,6 +471,7 @@ static async Task TestStopAndResume()
     await session.EnqueueAsync(target); // Resume while the other torrent still belongs to this session.
     await Task.WhenAll(work, otherWork);
     Check(other.State == JobState.Completed && target.State == JobState.Completed && resumed, "Stop affected another torrent or Resume failed");
+    Check(target.Files.Count == 1 && target.Files[0].TorrentFileId == 1, "Resume downloaded an unselected file");
     Check((await File.ReadAllBytesAsync(destination)).SequenceEqual(new byte[] { 0, 1, 2, 3, 4, 5 }), "Resumed file content differs");
     Check(session.ActiveCount == 0 && !target.IsStopping, "Session did not become idle");
 }

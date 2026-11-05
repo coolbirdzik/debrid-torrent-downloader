@@ -2,12 +2,32 @@ using System.Net;
 
 namespace RdBatch.Core;
 
-public sealed class DownloadEngine(RealDebridClient api, HttpClient transfers)
+public sealed class DownloadEngine(RealDebridClient api, HttpClient transfers, string? accountUsername = null)
 {
     private const int MaxTorrentBytes = 20 * 1024 * 1024;
     private readonly FileDownloader _downloader = new(transfers);
     public event Action<DownloadJob>? Changed;
     internal void Publish(DownloadJob job) => Changed?.Invoke(job);
+
+    public async Task<string> AddSourceAsync(string source, CancellationToken ct)
+        => source.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase)
+            ? await api.AddMagnetAsync(source, ct)
+            : await api.AddTorrentAsync(await ReadTorrentAsync(source, ct), ct);
+
+    // Inspection never selects files or starts local transfers.
+    public async Task<TorrentInfo> InspectAsync(string torrentId, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromMinutes(3));
+        while (true)
+        {
+            var info = await api.GetInfoAsync(torrentId, timeout.Token);
+            if (info.Status is "magnet_error" or "error" or "virus" or "dead")
+                throw new InvalidOperationException(Text.Get("Torrent không tải được trên Real-Debrid: {0}", info.Status));
+            if (info.Files.Length > 0) return info;
+            await Task.Delay(TimeSpan.FromSeconds(2), timeout.Token);
+        }
+    }
 
     public DownloadSession CreateSession(IEnumerable<DownloadJob> jobs, string outputDirectory, int concurrency, bool flattenFiles = true)
         => new(this, jobs, outputDirectory, concurrency, flattenFiles);
@@ -21,12 +41,12 @@ public sealed class DownloadEngine(RealDebridClient api, HttpClient transfers)
 
     internal async Task ProcessAsync(DownloadJob job, string root, bool flattenFiles, DownloadPathAllocator paths, CancellationToken ct)
     {
+        if (job.SelectedFileIds is { Count: 0 }) throw new InvalidOperationException(Text.Get("Chọn ít nhất một file để tải."));
         Set(job, JobState.Adding, job.TorrentId is null ? "Đang thêm vào Real-Debrid…" : "Đang tiếp tục torrent đã thêm…");
         if (job.TorrentId is null)
         {
-            job.TorrentId = job.Source.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase)
-                ? await api.AddMagnetAsync(job.Source, ct)
-                : await api.AddTorrentAsync(await ReadTorrentAsync(job.Source, ct), ct);
+            job.TorrentId = await AddSourceAsync(job.Source, ct);
+            job.RemoteAccount = accountUsername;
             Changed?.Invoke(job); // Persist the ID before any subsequent network call.
         }
 
@@ -38,26 +58,49 @@ public sealed class DownloadEngine(RealDebridClient api, HttpClient transfers)
             info = await api.GetInfoAsync(job.TorrentId, ct);
             job.Name = string.IsNullOrWhiteSpace(info.Filename) ? job.Name : info.Filename;
             job.RemoteProgress = info.Progress;
-            job.TotalBytes = info.Bytes;
+            job.TotalBytes = job.SelectedFileIds is { } selectedIds && info.Files.Length > 0
+                ? info.Files.Where(file => selectedIds.Contains(file.Id)).Sum(file => file.Bytes) : info.Bytes;
             if (info.Status is "magnet_error" or "error" or "virus" or "dead")
                 throw new InvalidOperationException(Text.Get("Torrent không tải được trên Real-Debrid: {0}", info.Status));
             if (info.Status == "waiting_files_selection" && !selected)
             {
-                await api.SelectAllAsync(job.TorrentId, ct);
+                if (job.SelectedFileIds is null) await api.SelectAllAsync(job.TorrentId, ct);
+                else
+                {
+                    if (job.SelectedFileIds.Except(info.Files.Select(f => f.Id)).Any())
+                        throw new InvalidOperationException(Text.Get("Danh sách file torrent đã thay đổi. Hãy đọc lại torrent và chọn lại file."));
+                    await api.SelectFilesAsync(job.TorrentId, job.SelectedFileIds, ct);
+                }
                 selected = true;
-                Set(job, JobState.Waiting, "Đã chọn toàn bộ file · chờ Real-Debrid…");
+                Set(job, JobState.Waiting, "Đã chọn file · chờ Real-Debrid…");
             }
             else if (info.Status == "downloaded")
             {
-                if (info.Files.Any(f => f.Selected != 1))
+                if (job.SelectedFileIds is null && info.Files.Any(f => f.Selected != 1))
                     throw new InvalidOperationException(Text.Get("Torrent trên tài khoản chỉ chọn một phần file. Hãy thêm lại torrent trên Real-Debrid với toàn bộ file được chọn."));
                 break;
             }
+            else if (info.Status == "downloading" && info.Seeders == 0 && info.Speed.GetValueOrDefault() == 0)
+                Set(job, JobState.Waiting, "Real-Debrid đang chờ nguồn tải · 0 seed · 0 B/s · {0}%", info.Progress.ToString("0"));
+            else if (info.Status == "downloading" && (info.Seeders.HasValue || info.Speed.HasValue))
+                Set(job, JobState.Waiting, "Real-Debrid · {0}% · {1} seed · {2}/s", info.Progress.ToString("0"), info.Seeders?.ToString() ?? "?", DownloadJob.FormatBytes(info.Speed.GetValueOrDefault()));
             else Set(job, JobState.Waiting, RemoteLabel(info.Status) + " · {0}%", info.Progress.ToString("0"));
             // Many torrents may be waiting. The API client also applies a global rate limit.
             await Task.Delay(TimeSpan.FromSeconds(5), ct);
         }
         if (info.Links.Length == 0) throw new InvalidOperationException(Text.Get("Real-Debrid chưa cung cấp link tải cho torrent này."));
+        var sourceFiles = info.Files.Where(f => f.Selected == 1).ToArray();
+        var requested = job.SelectedFileIds?.ToHashSet();
+        if (requested is not null)
+        {
+            if (requested.Except(sourceFiles.Select(f => f.Id)).Any())
+                throw new InvalidOperationException(Text.Get("Các file đã chọn chưa có link tải. Hãy đọc lại torrent và chọn lại file."));
+            // Never download an archive that could include files outside the user's selection.
+            if (sourceFiles.Length != info.Links.Length)
+                throw new InvalidOperationException(Text.Get("Real-Debrid trả về link gộp, không thể tải riêng các file đã chọn."));
+            job.TotalBytes = sourceFiles.Where(f => requested.Contains(f.Id)).Sum(f => f.Bytes);
+        }
+        var downloadCount = requested?.Count ?? info.Links.Length;
         job.RemoteProgress = 100;
         if (job.Files.Count == 0)
         {
@@ -69,15 +112,20 @@ public sealed class DownloadEngine(RealDebridClient api, HttpClient transfers)
         job.FlattenFiles ??= false;
         if (job.OutputDirectory is null) throw new InvalidDataException(Text.Get("Hàng đợi có file đã lên lịch nhưng thiếu thư mục lưu."));
         Directory.CreateDirectory(job.OutputDirectory);
-        Set(job, JobState.Downloading, "Đang chuẩn bị tải toàn bộ file…");
+        Set(job, JobState.Downloading, "Đang chuẩn bị tải file đã chọn…");
 
+        var completedIndex = 0;
         for (var index = 0; index < info.Links.Length; index++)
         {
             ct.ThrowIfCancellationRequested();
+            if (requested is not null && !requested.Contains(sourceFiles[index].Id)) continue;
+            completedIndex++;
             var link = info.Links[index];
-            var file = job.Files.FirstOrDefault(f => f.LinkIndex == index) ?? job.Files.FirstOrDefault(f => f.Link == link);
-            // Restricted links may change after resume. Preserve the established file mapping by index.
-            if (file is null && job.Files.Count == info.Links.Length) file = job.Files[index];
+            var file = requested is not null
+                ? job.Files.FirstOrDefault(f => f.TorrentFileId == sourceFiles[index].Id)
+                : job.Files.FirstOrDefault(f => f.LinkIndex == index) ?? job.Files.FirstOrDefault(f => f.Link == link);
+            // Restricted links may change after resume. Use file IDs for selections, indices for old all-file queues.
+            if (requested is null && file is null && job.Files.Count == info.Links.Length) file = job.Files[index];
             if (file is not null) { file.LinkIndex = index; file.Link = link; }
             if (file?.Completed == true)
             {
@@ -91,17 +139,20 @@ public sealed class DownloadEngine(RealDebridClient api, HttpClient transfers)
                 try
                 {
                     var resolved = await api.UnrestrictAsync(link, ct);
+                    if (requested is not null &&
+                        (!Path.GetFileName(sourceFiles[index].Path.Replace('\\', '/')).Equals(Path.GetFileName(resolved.Filename.Replace('\\', '/')), StringComparison.OrdinalIgnoreCase) ||
+                        sourceFiles[index].Bytes > 0 && resolved.Filesize > 0 && sourceFiles[index].Bytes != resolved.Filesize))
+                        throw new InvalidDataException(Text.Get("Link tải không khớp với file đã chọn. Không tải để tránh lưu nhầm file."));
                     if (file is null)
                     {
                         // RD can return split archives instead of a one-link-per-file mapping.
                         // Keep torrent directories only when every selected file maps to one link.
-                        var sourceFiles = info.Files.Where(f => f.Selected == 1).ToArray();
                         var relative = job.FlattenFiles != true && sourceFiles.Length == info.Links.Length &&
                             Path.GetFileName(sourceFiles[index].Path.Replace('\\', '/')).Equals(resolved.Filename, StringComparison.OrdinalIgnoreCase)
                             ? SafePaths.Relative(sourceFiles[index].Path)
                             : SafePaths.Segment(Path.GetFileName(resolved.Filename.Replace('\\', '/')));
                         relative = paths.Allocate(job.OutputDirectory, relative);
-                        file = new() { LinkIndex = index, Link = link, RelativePath = relative, ExpectedBytes = resolved.Filesize };
+                        file = new() { TorrentFileId = requested is not null ? sourceFiles[index].Id : null, LinkIndex = index, Link = link, RelativePath = relative, ExpectedBytes = resolved.Filesize };
                         job.Files.Add(file);
                         Changed?.Invoke(job);
                     }
@@ -114,8 +165,8 @@ public sealed class DownloadEngine(RealDebridClient api, HttpClient transfers)
                     var expectedTotal = Math.Max(job.TotalBytes, job.Files.Sum(f => f.ExpectedBytes));
                     await _downloader.DownloadAsync(resolved.Download, destination, file.ExpectedBytes, p =>
                     {
-                        job.LocalProgress = expectedTotal > 0 ? Math.Min(100, (completedBytes + p.Bytes) * 100.0 / expectedTotal) : index * 100.0 / info.Links.Length;
-                        job.Detail = $"{index + 1}/{info.Links.Length} · {Path.GetFileName(file.RelativePath)} · {DownloadJob.FormatBytes(p.Bytes)} / {DownloadJob.FormatBytes(p.Total)} · {DownloadJob.FormatBytes(p.BytesPerSecond)}/s";
+                        job.LocalProgress = expectedTotal > 0 ? Math.Min(100, (completedBytes + p.Bytes) * 100.0 / expectedTotal) : (completedIndex - 1) * 100.0 / downloadCount;
+                        job.Detail = $"{completedIndex}/{downloadCount} · {Path.GetFileName(file.RelativePath)} · {DownloadJob.FormatBytes(p.Bytes)} / {DownloadJob.FormatBytes(p.Total)} · {DownloadJob.FormatBytes(p.BytesPerSecond)}/s";
                     }, ct);
                     file.Completed = true;
                     Changed?.Invoke(job);
@@ -131,7 +182,7 @@ public sealed class DownloadEngine(RealDebridClient api, HttpClient transfers)
             }
         }
         job.LocalProgress = 100;
-        Set(job, JobState.Completed, "Đã lưu {0} file · {1}", info.Links.Length, job.OutputDirectory);
+        Set(job, JobState.Completed, "Đã lưu {0} file · {1}", downloadCount, job.OutputDirectory);
     }
 
     private async Task<byte[]> ReadTorrentAsync(string source, CancellationToken ct)

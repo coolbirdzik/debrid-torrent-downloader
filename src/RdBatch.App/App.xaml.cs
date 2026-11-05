@@ -15,7 +15,7 @@ public partial class App : Application
         var settings = store.Load();
         Text.SetLanguage(settings.Language);
         _instance = new Mutex(true, "Local\\RealDebridBatch-" + Environment.UserName, out var created);
-        if (!created) { MessageBox.Show(Text.Get("Real-Debrid Batch đang mở. Hãy dùng cửa sổ hiện tại."), "Real-Debrid Batch"); Shutdown(); return; }
+        if (!created) { Appearance.Apply(settings.Appearance); ThemedDialog.Inform(null, "Real-Debrid Batch", Text.Get("Real-Debrid Batch đang mở. Hãy dùng cửa sổ hiện tại.")); Shutdown(); return; }
         new MainWindow(store, settings).Show();
     }
     protected override void OnExit(ExitEventArgs e) { _instance?.Dispose(); base.OnExit(e); }

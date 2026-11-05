@@ -33,16 +33,35 @@
     <Setter Property="FontSize" Value="12"/><Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="Padding" Value="18,10"/><Setter Property="MinHeight" Value="40"/><Setter Property="Cursor" Value="Hand"/>
   </Style>
+  <!-- Quiet actions keep their semantic color on hover and stay unfilled while disabled. -->
   <Style x:Key="QuietButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
     <Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}" MinHeight="{TemplateBinding MinHeight}" SnapsToDevicePixels="True">
+        <ContentPresenter RecognizesAccessKey="True" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}"/>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource HoverSurface}"/></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SelectedSurface}"/></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Opacity" Value="0.45"/></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+    <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource Ink}"/></Trigger></Style.Triggers>
   </Style>
   <Style x:Key="LinkButton" TargetType="Button" BasedOn="{StaticResource QuietButton}">
     <Setter Property="Foreground" Value="{DynamicResource AccentText}"/><Setter Property="Padding" Value="0"/>
     <Setter Property="MinHeight" Value="24"/><Setter Property="HorizontalAlignment" Value="Left"/>
+    <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource Accent}"/></Trigger></Style.Triggers>
   </Style>
   <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource QuietButton}">
     <Setter Property="Foreground" Value="{DynamicResource Danger}"/>
+    <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource Danger}"/></Trigger></Style.Triggers>
+  </Style>
+  <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource QuietButton}">
+    <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="Normal"/>
+    <Setter Property="Padding" Value="0"/><Setter Property="Width" Value="32"/><Setter Property="MinHeight" Value="32"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
   </Style>
   <Style x:Key="RowButton" TargetType="Button" BasedOn="{StaticResource QuietButton}">
     <Setter Property="FontSize" Value="11"/><Setter Property="Padding" Value="7,4"/>
@@ -57,7 +76,13 @@
   <Style TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}">
     <Setter Property="MinHeight" Value="36"/><Setter Property="FontSize" Value="12"/><Setter Property="VerticalContentAlignment" Value="Center"/>
   </Style>
-  <Style TargetType="CheckBox" BasedOn="{StaticResource DefaultCheckBoxStyle}"><Setter Property="FontSize" Value="12"/></Style>
+  <Style TargetType="CheckBox" BasedOn="{StaticResource DefaultCheckBoxStyle}">
+    <Setter Property="FontSize" Value="12"/><Setter Property="Border.CornerRadius" Value="4"/>
+  </Style>
+  <Style x:Key="SectionTitle" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI"/><Setter Property="FontSize" Value="16"/>
+    <Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+  </Style>
   <Style x:Key="FieldLabel" TargetType="TextBlock">
     <Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="Margin" Value="0,0,0,10"/><Setter Property="Foreground" Value="{DynamicResource Ink}"/>
@@ -71,25 +96,63 @@
     <Setter Property="FontSize" Value="16"/><Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
   <Style x:Key="SectionSurface" TargetType="Border">
-    <Setter Property="Background" Value="{DynamicResource Surface}"/><Setter Property="CornerRadius" Value="16"/>
-    <Setter Property="BorderBrush" Value="{DynamicResource Stroke}"/><Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Background" Value="Transparent"/><Setter Property="CornerRadius" Value="0"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke}"/><Setter Property="BorderThickness" Value="0"/>
+  </Style>
+  <Style TargetType="TabControl">
+    <Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="0"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabControl">
+      <Grid KeyboardNavigation.TabNavigation="Local">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Border BorderBrush="{DynamicResource Stroke}" BorderThickness="0,0,0,1">
+          <TabPanel x:Name="HeaderPanel" IsItemsHost="True" KeyboardNavigation.TabIndex="1" Background="Transparent"/>
+        </Border>
+        <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1" ContentSource="SelectedContent" Margin="{TemplateBinding Padding}" KeyboardNavigation.TabIndex="2"/>
+      </Grid>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- Pivot-style tabs: muted labels, ink with an accent underline when selected. -->
+  <Style TargetType="TabItem">
+    <Setter Property="Foreground" Value="{DynamicResource Muted}"/><Setter Property="FontSize" Value="13"/>
+    <Setter Property="Padding" Value="12,9,12,11"/><Setter Property="Margin" Value="0,0,4,0"/><Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}"/>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">
+      <Grid Background="Transparent">
+        <Border x:Name="Chrome" Background="Transparent" CornerRadius="6" Margin="0,2,0,5" Padding="{TemplateBinding Padding}">
+          <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" TextElement.Foreground="{TemplateBinding Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+        <Border x:Name="Indicator" Height="3" CornerRadius="1.5" Margin="12,0" VerticalAlignment="Bottom" Background="{DynamicResource Accent}" Visibility="Hidden"/>
+      </Grid>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource HoverSurface}"/></Trigger>
+        <Trigger Property="IsSelected" Value="True"><Setter TargetName="Indicator" Property="Visibility" Value="Visible"/></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource Ink}"/></Trigger>
+      <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="{DynamicResource Ink}"/></Trigger>
+    </Style.Triggers>
   </Style>
   <Style TargetType="DataGrid" BasedOn="{StaticResource DefaultDataGridStyle}">
     <Setter Property="Background" Value="{DynamicResource Surface}"/><Setter Property="Foreground" Value="{DynamicResource Ink}"/>
-    <Setter Property="BorderThickness" Value="0"/><Setter Property="GridLinesVisibility" Value="None"/><Setter Property="RowHeight" Value="82"/>
+    <Setter Property="BorderThickness" Value="0"/><Setter Property="GridLinesVisibility" Value="None"/><Setter Property="RowHeight" Value="60"/>
   </Style>
   <Style TargetType="DataGridColumnHeader">
     <Setter Property="Background" Value="{DynamicResource SubtleSurface}"/><Setter Property="Foreground" Value="{DynamicResource Muted}"/>
-    <Setter Property="Padding" Value="14,12"/><Setter Property="FontSize" Value="11"/><Setter Property="FontWeight" Value="SemiBold"/>
-    <Setter Property="BorderThickness" Value="0,1,0,1"/><Setter Property="BorderBrush" Value="{DynamicResource Stroke}"/>
+    <Setter Property="Padding" Value="16,9"/><Setter Property="FontSize" Value="11"/><Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="BorderThickness" Value="0,0,0,1"/><Setter Property="BorderBrush" Value="{DynamicResource Stroke}"/>
   </Style>
   <Style TargetType="DataGridCell" BasedOn="{StaticResource DefaultDataGridCellStyle}">
-    <Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="14,10"/>
+    <Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="16,8"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Foreground" Value="{DynamicResource Ink}"/>
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridCell">
       <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"><ContentPresenter VerticalAlignment="Center"/></Border>
     </ControlTemplate></Setter.Value></Setter>
     <Style.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="Background" Value="{DynamicResource SelectedSurface}"/></Trigger></Style.Triggers>
+  </Style>
+  <!-- Checkbox columns: the Fluent checkbox needs ~30 px, so the cell keeps only a small inset. -->
+  <Style x:Key="CheckCell" TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+    <Setter Property="Padding" Value="8,0"/><Setter Property="HorizontalContentAlignment" Value="Center"/>
   </Style>
   <Style TargetType="DataGridRow" BasedOn="{StaticResource DefaultDataGridRowStyle}">
     <Setter Property="Background" Value="{DynamicResource Surface}"/>

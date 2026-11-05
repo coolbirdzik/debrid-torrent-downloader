@@ -26,6 +26,13 @@ public static class Appearance
         {
             Source = new Uri($"/RealDebridBatch;component/Themes/{name}.xaml", UriKind.Relative)
         };
+        // A merged-dictionary swap leaves DynamicResource references in already-shown windows on the old
+        // theme. Reassigning the application dictionary forces a full resource invalidation.
+        if (window is not null && ReferenceEquals(styles, resources))
+        {
+            Application.Current.Resources = new ResourceDictionary();
+            Application.Current.Resources = resources;
+        }
         if (window is not null) ApplyTitleBar(window);
     }
 

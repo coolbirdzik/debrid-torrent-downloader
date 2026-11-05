@@ -12,6 +12,9 @@ public sealed class DownloadJob : INotifyPropertyChanged
     public string Source { get; set; } = "";
     public string SourceKey { get; set; } = "";
     public string? TorrentId { get; set; }
+    public string? RemoteAccount { get; set; }
+    // Null preserves the all-files behavior of queues saved by earlier versions.
+    public List<int>? SelectedFileIds { get; set; }
     public string? OutputDirectory { get; set; }
     public bool? FlattenFiles { get; set; }
     public List<DownloadFile> Files { get; set; } = [];
@@ -64,6 +67,7 @@ public sealed class DownloadJob : INotifyPropertyChanged
 
 public sealed class DownloadFile
 {
+    public int? TorrentFileId { get; set; }
     public int LinkIndex { get; set; } = -1;
     public string Link { get; set; } = "";
     public string RelativePath { get; set; } = "";
@@ -75,14 +79,39 @@ public sealed class AppSettings
 {
     public string Language { get; set; } = "en";
     public string Appearance { get; set; } = "system";
+    public string BrowserView { get; set; } = "list";
     public string OutputDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "Real-Debrid");
     public bool FlattenFiles { get; set; } = true;
     public int Concurrency { get; set; } = 3;
     public string? ProtectedToken { get; set; }
     public List<DownloadJob> Jobs { get; set; } = [];
+    public List<TorrentDraft> Library { get; set; } = [];
+    public List<RemoteTorrentReference> RemoteTorrents { get; set; } = [];
+}
+
+public sealed class TorrentDraft
+{
+    public string Source { get; set; } = "";
+    public string SourceKey { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? TorrentId { get; set; }
+    public string? RemoteAccount { get; set; }
+    public List<TorrentFile> Files { get; set; } = [];
+    public HashSet<int> ExcludedFileIds { get; set; } = [];
+    public bool IsHidden { get; set; }
+    [JsonIgnore] public IEnumerable<TorrentFile> VisibleFiles => IsHidden ? [] : Files.Where(file => !ExcludedFileIds.Contains(file.Id));
+}
+
+public sealed class RemoteTorrentReference
+{
+    public string Id { get; set; } = "";
+    public string SourceKey { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Account { get; set; }
 }
 
 public sealed record RdUser(string Username, string Type, int Premium);
 public sealed record TorrentFile(int Id, string Path, long Bytes, int Selected);
-public sealed record TorrentInfo(string Id, string Filename, string Status, double Progress, long Bytes, TorrentFile[] Files, string[] Links);
+public sealed record TorrentInfo(string Id, string Filename, string Status, double Progress, long Bytes, TorrentFile[] Files, string[] Links, int? Seeders = null, long? Speed = null);
+public sealed record RdTorrent(string Id, string Filename, long Bytes, double Progress, string Status, DateTimeOffset? Added, long? Speed = null, int? Seeders = null);
 public sealed record UnrestrictedLink(string Filename, long Filesize, string Download);

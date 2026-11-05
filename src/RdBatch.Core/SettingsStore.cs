@@ -16,7 +16,10 @@ public sealed class SettingsStore(string directory)
         try
         {
             var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), _options) ?? new();
-            if (settings.Jobs is null || settings.Jobs.Any(j => j is null || j.Files is null)) throw new JsonException("Invalid queue");
+            if (settings.Jobs is null || settings.Jobs.Any(j => j is null || j.Files is null) ||
+                settings.Library is null || settings.Library.Any(item => item is null || item.Files is null || item.ExcludedFileIds is null) ||
+                settings.RemoteTorrents is null || settings.RemoteTorrents.Any(item => item is null || string.IsNullOrWhiteSpace(item.Id))) throw new JsonException("Invalid queue or library");
+            settings.BrowserView = settings.BrowserView == "grid" ? "grid" : "list";
             settings.Concurrency = Math.Clamp(settings.Concurrency, 1, 5);
             settings.Language = Text.NormalizeLanguage(settings.Language);
             foreach (var job in settings.Jobs.Where(j => j.State is not (JobState.Completed or JobState.Failed or JobState.Queued or JobState.Stopped)))

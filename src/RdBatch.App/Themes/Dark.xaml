@@ -17,4 +17,6 @@
   <SolidColorBrush x:Key="DangerSoft" Color="#492C35"/>
   <SolidColorBrush x:Key="SelectedSurface" Color="#2B3B5C"/>
   <SolidColorBrush x:Key="HoverSurface" Color="#2A303B"/>
+  <!-- Fluent DataGrid animates to this color while disabled; keep it on the surface instead of white. -->
+  <Color x:Key="ControlLightColor">#20242C</Color>
 </ResourceDictionary>

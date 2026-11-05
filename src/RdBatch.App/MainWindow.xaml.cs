@@ -18,8 +18,8 @@ public partial class MainWindow : Window
     public ObservableCollection<DownloadJob> Jobs { get; } = [];
     private readonly SettingsStore _store;
     private readonly AppSettings _settings;
-    private readonly HttpClient _apiHttp = new() { Timeout = TimeSpan.FromSeconds(60) };
-    private readonly HttpClient _transferHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
+    private readonly HttpClient _apiHttp;
+    private readonly HttpClient _transferHttp;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private CancellationTokenSource? _runCancellation;
     private Task? _runTask;
@@ -38,8 +38,10 @@ public partial class MainWindow : Window
     private RdUser? _user;
     private bool Running => _runCancellation is not null;
 
-    public MainWindow(SettingsStore store, AppSettings settings)
+    public MainWindow(SettingsStore store, AppSettings settings, HttpClient? apiHttp = null, HttpClient? transferHttp = null)
     {
+        _apiHttp = apiHttp ?? new() { Timeout = TimeSpan.FromSeconds(60) };
+        _transferHttp = transferHttp ?? new() { Timeout = Timeout.InfiniteTimeSpan };
         _store = store;
         _settings = settings;
         Text.SetLanguage(settings.Language);
@@ -55,6 +57,8 @@ public partial class MainWindow : Window
         Width = Math.Min(Width, workArea.Width - 24);
         DataContext = this;
         foreach (var job in _settings.Jobs) Jobs.Add(job);
+        foreach (var draft in _settings.Library) Library.Add(draft);
+        BrowserViewBox.SelectedIndex = _settings.BrowserView == "grid" ? 1 : 0;
         FolderBox.Text = _settings.OutputDirectory;
         FlattenFilesBox.IsChecked = _settings.FlattenFiles;
         ConcurrencyBox.SelectedIndex = _settings.Concurrency - 1;
@@ -65,6 +69,9 @@ public partial class MainWindow : Window
             { SetStatus("Không giải mã được token cũ trên tài khoản Windows này. Hãy dán lại token."); }
         }
         _initializing = false;
+        TrackRemoteTorrents();
+        ApplyBrowserView();
+        RebuildFolders();
         if (_store.LoadWarningMessage is not null) SetStatus(_store.LoadWarningMessage.Key, _store.LoadWarningMessage.Arguments.Cast<object?>().ToArray());
         _timer.Tick += (_, _) => RefreshSummary();
         _timer.Start();
@@ -99,56 +106,45 @@ public partial class MainWindow : Window
         Text.SetLanguage(language);
         _settings.Language = Text.Language;
         foreach (var job in Jobs) job.RefreshLanguage();
+        foreach (var row in RemoteTorrents) row.Refresh();
         StatusText.Text = _statusMessage.Render();
         AccountStatus.Text = _accountMessage.Render();
         StatusText.ToolTip = null;
         RefreshSummary();
+        RebuildFolders();
+        UpdateRemoteControls();
         Save();
     }
 
     private void SourcesChanged(object sender, TextChangedEventArgs e)
-    { if (SourcePlaceholder is not null) SourcePlaceholder.Visibility = string.IsNullOrEmpty(SourcesBox.Text) ? Visibility.Visible : Visibility.Collapsed; }
+    {
+        if (SourcePlaceholder is not null) SourcePlaceholder.Visibility = string.IsNullOrEmpty(SourcesBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+        if (!_initializing) UpdateRemoteControls();
+    }
 
     private void PasteSources(object sender, RoutedEventArgs e)
     {
-        try { if (Clipboard.ContainsText()) SourcesBox.Text += (string.IsNullOrWhiteSpace(SourcesBox.Text) ? "" : Environment.NewLine) + Clipboard.GetText(); }
+        try { if (Clipboard.ContainsText()) AppendSources(Clipboard.GetText()); }
         catch (System.Runtime.InteropServices.COMException) { SetStatus("Clipboard đang bận. Thử Ctrl+V vào ô nhập."); }
     }
 
     private void PickTorrents(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog { Filter = "Torrent files (*.torrent)|*.torrent", Multiselect = true, Title = Text.Get("Chọn các file torrent") };
-        if (dialog.ShowDialog(this) == true) AddInputs(string.Join(Environment.NewLine, dialog.FileNames));
-    }
-    private void AddSources(object sender, RoutedEventArgs e)
-    { if (AddInputs(SourcesBox.Text)) SourcesBox.Clear(); }
-
-    private bool AddInputs(string text)
-    {
-        if (_clearing || _closing) return false;
-        var parsed = InputParser.Parse(text);
-        var added = 0;
-        var duplicates = 0;
-        foreach (var source in parsed.Sources)
+        if (dialog.ShowDialog(this) == true)
         {
-            if (Jobs.Any(j => j.SourceKey.Equals(source.Key, StringComparison.OrdinalIgnoreCase))) { duplicates++; continue; }
-            Jobs.Add(new() { Source = source.Source, SourceKey = source.Key, Name = source.Name });
-            added++;
+            AppendSources(string.Join(Environment.NewLine, dialog.FileNames));
         }
-        SetStatus("Đã thêm {0} torrent · {1} trùng · {2} dòng không hợp lệ. Toàn bộ file sẽ được chọn tự động.", added, duplicates, parsed.Errors.Count);
-        if (parsed.Errors.Count > 0) StatusText.ToolTip = string.Join(Environment.NewLine, parsed.Errors);
-        else StatusText.ToolTip = null;
-        Save(); RefreshSummary(); UpdateControls();
-        return parsed.Errors.Count == 0;
     }
+    private async void AddSources(object sender, RoutedEventArgs e) => await InspectSourcesAsync(SourcesBox.Text);
 
     private void OnDragOver(object sender, DragEventArgs e)
-    { e.Effects = !Running && !_clearing && !_closing && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
+    { e.Effects = !_clearing && !_closing && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
     private void OnDrop(object sender, DragEventArgs e)
     {
-        if (Running || _clearing || _closing || e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
-        AddInputs(string.Join(Environment.NewLine, paths.Where(p => p.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase))));
+        if (_clearing || _closing || e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
         e.Handled = true;
+        AppendSources(string.Join(Environment.NewLine, paths.Where(p => p.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase))));
     }
 
     private void BrowseFolder(object sender, RoutedEventArgs e)
@@ -172,6 +168,7 @@ public partial class MainWindow : Window
         if (_initializing) return;
         _verifiedToken = ""; _user = null;
         SetAccount("Chưa kiểm tra token mới");
+        RemoteTokenChanged();
         // Erase a previously saved token immediately when it is edited. Save the new one on validation/start.
         _settings.ProtectedToken = null;
         Save();
@@ -197,7 +194,7 @@ public partial class MainWindow : Window
 
     private async void Connect(object sender, RoutedEventArgs e)
     {
-        if (_checking || Running || _clearing || _closing) return;
+        if (_checking || _inspectCancellation is not null || Running || _clearing || _closing) return;
         _checking = true; UpdateControls();
         try
         {
@@ -209,6 +206,7 @@ public partial class MainWindow : Window
             SetAccount("{0} · {1}", user.Username, user.Type);
             SaveToken(); Save();
             SetStatus(user.Type == "premium" && user.Premium > 0 ? "Đã kết nối. Bạn có thể bắt đầu tải." : "Tài khoản chưa có Premium còn hạn để tải torrent.");
+            if (WorkspaceTabs.SelectedIndex == RemoteTab && !_remoteLoaded) _ = LoadRemoteTorrentsAsync();
         }
         catch (Exception ex) { SetAccount("Chưa kết nối"); SetStatus(DownloadEngine.FriendlyErrorKey(ex)); }
         finally { _checking = false; UpdateControls(); }
@@ -221,7 +219,7 @@ public partial class MainWindow : Window
 
     private async Task StartJobsAsync(DownloadJob[] jobs)
     {
-        if (_checking || _closing || _clearing) return;
+        if (_checking || _inspectCancellation is not null || _closing || _clearing) return;
         if (jobs.Length == 0) { SetStatus("Thêm torrent hoặc bấm Retry ở dòng bị lỗi."); return; }
         if (Running)
         {
@@ -273,7 +271,7 @@ public partial class MainWindow : Window
             }
             SetAccount("{0} · {1}", _user.Username, _user.Type);
             if (_user.Type != "premium" || _user.Premium <= 0) throw new InvalidOperationException(Text.Get("Cần tài khoản Real-Debrid Premium còn hạn để tải torrent."));
-            var engine = new DownloadEngine(client, _transferHttp);
+            var engine = new DownloadEngine(client, _transferHttp, _user.Username);
             engine.Changed += _ => { Save(); RefreshSummary(); UpdateControls(); };
             ct.ThrowIfCancellationRequested();
             using var session = engine.CreateSession(Jobs.ToArray(), root, _settings.Concurrency, _settings.FlattenFiles);
@@ -292,7 +290,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             SetStatus(DownloadEngine.FriendlyErrorKey(ex));
-            MessageBox.Show(this, StatusText.Text, Text.Get("Không thể bắt đầu"), MessageBoxButton.OK, MessageBoxImage.Information);
+            ThemedDialog.Inform(this, Text.Get("Không thể bắt đầu"), StatusText.Text);
         }
         finally { _session = null; }
     }
@@ -328,15 +326,15 @@ public partial class MainWindow : Window
         UpdateControls();
         await StopJobsAsync(jobs);
         foreach (var job in jobs) Jobs.Remove(job);
-        Save(); UpdateControls(); RefreshSummary();
+        Save(); UpdateControls(); RefreshSummary(); RefreshBrowser();
         SetStatus("Đã xóa {0} dòng khỏi danh sách. File đã tải, file tạm và torrent trên Real-Debrid được giữ nguyên.", jobs.Length);
     }
 
     private async void ClearQueue(object sender, RoutedEventArgs e)
     {
         if (_closing || _clearing || Jobs.Count == 0) return;
-        if (MessageBox.Show(this, Text.Get("Xóa toàn bộ {0} torrent khỏi hàng đợi? App sẽ dừng các tác vụ đang chạy. File đã tải, file tạm và torrent trên Real-Debrid vẫn được giữ.", Jobs.Count),
-            Text.Get("Xóa toàn bộ hàng đợi"), MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        if (!ThemedDialog.Confirm(this, Text.Get("Xóa toàn bộ hàng đợi"),
+            Text.Get("Xóa toàn bộ {0} torrent khỏi hàng đợi? App sẽ dừng các tác vụ đang chạy. File đã tải, file tạm và torrent trên Real-Debrid vẫn được giữ.", Jobs.Count), Text.Get("Xóa toàn bộ"))) return;
         _clearing = true;
         UpdateControls();
         _clearTask = ClearQueueAsync();
@@ -354,7 +352,7 @@ public partial class MainWindow : Window
         _runCancellation?.Cancel(); // Also cancel account validation before a session exists.
         await clearing;
         if (run is not null) await run;
-        var saved = Save(); RefreshSummary();
+        var saved = Save(); RefreshSummary(); RefreshBrowser();
         if (!saved) return;
         SetStatus("Đã xóa toàn bộ hàng đợi. File đã tải, file tạm và torrent trên Real-Debrid được giữ nguyên.");
     }
@@ -390,8 +388,8 @@ public partial class MainWindow : Window
     private void QueueSelectionChanged(object sender, SelectionChangedEventArgs e) { if (!_initializing) UpdateControls(); }
     private void UpdateControls()
     {
-        var idle = !Running && !_checking && !_closing && !_clearing;
-        var actionsAvailable = !_checking && !_closing && !_clearing && (!Running || _session is not null && _runCancellation?.IsCancellationRequested == false);
+        var idle = !Running && _inspectCancellation is null && !_checking && !_closing && !_clearing;
+        var actionsAvailable = _inspectCancellation is null && !_checking && !_closing && !_clearing && (!Running || _session is not null && _runCancellation?.IsCancellationRequested == false);
         StartButton.IsEnabled = actionsAvailable && Jobs.Any(j => j.CanResume);
         PauseButton.IsEnabled = !_clearing && !_closing && Running && _runCancellation?.IsCancellationRequested == false;
         StopAllButton.IsEnabled = !_closing && !_clearing && Jobs.Any(j => j.CanStop);
@@ -399,7 +397,13 @@ public partial class MainWindow : Window
         QueueGrid.IsEnabled = !_clearing && !_closing;
         AccountPanel.IsEnabled = idle; FolderBox.IsEnabled = idle; BrowseButton.IsEnabled = idle; ConcurrencyBox.IsEnabled = idle;
         FlattenFilesBox.IsEnabled = idle;
-        AddButton.IsEnabled = idle; AddFilesButton.IsEnabled = idle; SourcesBox.IsEnabled = idle; PasteButton.IsEnabled = idle;
+        var canStageSources = !_closing && !_clearing;
+        AddButton.IsEnabled = canStageSources && !_checking && _inspectCancellation is null;
+        AddFilesButton.IsEnabled = canStageSources; SourcesBox.IsEnabled = canStageSources; PasteButton.IsEnabled = canStageSources;
+        CancelInspectButton.Visibility = _inspectCancellation is null ? Visibility.Collapsed : Visibility.Visible;
+        InspectProgress.Visibility = _inspectCancellation is null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateBrowserSelection();
+        UpdateRemoteControls();
         RemoveButton.IsEnabled = !_closing && !_clearing && QueueGrid.SelectedItems.Cast<DownloadJob>().Any(j => j.CanRemove);
         RetryButton.IsEnabled = actionsAvailable && QueueGrid.SelectedItems.Cast<DownloadJob>().Any(j => j.CanRetry);
         ResumeSelectedButton.IsEnabled = actionsAvailable && QueueGrid.SelectedItems.Cast<DownloadJob>().Any(j => j.CanResume);
@@ -425,6 +429,8 @@ public partial class MainWindow : Window
             _settings.FlattenFiles = FlattenFilesBox.IsChecked == true;
             _settings.Concurrency = ConcurrencyBox.SelectedIndex + 1;
             _settings.Jobs = Jobs.ToList();
+            _settings.Library = Library.ToList();
+            TrackRemoteTorrents();
             _store.Save(_settings);
             _storageErrorShown = false;
             return true;
@@ -432,19 +438,21 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             SetStatus("Không lưu được hàng đợi: {0}", ex.Message);
-            if (!_storageErrorShown) { _storageErrorShown = true; MessageBox.Show(this, StatusText.Text, Text.Get("Lỗi lưu hàng đợi"), MessageBoxButton.OK, MessageBoxImage.Warning); }
+            if (!_storageErrorShown) { _storageErrorShown = true; ThemedDialog.Inform(this, Text.Get("Lỗi lưu hàng đợi"), StatusText.Text); }
             return false;
         }
     }
 
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
+        _remoteLoadCancellation?.Cancel();
         if (_readyToClose) { DisposeClients(); return; }
-        if (Running || _clearing)
+        if (Running || _clearing || _inspectTask is not null)
         {
             e.Cancel = true;
             if (_closing) return;
-            _closing = true; _runCancellation?.Cancel(); UpdateControls();
+            _closing = true; _runCancellation?.Cancel(); _inspectCancellation?.Cancel(); _remoteDeleteCancellation?.Cancel(); UpdateControls();
+            if (_inspectTask is not null) await _inspectTask;
             if (_runTask is not null) await _runTask;
             if (_clearTask is not null)
             {
