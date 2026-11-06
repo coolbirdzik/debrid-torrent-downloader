@@ -1,6 +1,6 @@
 [package]
 name = "rdbatch-desktop"
-version = "0.3.1"
+version = "0.3.2"
 description = "Batch downloads from Real-Debrid, TorBox and AllDebrid"
 authors = ["DebridDock contributors"]
 license = "MIT"
