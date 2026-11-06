@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import type { AddResult, DeleteOutcome, Draft, Job, LibraryPatch, Marks, Msg, Provider, RemoteTorrent, Settings, Snapshot, User } from './types';
+import type { AddResult, DeleteOutcome, Draft, Job, LibraryPatch, Marks, Msg, Provider, RemoteTorrent, Settings, Snapshot, UpdateInfo, User } from './types';
 
 /** The backend rejects with `{ key, args }`; anything else (a runtime failure) becomes a plain message. */
 export function toMsg(error: unknown): Msg {
@@ -35,7 +35,9 @@ export const api = {
   remoteList: () => call<{ account: string; torrents: RemoteTorrent[] }>('remote_list'),
   remoteDelete: (ids: string[], listAccount: string) => call<DeleteOutcome[]>('remote_delete', { ids, listAccount }),
   openFolder: (path: string) => call<void>('open_folder', { path }),
-  openTokenPage: (provider: Provider) => call<void>('open_token_page', { provider })
+  openTokenPage: (provider: Provider) => call<void>('open_token_page', { provider }),
+  checkUpdate: () => call<UpdateInfo>('check_update'),
+  openRelease: (url: string) => call<void>('open_release', { url })
 };
 
 export interface Events {

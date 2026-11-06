@@ -2,6 +2,7 @@
   import Books from 'phosphor-svelte/lib/Books';
   import DownloadSimple from 'phosphor-svelte/lib/DownloadSimple';
   import CloudArrowDown from 'phosphor-svelte/lib/CloudArrowDown';
+  import ArrowCircleUp from 'phosphor-svelte/lib/ArrowCircleUp';
   import Gear from 'phosphor-svelte/lib/Gear';
   import User from 'phosphor-svelte/lib/User';
   import { app, type Page } from '../app.svelte';
@@ -36,6 +37,12 @@
   </div>
 
   <div class="foot">
+    {#if app.update?.available}
+      <button class="update" onclick={() => (app.page = 'settings')}>
+        <span class="ic blue"><ArrowCircleUp size={18} weight="duotone" /></span>
+        <span class="label">{t('Có bản mới {0}', app.update.latest ?? '')}</span>
+      </button>
+    {/if}
     <button class="account" onclick={() => (app.page = 'settings')} aria-label={t('Tài khoản')}>
       <span class="avatar"><User size={16} weight="duotone" class="ic blue" /></span>
       <span class="who">
@@ -59,12 +66,15 @@
   .nav { position: relative; display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 14px; border-radius: 999px; color: var(--muted); font-weight: 500; text-align: left; transition: background 0.18s, box-shadow 0.18s, color 0.18s; }
   .nav:hover { background: var(--hover); color: var(--ink); }
   /* The current page is a raised glass droplet. */
-  .nav.on { background: var(--sheen), var(--raised); box-shadow: var(--rim), var(--lift); color: var(--ink); font-weight: 600; }
+  .nav.on { background: var(--chosen-bg); color: var(--chosen-ink); font-weight: 600; }
+  .nav.on .ic { color: var(--chosen-icon); }
   .label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .badge { background: var(--gloss); box-shadow: var(--gloss-shadow); color: var(--on-accent); font-size: 11px; font-weight: 600; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; display: grid; place-content: center; }
-  .account { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--sheen), var(--glass); box-shadow: var(--rim), var(--lift); backdrop-filter: blur(24px) saturate(170%); border-radius: 20px; text-align: left; width: 100%; transition: background 0.18s; }
-  .account:hover { background: var(--sheen), var(--raised); }
-  .avatar { width: 32px; height: 32px; border-radius: 16px; background: radial-gradient(120% 90% at 30% 15%, rgb(255 255 255 / 0.7), transparent 55%), var(--info-soft); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6); display: grid; place-content: center; flex: none; }
+  .badge { background: var(--cyan); color: var(--on-cyan); font-size: 11px; font-weight: 600; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; display: grid; place-content: center; }
+  .update { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--info-soft); color: var(--info); font-size: 12px; font-weight: 600; text-align: left; }
+  .update:hover { filter: brightness(0.97); }
+  .account { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--surface); box-shadow: var(--lift); border-radius: 18px; text-align: left; width: 100%; transition: background 0.18s; }
+  .account:hover { background: var(--hover); }
+  .avatar { width: 32px; height: 32px; border-radius: 16px; background: var(--subtle); display: grid; place-content: center; flex: none; }
   .who { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
   .who b { font-size: 12px; }
   .who small { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

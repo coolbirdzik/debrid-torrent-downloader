@@ -363,12 +363,14 @@
   .menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; min-width: 228px; padding: 6px; display: flex; flex-direction: column; gap: 2px; border-radius: 18px; }
   .menu-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; font-size: 12px; text-align: left; transition: background 0.15s; }
   .menu-item:hover { background: var(--hover); }
-  .menu-item[aria-checked='true'] { background: var(--sheen), var(--raised); box-shadow: var(--rim); }
+  .menu-item[aria-checked='true'] { background: var(--selected); }
   .grow { flex: 1; }
-  /* Segmented control: a recessed channel with a raised droplet on the active option. */
-  .seg { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--track); box-shadow: var(--well-shadow); }
+  /* Segmented control: options on a soft track. */
+  .seg { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--subtle); }
   .seg .btn.icon { min-height: 28px; width: 32px; }
-  .seg .btn.on, .toggle.on { background: var(--sheen), var(--raised); box-shadow: var(--rim), 0 4px 10px -6px rgb(35 45 70 / 0.4); color: var(--ink); }
+  /* The active option wears the accent: the chosen tokens (cobalt pill with a cyan icon, like the logo). */
+  .seg .btn.on, .toggle.on, .seg .btn.on:hover:not(:disabled), .toggle.on:hover:not(:disabled) { background: var(--chosen-bg); color: var(--chosen-ink); }
+  .seg .btn.on .ic, .toggle.on .ic { color: var(--chosen-icon); }
   .hcell { display: inline-flex; align-items: center; gap: 4px; font: inherit; color: inherit; padding: 3px 8px; margin-left: -8px; border-radius: 999px; justify-self: start; transition: background 0.15s; }
   .hcell:hover, .hcell.active { color: var(--ink); background: var(--hover); }
   .search { position: relative; flex: 1; }
@@ -390,10 +392,10 @@
   .empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 24px; }
   .tile { position: relative; width: 160px; height: 134px; padding: 12px; border-radius: 20px; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s, box-shadow 0.15s; }
   .tile:hover { background: var(--hover); }
-  .tile.on { background: var(--sheen), var(--raised); box-shadow: var(--rim), 0 10px 22px -14px rgb(35 45 70 / 0.5); }
+  .tile.on { background: var(--selected); }
   .tile-top { display: flex; justify-content: space-between; }
   .tile-name { display: flex; justify-content: space-between; gap: 4px; font-size: 12px; max-height: 32px; overflow: hidden; }
   .tiny-text { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: linear-gradient(180deg, transparent, var(--hover)); }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
   .sum { display: flex; flex-direction: column; min-width: 0; }
 </style>

@@ -1,4 +1,6 @@
 mod app;
+mod update;
+mod theme;
 
 use app::{AddResult, App, DeleteOutcome, LibraryPatch, QueueItem, RemoteList, SettingsPatch, Snapshot};
 use rdbatch_core::error::Error;
@@ -123,6 +125,22 @@ fn open_token_page(handle: tauri::AppHandle, provider: rdbatch_core::models::Pro
     handle.opener().open_url(provider.token_page(), None::<&str>).map_err(|e| ApiError(Msg::plain(&e.to_string())))
 }
 
+#[tauri::command]
+async fn check_update(handle: tauri::AppHandle) -> Cmd<update::UpdateInfo> {
+    // The version in tauri.conf.json is the one release tags are checked against.
+    let current = handle.package_info().version.to_string();
+    update::check(&current).await.map_err(ApiError)
+}
+
+/// Opens a release page or installer; only GitHub release URLs of this project are accepted.
+#[tauri::command]
+fn open_release(handle: tauri::AppHandle, url: String) -> Cmd<()> {
+    if !update::is_trusted_url(&url) {
+        return Err(ApiError(Msg::plain("Liên kết bản cập nhật không hợp lệ.")));
+    }
+    handle.opener().open_url(url, None::<&str>).map_err(|e| ApiError(Msg::plain(&e.to_string())))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -145,15 +163,24 @@ pub fn run() {
             let state = App::new(app.handle().clone(), directory, downloads.to_string_lossy().to_string());
             tauri::async_runtime::spawn(state.clone().background());
             state.clone().start_inspection();
+            // Before the first paint, so the title bar never flashes in the wrong color.
+            state.paint_title_bar();
             app.manage(state);
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { .. } => {
                 if let Some(app) = window.try_state::<Arc<App>>() {
                     app.save_now();
                 }
             }
+            // "System" appearance follows the OS theme, title bar included.
+            tauri::WindowEvent::ThemeChanged(_) => {
+                if let Some(app) = window.try_state::<Arc<App>>() {
+                    app.paint_title_bar();
+                }
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             bootstrap,
@@ -175,6 +202,8 @@ pub fn run() {
             remote_delete,
             open_folder,
             open_token_page,
+            check_update,
+            open_release,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the application");

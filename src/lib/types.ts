@@ -84,6 +84,17 @@ export interface Settings {
   concurrency: number;
   rememberToken: boolean;
   libraryImportPaused: boolean;
+  checkUpdates: boolean;
+}
+
+export interface UpdateInfo {
+  current: string;
+  /** `null` when GitHub has no published release yet. */
+  latest: string | null;
+  available: boolean;
+  pageUrl: string | null;
+  downloadUrl: string | null;
+  notes: string;
 }
 
 export interface User {

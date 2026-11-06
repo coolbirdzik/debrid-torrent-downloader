@@ -1,13 +1,14 @@
+import { getVersion } from '@tauri-apps/api/app';
 import { api, on, toMsg } from './api';
 import { setLanguage } from './i18n.svelte';
-import type { Draft, Job, Marks, Msg, Provider, Settings, Snapshot, User } from './types';
+import type { Draft, Job, Marks, Msg, Provider, Settings, Snapshot, UpdateInfo, User } from './types';
 import { canRetry, canResume } from './types';
 
 export type Page = 'library' | 'queue' | 'remote' | 'settings';
 
 const defaults: Settings = {
   provider: 'realDebrid', language: 'en', appearance: 'system', browserView: 'list', browserSort: 'name',
-  outputDirectory: '', flattenFiles: true, concurrency: 3, rememberToken: true, libraryImportPaused: false
+  outputDirectory: '', flattenFiles: true, concurrency: 3, rememberToken: true, libraryImportPaused: false, checkUpdates: true
 };
 
 export interface Toast {
@@ -31,6 +32,9 @@ class AppState {
   inspect = $state({ running: false, done: 0, total: 0 });
   toasts = $state<Toast[]>([]);
   connecting = $state(false);
+  version = $state('');
+  update = $state<UpdateInfo | null>(null);
+  checkingUpdate = $state(false);
 
   jobsHere = $derived(this.jobs.filter((job) => job.provider === this.settings.provider));
   activeCount = $derived(this.jobsHere.filter((job) => job.state !== 'completed').length);
@@ -45,6 +49,8 @@ class AppState {
     const snapshot = await api.bootstrap();
     this.apply(snapshot);
     this.ready = true;
+    getVersion().then((version) => (this.version = version), () => {});
+    if (this.settings.checkUpdates) void this.checkUpdate(true);
     await Promise.all([
       on('jobs', (changed) => {
         const map = new Map(this.jobs.map((job) => [job.id, job]));
@@ -141,6 +147,28 @@ class AppState {
     this.hasToken = token.trim().length > 0;
     this.user = null;
     if (warning) this.toast(warning, 'error');
+  }
+
+  /** `quiet` is the startup check: it never reports a failure or an up-to-date result. */
+  async checkUpdate(quiet = false) {
+    if (this.checkingUpdate) return;
+    this.checkingUpdate = true;
+    try {
+      const info = await api.checkUpdate();
+      this.update = info;
+      if (!quiet && !info.available) {
+        this.toast(info.latest ? { key: 'Bạn đang dùng bản mới nhất.', args: [] } : { key: 'Chưa có bản phát hành nào trên GitHub.', args: [] }, 'success');
+      }
+    } catch (error) {
+      if (!quiet) this.toast(toMsg(error), 'error');
+    } finally {
+      this.checkingUpdate = false;
+    }
+  }
+
+  openUpdate() {
+    const url = this.update?.downloadUrl ?? this.update?.pageUrl;
+    if (url) return this.run(() => api.openRelease(url));
   }
 
   switchProvider(provider: Provider) {

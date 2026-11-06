@@ -145,7 +145,7 @@
   .actions { display: flex; align-items: center; gap: 4px; }
   .table { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .note { padding: 12px 16px; }
-  .review { margin: 0 16px 12px; padding: 12px 16px; background: var(--sheen), var(--danger-soft); box-shadow: var(--rim); border-radius: 16px; line-height: 1.5; }
+  .review { margin: 0 16px 12px; padding: 12px 16px; background: var(--danger-soft); border-radius: 16px; line-height: 1.5; }
   .cols { display: grid; grid-template-columns: 52px minmax(180px, 1fr) 100px 190px 136px; align-items: center; padding-right: 16px; }
   .head-row { height: 36px; margin: 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; }
   .body { flex: 1; min-height: 0; position: relative; }
@@ -156,7 +156,7 @@
   .line { display: flex; gap: 8px; align-items: center; }
   .id { font-size: 11px; color: var(--muted); }
   .empty { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; text-align: center; padding: 24px; }
-  .foot { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: linear-gradient(180deg, transparent, var(--hover)); }
+  .foot { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
   .indeterminate { position: absolute; left: 0; right: 0; top: 40px; height: 3px; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: slide 1.2s linear infinite; }
   @keyframes slide { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 </style>

@@ -1,0 +1,56 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Release: dry run",
+      "detail": "Validate and show what a release would change. Changes nothing.",
+      "type": "shell",
+      "command": "node",
+      "args": ["scripts/release.mjs", "${input:releaseVersion}", "--dry-run"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "Release: bump, tag (no push)",
+      "detail": "Run the CI checks, bump the version, commit and tag locally. Asks before changing anything.",
+      "type": "shell",
+      "command": "node",
+      "args": ["scripts/release.mjs", "${input:releaseVersion}", "--no-push"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true, "focus": true }
+    },
+    {
+      "label": "Release: bump, tag and push",
+      "detail": "Run the CI checks, bump the version, commit, tag and push main + the tag. Asks before changing anything.",
+      "type": "shell",
+      "command": "node",
+      "args": ["scripts/release.mjs", "${input:releaseVersion}"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true, "focus": true }
+    },
+    {
+      "label": "Dev: run the app",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["tauri", "dev"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Check: everything CI checks",
+      "type": "shell",
+      "command": "cargo test -p rdbatch-core --locked; cargo test -p rdbatch-desktop --locked; pnpm check; pnpm test; node scripts/check-i18n.mjs",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "releaseVersion",
+      "type": "promptString",
+      "description": "New version: patch, minor, major, or an exact X.Y.Z (prerelease: numeric only, e.g. 0.4.0-1)",
+      "default": "patch"
+    }
+  ]
+}

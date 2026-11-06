@@ -1,11 +1,14 @@
 <script lang="ts">
   import { open as pickFolder } from '@tauri-apps/plugin-dialog';
+  import ArrowsClockwise from 'phosphor-svelte/lib/ArrowsClockwise';
   import Check from 'phosphor-svelte/lib/Check';
+  import DownloadSimple from 'phosphor-svelte/lib/DownloadSimple';
   import FolderSimple from 'phosphor-svelte/lib/FolderSimple';
   import { api } from '../api';
   import { app } from '../app.svelte';
   import { t } from '../i18n.svelte';
   import { PROVIDERS, type Provider, type Settings } from '../types';
+  import Select from './Select.svelte';
 
   let token = $state('');
   let folder = $state(app.settings.outputDirectory);
@@ -40,12 +43,10 @@
     <div class="stack">
       <div class="card block">
         <h2 class="section">{t('Tài khoản')}</h2>
-        <label class="field">
+        <div class="field">
           <b>{t('Dịch vụ tải')}</b>
-          <select class="narrow" value={app.settings.provider} onchange={(e) => app.switchProvider(e.currentTarget.value as Provider)}>
-            {#each PROVIDERS as provider (provider.id)}<option value={provider.id}>{provider.label}</option>{/each}
-          </select>
-        </label>
+          <Select width="260px" label={t('Dịch vụ tải')} value={app.settings.provider} options={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))} onchange={(v: Provider) => app.switchProvider(v)} />
+        </div>
         <div class="field">
           <label for="token"><b>API token</b></label>
           <div class="pair">
@@ -70,33 +71,60 @@
           <input type="checkbox" checked={app.settings.flattenFiles} onchange={(e) => app.setSettings({ flattenFiles: e.currentTarget.checked })} />{t('Lưu tất cả file cùng thư mục')}
         </label>
         <p class="caption">{t('File tải dở giữ nguyên đường dẫn để tiếp tục.')}</p>
-        <label class="field">
+        <div class="field">
           <b>{t('Số torrent tải song song')}</b>
-          <select class="tiny" value={String(app.settings.concurrency)} onchange={(e) => app.setSettings({ concurrency: Number(e.currentTarget.value) })}>
-            {#each [1, 2, 3, 4, 5] as n (n)}<option value={String(n)}>{n}</option>{/each}
-          </select>
-        </label>
+          <Select width="96px" label={t('Số torrent tải song song')} value={app.settings.concurrency} options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }))} onchange={(n: number) => app.setSettings({ concurrency: n })} />
+        </div>
       </div>
 
       <div class="card block">
         <h2 class="section">{t('Giao diện và ngôn ngữ')}</h2>
         <div class="two">
-          <label class="field">
+          <div class="field">
             <b>{t('Giao diện')}</b>
-            <select value={app.settings.appearance} onchange={(e) => app.setSettings({ appearance: e.currentTarget.value as Settings['appearance'] })}>
-              <option value="system">{t('Theo hệ thống')}</option>
-              <option value="light">{t('Sáng')}</option>
-              <option value="dark">{t('Tối')}</option>
-            </select>
-          </label>
-          <label class="field">
+            <Select
+              label={t('Giao diện')}
+              value={app.settings.appearance}
+              options={[{ value: 'system', label: t('Theo hệ thống') }, { value: 'light', label: t('Sáng') }, { value: 'dark', label: t('Tối') }]}
+              onchange={(v: Settings['appearance']) => app.setSettings({ appearance: v })}
+            />
+          </div>
+          <div class="field">
             <b>{t('Ngôn ngữ')}</b>
-            <select value={app.settings.language} onchange={(e) => app.setSettings({ language: e.currentTarget.value as 'en' | 'vi' })}>
-              <option value="vi">Tiếng Việt</option>
-              <option value="en">English</option>
-            </select>
-          </label>
+            <Select
+              label={t('Ngôn ngữ')}
+              value={app.settings.language}
+              options={[{ value: 'vi', label: 'Tiếng Việt' }, { value: 'en', label: 'English' }]}
+              onchange={(v: Settings['language']) => app.setSettings({ language: v })}
+            />
+          </div>
         </div>
+      </div>
+      <div class="card block">
+        <h2 class="section">{t('Cập nhật')}</h2>
+        <div class="between">
+          <span>{t('Phiên bản hiện tại: {0}', app.version || '—')}</span>
+          <button class="btn outline" disabled={app.checkingUpdate} onclick={() => app.checkUpdate()}>
+            <span class="ic blue"><ArrowsClockwise size={16} weight="bold" /></span>{app.checkingUpdate ? t('Đang kiểm tra…') : t('Kiểm tra cập nhật')}
+          </button>
+        </div>
+        {#if app.update?.available}
+          <div class="found">
+            <div class="between">
+              <b>{t('Có phiên bản mới: {0}', app.update.latest ?? '')}</b>
+              <button class="btn primary" onclick={() => app.openUpdate()}><DownloadSimple size={16} weight="bold" />{t('Tải về từ GitHub')}</button>
+            </div>
+            {#if app.update.notes}
+              <div class="caption notes" aria-label={t('Ghi chú phát hành')}>{app.update.notes}</div>
+            {/if}
+            {#if app.update.pageUrl && app.update.pageUrl !== app.update.downloadUrl}
+              <button class="btn link" onclick={() => app.run(() => api.openRelease(app.update!.pageUrl!))}>{t('Xem trên GitHub')}</button>
+            {/if}
+          </div>
+        {:else if app.update}
+          <p class="caption">{app.update.latest ? t('Bạn đang dùng bản mới nhất.') : t('Chưa có bản phát hành nào trên GitHub.')}</p>
+        {/if}
+        <label class="check"><input type="checkbox" checked={app.settings.checkUpdates} onchange={(e) => app.setSettings({ checkUpdates: e.currentTarget.checked })} />{t('Tự kiểm tra khi mở ứng dụng')}</label>
       </div>
       <p class="caption data" title={app.dataFile}>{app.dataFile}</p>
     </div>
@@ -110,10 +138,11 @@
   .stack { width: 680px; max-width: 100%; display: flex; flex-direction: column; gap: 16px; padding-bottom: 24px; }
   .block { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; }
   .field { display: flex; flex-direction: column; gap: 6px; }
-  .narrow { max-width: 260px; } .tiny { width: 96px; }
   .pair { display: flex; gap: 8px; }
   .between { display: flex; justify-content: space-between; align-items: center; }
   .check { display: flex; align-items: center; gap: 10px; cursor: pointer; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .found { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--info-soft); }
+  .notes { white-space: pre-wrap; max-height: 160px; overflow-y: auto; user-select: text; }
   .data { user-select: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

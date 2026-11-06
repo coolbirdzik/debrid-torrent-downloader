@@ -255,6 +255,8 @@ pub struct Settings {
     pub concurrency: u32,
     pub remember_token: bool,
     pub library_import_paused: bool,
+    /// Look for a newer GitHub release when the app starts.
+    pub check_updates: bool,
 }
 
 impl Default for Settings {
@@ -270,6 +272,7 @@ impl Default for Settings {
             concurrency: 3,
             remember_token: true,
             library_import_paused: false,
+            check_updates: true,
         }
     }
 }

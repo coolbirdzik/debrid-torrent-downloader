@@ -31,13 +31,13 @@
 </div>
 
 <style>
-  .scrim { position: fixed; inset: 0; background: rgb(10 12 20 / 0.28); backdrop-filter: blur(6px); display: grid; place-content: center; z-index: 50; }
-  .dialog { width: min(480px, 90vw); padding: 24px 26px; display: flex; flex-direction: column; gap: 12px; background: var(--sheen), var(--glass-strong); border-radius: 26px; }
+  .scrim { position: fixed; inset: 0; background: rgb(10 10 11 / 0.36); backdrop-filter: blur(4px); display: grid; place-content: center; z-index: 50; }
+  .dialog { width: min(480px, 90vw); padding: 24px 26px; display: flex; flex-direction: column; gap: 12px; background: var(--glass-strong); box-shadow: var(--float); backdrop-filter: blur(20px); border-radius: 24px; }
   .dialog p { color: var(--muted); line-height: 1.55; user-select: text; }
   .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
-  .danger-fill, .danger-fill:hover:not(:disabled) { background: linear-gradient(180deg, rgb(255 255 255 / 0.3), transparent 55%), var(--icon-red); color: #fff; }
+  .danger-fill, .danger-fill:hover:not(:disabled) { background: var(--icon-red); color: #fff; }
   .toasts { position: fixed; right: 20px; bottom: 48px; display: flex; flex-direction: column; gap: 8px; z-index: 40; max-width: 420px; }
-  .toast { padding: 11px 16px; border-radius: 18px; background: var(--sheen), var(--glass-strong); }
+  .toast { padding: 11px 16px; border-radius: 16px; background: var(--glass-strong); box-shadow: var(--float); backdrop-filter: blur(20px); }
   .toast.error { color: var(--danger); }
   .toast.success { color: var(--success); }
 </style>

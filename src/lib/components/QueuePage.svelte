@@ -144,5 +144,5 @@
   .prog { display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
   .row-actions { display: flex; }
   .empty { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; text-align: center; }
-  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: linear-gradient(180deg, transparent, var(--hover)); }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
 </style>

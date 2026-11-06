@@ -104,6 +104,7 @@ pub struct SettingsPatch {
     pub flatten_files: Option<bool>,
     pub concurrency: Option<u32>,
     pub remember_token: Option<bool>,
+    pub check_updates: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -406,6 +407,7 @@ impl App {
             if let Some(v) = patch.flatten_files { s.flatten_files = v }
             if let Some(v) = patch.concurrency { s.concurrency = v.clamp(1, 5) }
             if let Some(v) = patch.remember_token { s.remember_token = v }
+            if let Some(v) = patch.check_updates { s.check_updates = v }
             (s.clone(), before.0 != s.provider, before.1 && !s.remember_token)
         };
         if provider_changed {
@@ -419,7 +421,17 @@ impl App {
             }
         }
         self.mark_dirty();
+        self.paint_title_bar();
         settings
+    }
+
+    /// Color the native title bar for the saved appearance (also called at startup and when the OS theme changes).
+    pub fn paint_title_bar(&self) {
+        use tauri::Manager;
+        let appearance = self.data.lock().unwrap().settings.appearance.clone();
+        if let Some(window) = self.handle.get_webview_window("main") {
+            crate::theme::apply(&window, &appearance);
+        }
     }
 
     fn token_for(&self, provider: Provider) -> Option<String> {
