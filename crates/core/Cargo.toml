@@ -1,6 +1,6 @@
 [package]
 name = "rdbatch-core"
-version = "0.3.6"
+version = "0.3.7"
 edition = "2024"
 description = "Debrid providers, resumable downloader and queue engine for DebridDock"
 license = "MIT"
