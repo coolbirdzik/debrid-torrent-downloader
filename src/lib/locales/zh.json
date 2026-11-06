@@ -1,4 +1,8 @@
 {
+  "Tải song song độc lập giữa các cloud": "各云端独立并行下载",
+  "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "每个云端最多同时下载 {0} 个种子。例如：Real-Debrid {0} 个，TorBox {0} 个。",
+  "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "所有云端共用最多同时下载 {0} 个种子的总限制。",
+  "Thay đổi giới hạn và chế độ song song áp dụng khi hàng đợi hết tác vụ đang chạy. Có thể Pause tất cả rồi Resume để áp dụng ngay.": "限制和并行模式的更改将在队列中没有运行任务时生效。暂停全部后继续即可立即应用。",
   "Dán torrent. Chọn nơi lưu. Tải toàn bộ.": "粘贴种子，选择文件夹，一键全部下载。",
   "✓  TỰ ĐỘNG CHỌN TẤT CẢ FILE": "✓  自动选择全部文件",
   "Lấy API token ↗": "获取 API 令牌 ↗",
@@ -451,5 +455,11 @@
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "这些项目及其文件将从服务中删除。此操作无法撤销。",
   "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "相关下载任务将停止并从队列中移除。本地文件将保留。",
   "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "已有 {0} 个文件在队列中，已跳过重复文件。",
-  "Không có file mới được thêm vào hàng đợi.": "没有新文件添加到队列。"
+  "Không có file mới được thêm vào hàng đợi.": "没有新文件添加到队列。",
+  "Tài khoản Real-Debrid": "Real-Debrid 账户",
+  "Premium còn lại": "Premium 剩余时间",
+  "Điểm Fidelity": "忠诚积分",
+  "{0} ngày {1} giờ": "{0} 天 {1} 小时",
+  "{0} giờ {1} phút": "{0} 小时 {1} 分钟",
+  "{0} phút": "{0} 分钟"
 }

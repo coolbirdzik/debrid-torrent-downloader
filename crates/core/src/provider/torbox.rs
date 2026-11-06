@@ -106,7 +106,7 @@ impl Debrid for TorBox {
             return Err(Error::invalid("TorBox: missing account ID."));
         }
         let plan = plan_name(num(&user, "plan"));
-        Ok(User { username: identity, kind: format!("TorBox · {plan}"), premium: 1, allows_downloads: true })
+        Ok(User { username: identity, kind: format!("TorBox · {plan}"), premium: 1, allows_downloads: true, ..User::default() })
     }
 
     async fn add_magnet(&self, magnet: &str) -> Result<String> {

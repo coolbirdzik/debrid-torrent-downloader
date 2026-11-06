@@ -5,7 +5,7 @@
 
 use crate::downloader::{self, TransferProgress};
 use crate::error::{Error, Result};
-use crate::models::{format_bytes, Job, JobFile, JobState, Msg, TorrentInfo};
+use crate::models::{format_bytes, Job, JobFile, JobState, Msg, Provider, TorrentInfo};
 use crate::paths;
 use crate::provider::{Debrid, Timing};
 use std::collections::{HashMap, HashSet};
@@ -234,12 +234,12 @@ impl Engine {
 
     pub fn session(self: &Arc<Self>, root: PathBuf, concurrency: usize, flatten: bool) -> Arc<Session> {
         let jobs = self.queue.snapshot();
-        self.shared_session(root, flatten, Arc::new(Allocator::new(&jobs)), Arc::new(Semaphore::new(concurrency.clamp(1, 5))))
+        self.shared_session(root, flatten, Arc::new(Allocator::new(&jobs)), Arc::new(DownloadSlots::new(concurrency, false)))
     }
 
-    /// A session that shares file-name reservations and download slots with sessions of other providers, so two
-    /// services never write the same file and the concurrency setting stays a total.
-    pub fn shared_session(self: &Arc<Self>, root: PathBuf, flatten: bool, allocator: Arc<Allocator>, slots: Arc<Semaphore>) -> Arc<Session> {
+    /// Share file-name reservations and the slot policy with other providers. The policy gives each provider its
+    /// own limit or enforces one total; file names remain coordinated in either mode.
+    pub fn shared_session(self: &Arc<Self>, root: PathBuf, flatten: bool, allocator: Arc<Allocator>, slots: Arc<DownloadSlots>) -> Arc<Session> {
         Arc::new(Session {
             engine: self.clone(),
             root,
@@ -625,13 +625,68 @@ struct Execution {
     done: watch::Sender<bool>,
 }
 
+/// One immutable concurrency policy for overlapping sessions, including services joining a running batch.
+/// A fresh policy is created after all sessions are idle, so changing settings cannot mix two kinds of limits.
+pub struct DownloadSlots {
+    concurrency: usize,
+    independent: bool,
+    pools: Mutex<HashMap<Option<Provider>, Arc<Semaphore>>>,
+}
+
+impl DownloadSlots {
+    pub fn new(concurrency: usize, independent: bool) -> Self {
+        Self { concurrency: concurrency.clamp(1, 5), independent, pools: Mutex::new(HashMap::new()) }
+    }
+
+    fn for_provider(&self, provider: Provider) -> Arc<Semaphore> {
+        let key = self.independent.then_some(provider);
+        self.pools.lock().unwrap().entry(key).or_insert_with(|| Arc::new(Semaphore::new(self.concurrency))).clone()
+    }
+}
+
+#[cfg(test)]
+mod slot_tests {
+    use super::*;
+
+    #[test]
+    fn five_slots_per_cloud_are_independent_and_reused() {
+        let slots = DownloadSlots::new(5, true);
+        let mut permits = Vec::new();
+        for provider in [Provider::RealDebrid, Provider::TorBox, Provider::AllDebrid] {
+            let pool = slots.for_provider(provider);
+            for _ in 0..5 {
+                permits.push(pool.clone().try_acquire_owned().unwrap());
+            }
+            assert!(slots.for_provider(provider).try_acquire_owned().is_err());
+        }
+        assert_eq!(permits.len(), 15);
+        permits.pop();
+        assert!(slots.for_provider(Provider::AllDebrid).try_acquire_owned().is_ok());
+        assert!(slots.for_provider(Provider::RealDebrid).try_acquire_owned().is_err());
+    }
+
+    #[test]
+    fn shared_mode_limits_all_clouds_to_five_in_total() {
+        let slots = DownloadSlots::new(5, false);
+        let mut permits = Vec::new();
+        for provider in [Provider::RealDebrid, Provider::TorBox, Provider::AllDebrid, Provider::RealDebrid, Provider::TorBox] {
+            permits.push(slots.for_provider(provider).try_acquire_owned().unwrap());
+        }
+        for provider in [Provider::RealDebrid, Provider::TorBox, Provider::AllDebrid] {
+            assert!(slots.for_provider(provider).try_acquire_owned().is_err());
+        }
+        permits.pop();
+        assert!(slots.for_provider(Provider::AllDebrid).try_acquire_owned().is_ok());
+    }
+}
+
 /// Runs queued jobs with bounded concurrency. Pause and Stop keep partial files so Resume continues exactly.
 pub struct Session {
     engine: Arc<Engine>,
     root: PathBuf,
     flatten: bool,
     allocator: Arc<Allocator>,
-    slots: Arc<Semaphore>,
+    slots: Arc<DownloadSlots>,
     active: Mutex<HashMap<String, Arc<Execution>>>,
     idle: watch::Sender<bool>,
 }
@@ -650,7 +705,7 @@ pub async fn wait_done(mut done: watch::Receiver<bool>) {
 
 impl Session {
     /// The name reservations and download slots, for a session of another service that runs alongside this one.
-    pub fn shared(&self) -> (Arc<Allocator>, Arc<Semaphore>) {
+    pub fn shared(&self) -> (Arc<Allocator>, Arc<DownloadSlots>) {
         (self.allocator.clone(), self.slots.clone())
     }
 
@@ -735,11 +790,12 @@ impl Session {
 
     async fn execute(self: Arc<Self>, id: String, execution: Arc<Execution>) {
         let queue = self.engine.queue.clone();
+        let slots = self.slots.for_provider(self.engine.api.provider());
         let mut attempt = 0u32;
         let result = loop {
             let permit = tokio::select! {
                 _ = execution.ct.cancelled() => None,
-                permit = self.slots.clone().acquire_owned() => permit.ok(),
+                permit = slots.clone().acquire_owned() => permit.ok(),
             };
             let outcome = match permit {
                 None => Err(Error::Cancelled),

@@ -5,7 +5,7 @@
 //! an immediate flush (a freshly created remote torrent ID).
 
 use chrono::Utc;
-use rdbatch_core::engine::{Allocator, Engine, Queue, Session};
+use rdbatch_core::engine::{Allocator, DownloadSlots, Engine, Queue, Session};
 use rdbatch_core::error::{Error, Result};
 use rdbatch_core::models::{CloudKind, CloudState, Draft, Job, JobState, Msg, Persisted, Provider, RemoteRef, RemoteTorrent, Settings, TorBoxAccount, User};
 use rdbatch_core::provider::{self, Debrid, Timing};
@@ -18,7 +18,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
-use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
 const SERVICE: &str = "dev.rdbatch.desktop";
@@ -118,6 +117,7 @@ pub struct SettingsPatch {
     pub output_directory: Option<String>,
     pub flatten_files: Option<bool>,
     pub concurrency: Option<u32>,
+    pub independent_cloud_downloads: Option<bool>,
     pub remember_token: Option<bool>,
     pub check_updates: Option<bool>,
     pub library_providers: Option<Vec<Provider>>,
@@ -441,6 +441,7 @@ impl App {
             if let Some(v) = patch.output_directory { s.output_directory = v.trim().to_string() }
             if let Some(v) = patch.flatten_files { s.flatten_files = v }
             if let Some(v) = patch.concurrency { s.concurrency = v.clamp(1, 5) }
+            if let Some(v) = patch.independent_cloud_downloads { s.independent_cloud_downloads = v }
             if let Some(v) = patch.remember_token { s.remember_token = v }
             if let Some(v) = patch.check_updates { s.check_updates = v }
             if let Some(list) = patch.library_providers {
@@ -535,9 +536,9 @@ impl App {
         Error::operation("Dán API token của {0} trong Cài đặt trước khi dùng dịch vụ này.", &[&provider.label()])
     }
 
-    /// Verify the stored token of the service shown in Settings.
-    pub async fn connect(&self) -> Result<User> {
-        Ok(self.connect_provider(self.provider()).await?.user)
+    /// Verify a specified service, or the one shown in Settings when omitted.
+    pub async fn connect(&self, provider: Option<Provider>) -> Result<User> {
+        Ok(self.connect_provider(provider.unwrap_or_else(|| self.provider())).await?.user)
     }
 
     /// Verify a service's token and remember the account it belongs to.
@@ -546,9 +547,12 @@ impl App {
         let api = self.client(provider, &token);
         let user = api.user().await?;
         let account = Account { token, user: user.clone(), api };
-        self.accounts.lock().unwrap().insert(provider, account.clone());
-        // Starting the queue or reading torrents verifies tokens too; tell the UI which account is connected.
-        self.emit("account", AccountDto { provider, has_token: true, user: Some(user) });
+        // Changing a token while its request is in flight must not restore the previous account in the UI/cache.
+        if self.token_for(provider).as_deref() == Some(account.token.as_str()) {
+            self.accounts.lock().unwrap().insert(provider, account.clone());
+            // Starting the queue or reading torrents verifies tokens too; tell the UI which account is connected.
+            self.emit("account", AccountDto { provider, has_token: true, user: Some(user) });
+        }
         Ok(account)
     }
 
@@ -941,10 +945,10 @@ impl App {
         Ok(created)
     }
 
-    fn output_root(&self) -> Result<(PathBuf, usize, bool)> {
-        let (dir, concurrency, flatten) = {
+    fn output_root(&self) -> Result<(PathBuf, usize, bool, bool)> {
+        let (dir, concurrency, flatten, independent) = {
             let data = self.data.lock().unwrap();
-            (data.settings.output_directory.trim().to_string(), data.settings.concurrency as usize, data.settings.flatten_files)
+            (data.settings.output_directory.trim().to_string(), data.settings.concurrency as usize, data.settings.flatten_files, data.settings.independent_cloud_downloads)
         };
         let path = PathBuf::from(&dir);
         if dir.is_empty() || !path.is_absolute() {
@@ -954,7 +958,7 @@ impl App {
         let probe = path.join(format!(".rd-write-test-{}", uuid_like()));
         std::fs::write(&probe, b"")?;
         let _ = std::fs::remove_file(&probe);
-        Ok((path, concurrency, flatten))
+        Ok((path, concurrency, flatten, independent))
     }
 
     /// Start jobs of every service. A service that cannot start (no token, no download rights) does not hold back the
@@ -1021,7 +1025,7 @@ impl App {
         }
         // The disk probe and the account check (a network call on the first start) run without holding the session
         // lock, so Stop, Pause and Remove never wait behind them.
-        let (root, concurrency, flatten) = self.output_root()?;
+        let (root, concurrency, flatten, independent) = self.output_root()?;
         let (account, api) = self.verified(provider).await?;
         if !account.user.can_download() {
             return Err(Error::operation("Cần tài khoản có quyền tải torrent trên {0}.", &[&provider.label()]));
@@ -1031,11 +1035,11 @@ impl App {
         if let Some(session) = guard.get(&provider).filter(|s| s.active_count() > 0) {
             return Ok(session.clone());
         }
-        // Sessions running at the same time share file names and download slots. Once every one is idle, the next
-        // starts fresh, so a changed concurrency setting applies.
+        // Overlapping sessions share file names and one slot policy (per cloud or total). Once every session is
+        // idle, the next starts fresh with the current settings.
         let (allocator, slots) = match guard.values().find(|s| s.active_count() > 0) {
             Some(busy) => busy.shared(),
-            None => (Arc::new(Allocator::new(&self.queue.snapshot())), Arc::new(Semaphore::new(concurrency.clamp(1, 5)))),
+            None => (Arc::new(Allocator::new(&self.queue.snapshot())), Arc::new(DownloadSlots::new(concurrency, independent))),
         };
         let engine = Engine::new(api, self.transfer_http.clone(), Some(account.user.username.clone()), self.queue.clone(), self.timing);
         let session = engine.shared_session(root, flatten, allocator, slots);

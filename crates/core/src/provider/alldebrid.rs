@@ -93,7 +93,7 @@ impl Debrid for AllDebrid {
         if name.is_empty() {
             return Err(Error::invalid("AllDebrid: missing account name."));
         }
-        Ok(User { username: name, kind: if premium { "premium" } else { "free" }.into(), premium: i64::from(premium), allows_downloads: false })
+        Ok(User { username: name, kind: if premium { "premium" } else { "free" }.into(), premium: i64::from(premium), allows_downloads: false, ..User::default() })
     }
 
     async fn add_magnet(&self, magnet: &str) -> Result<String> {

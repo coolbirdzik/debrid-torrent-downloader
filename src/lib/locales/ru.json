@@ -1,4 +1,8 @@
 {
+  "Tải song song độc lập giữa các cloud": "Независимые параллельные загрузки для каждого облака",
+  "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "Каждое облако загружает до {0} торрентов одновременно. Например: {0} Real-Debrid и {0} TorBox.",
+  "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "Все облака используют общий лимит в {0} одновременных торрентов.",
+  "Thay đổi giới hạn và chế độ song song áp dụng khi hàng đợi hết tác vụ đang chạy. Có thể Pause tất cả rồi Resume để áp dụng ngay.": "Изменения лимита и режима применяются, когда в очереди нет активных задач. Приостановите всё и возобновите, чтобы применить их сразу.",
   "Dán torrent. Chọn nơi lưu. Tải toàn bộ.": "Вставьте торренты. Выберите папку. Скачайте всё.",
   "✓  TỰ ĐỘNG CHỌN TẤT CẢ FILE": "✓  ВСЕ ФАЙЛЫ ВЫБИРАЮТСЯ АВТОМАТИЧЕСКИ",
   "Lấy API token ↗": "Получить API-токен ↗",
@@ -451,5 +455,11 @@
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "Эти объекты и их файлы будут удалены из сервиса. Это действие нельзя отменить.",
   "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Связанные загрузки будут остановлены и удалены из очереди. Локальные файлы сохранятся.",
   "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Файлов уже в очереди: {0}. Дубликаты пропущены.",
-  "Không có file mới được thêm vào hàng đợi.": "Новые файлы не были добавлены в очередь."
+  "Không có file mới được thêm vào hàng đợi.": "Новые файлы не были добавлены в очередь.",
+  "Tài khoản Real-Debrid": "Аккаунт Real-Debrid",
+  "Premium còn lại": "Осталось Premium",
+  "Điểm Fidelity": "Баллы Fidelity",
+  "{0} ngày {1} giờ": "{0} дн. {1} ч.",
+  "{0} giờ {1} phút": "{0} ч. {1} мин.",
+  "{0} phút": "{0} мин."
 }

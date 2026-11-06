@@ -1,4 +1,8 @@
 {
+  "Tải song song độc lập giữa các cloud": "クラウドごとに独立して並列ダウンロード",
+  "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "各クラウドで最大{0}件のトレントを同時にダウンロードします。例：Real-Debridで{0}件、TorBoxで{0}件。",
+  "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "すべてのクラウドで同時に最大{0}件のトレントを共有します。",
+  "Thay đổi giới hạn và chế độ song song áp dụng khi hàng đợi hết tác vụ đang chạy. Có thể Pause tất cả rồi Resume để áp dụng ngay.": "上限と並列モードの変更は実行中のタスクがなくなると適用されます。すべて一時停止してから再開すると、すぐに適用できます。",
   "Dán torrent. Chọn nơi lưu. Tải toàn bộ.": "トレントを貼り付け、フォルダを選んで、すべてダウンロード。",
   "✓  TỰ ĐỘNG CHỌN TẤT CẢ FILE": "✓  すべてのファイルを自動選択",
   "Lấy API token ↗": "API トークンを取得 ↗",
@@ -451,5 +455,11 @@
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "これらの項目と含まれるファイルがサービスから削除されます。この操作は取り消せません。",
   "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "関連するダウンロードタスクは停止し、キューから削除されます。ローカルファイルは保持されます。",
   "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "すでにキューにあるファイル: {0} 件。重複ファイルをスキップしました。",
-  "Không có file mới được thêm vào hàng đợi.": "新しいファイルはキューに追加されませんでした。"
+  "Không có file mới được thêm vào hàng đợi.": "新しいファイルはキューに追加されませんでした。",
+  "Tài khoản Real-Debrid": "Real-Debrid アカウント",
+  "Premium còn lại": "Premium の残り時間",
+  "Điểm Fidelity": "Fidelity ポイント",
+  "{0} ngày {1} giờ": "{0}日 {1}時間",
+  "{0} giờ {1} phút": "{0}時間 {1}分",
+  "{0} phút": "{0}分"
 }

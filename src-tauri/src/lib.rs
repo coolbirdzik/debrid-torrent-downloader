@@ -39,8 +39,8 @@ fn save_token(app: Shared, token: String) -> Option<Msg> {
 }
 
 #[tauri::command]
-async fn connect(app: Shared<'_>) -> Cmd<User> {
-    Ok(app.connect().await?)
+async fn connect(app: Shared<'_>, provider: Option<rdbatch_core::models::Provider>) -> Cmd<User> {
+    Ok(app.connect(provider).await?)
 }
 
 #[tauri::command]

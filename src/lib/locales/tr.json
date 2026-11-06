@@ -1,4 +1,8 @@
 {
+  "Tải song song độc lập giữa các cloud": "Her bulut için bağımsız paralel indirmeler",
+  "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "Her bulut aynı anda en fazla {0} torrent indirir. Örneğin: {0} Real-Debrid ve {0} TorBox.",
+  "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "Tüm bulutlar aynı anda toplam {0} torrent sınırını paylaşır.",
+  "Thay đổi giới hạn và chế độ song song áp dụng khi hàng đợi hết tác vụ đang chạy. Có thể Pause tất cả rồi Resume để áp dụng ngay.": "Sınır ve paralel mod değişiklikleri, kuyrukta etkin iş kalmadığında uygulanır. Hemen uygulamak için tümünü duraklatıp sürdürün.",
   "Dán torrent. Chọn nơi lưu. Tải toàn bộ.": "Torrent'leri yapıştırın. Klasör seçin. Hepsini indirin.",
   "✓  TỰ ĐỘNG CHỌN TẤT CẢ FILE": "✓  TÜM DOSYALAR OTOMATİK SEÇİLİR",
   "Lấy API token ↗": "API belirteci al ↗",
@@ -451,5 +455,11 @@
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "Bu öğeler ve içlerindeki dosyalar hizmetten silinecek. Bu işlem geri alınamaz.",
   "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "İlgili indirmeler durdurulacak ve kuyruktan kaldırılacak. Yerel dosyalar korunacak.",
   "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Zaten kuyrukta olan dosyalar: {0}. Yinelenenler atlandı.",
-  "Không có file mới được thêm vào hàng đợi.": "Kuyruğa yeni dosya eklenmedi."
+  "Không có file mới được thêm vào hàng đợi.": "Kuyruğa yeni dosya eklenmedi.",
+  "Tài khoản Real-Debrid": "Real-Debrid hesabı",
+  "Premium còn lại": "Kalan Premium süresi",
+  "Điểm Fidelity": "Sadakat puanı",
+  "{0} ngày {1} giờ": "{0} gün {1} saat",
+  "{0} giờ {1} phút": "{0} saat {1} dakika",
+  "{0} phút": "{0} dakika"
 }

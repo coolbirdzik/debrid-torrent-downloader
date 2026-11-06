@@ -103,6 +103,7 @@ export interface Settings {
   outputDirectory: string;
   flattenFiles: boolean;
   concurrency: number;
+  independentCloudDownloads: boolean;
   rememberToken: boolean;
   libraryImportPaused: boolean;
   checkUpdates: boolean;
@@ -134,6 +135,9 @@ export interface User {
   kind: string;
   premium: number;
   allows_downloads: boolean;
+  email?: string | null;
+  expiration?: string | null;
+  points?: number | null;
 }
 
 export interface AccountInfo {

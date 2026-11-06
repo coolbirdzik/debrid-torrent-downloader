@@ -11,6 +11,7 @@
   import { PROVIDERS, providerLabel, type Provider, type Settings } from '../types';
   import Select from './Select.svelte';
   import TorBoxAccount from './TorBoxAccount.svelte';
+  import RealDebridAccount from './RealDebridAccount.svelte';
 
   let token = $state('');
   let folder = $state(app.settings.outputDirectory);
@@ -77,6 +78,7 @@
         {#if app.settings.rememberLibraryProviders && savedChoice}<p class="caption">{t('Đang dùng: {0}', savedChoice)}</p>{/if}
       </div>
 
+      <RealDebridAccount />
       <TorBoxAccount />
 
       <div class="card block">
@@ -93,6 +95,13 @@
           <b>{t('Số torrent tải song song')}</b>
           <Select width="96px" label={t('Số torrent tải song song')} value={app.settings.concurrency} options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }))} onchange={(n: number) => app.setSettings({ concurrency: n })} />
         </div>
+        <label class="check">
+          <input type="checkbox" checked={app.settings.independentCloudDownloads} onchange={(e) => app.setSettings({ independentCloudDownloads: e.currentTarget.checked })} />{t('Tải song song độc lập giữa các cloud')}
+        </label>
+        <p class="caption">{app.settings.independentCloudDownloads
+          ? t('Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.', app.settings.concurrency)
+          : t('Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.', app.settings.concurrency)}</p>
+        <p class="caption">{t('Thay đổi giới hạn và chế độ song song áp dụng khi hàng đợi hết tác vụ đang chạy. Có thể Pause tất cả rồi Resume để áp dụng ngay.')}</p>
       </div>
 
       <div class="card block">

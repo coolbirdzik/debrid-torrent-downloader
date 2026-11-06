@@ -6,6 +6,8 @@
   import { languageTag } from '../languages';
   import { t, tm } from '../i18n.svelte';
 
+  let { compact = false }: { compact?: boolean } = $props();
+
   const connected = $derived(app.accounts.find((account) => account.provider === 'torBox')?.hasToken ?? false);
   const details = $derived(app.torboxAccount);
   const identity = $derived(app.accounts.find((account) => account.provider === 'torBox')?.user?.username ?? '');
@@ -26,7 +28,7 @@
     {#if app.torboxAccountLoading && !details}<p class="caption">{t('Đang tải thông tin tài khoản…')}</p>{/if}
     {#if app.torboxAccountError}<p class="error" role="alert">{tm(app.torboxAccountError)}</p>{/if}
     {#if details}
-      <div class="metrics">
+      <div class="metrics" class:compact>
         <div><span class="caption">{t('Hết hạn gói')}</span><b>{details.expiresAt ? new Date(details.expiresAt).toLocaleDateString(languageTag(app.settings.language)) : '—'}</b></div>
         <div><span class="caption">{t('AirLock còn lại')}</span><b>{bytes(details.airlockRemainingBytes)}</b></div>
         <div><span class="caption">{t('AirLock đã dùng / giới hạn')}</span><b>{bytes(details.airlockUsedBytes)} / {bytes(details.airlockLimitBytes)}</b></div>
@@ -41,12 +43,13 @@
 {/if}
 
 <style>
-  .torbox-account { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; flex: none; }
+  .torbox-account { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; flex: none; min-width: 0; }
   header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
   .identity { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .identity b { display: flex; align-items: center; gap: 8px; }
   .ell { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .metrics.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metrics > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
   .metrics b { font-size: 13px; font-variant-numeric: tabular-nums; }
   .usage { height: 4px; border-radius: 999px; background: var(--track); overflow: hidden; }

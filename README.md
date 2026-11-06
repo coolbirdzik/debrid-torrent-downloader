@@ -88,6 +88,8 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 - The **TorBox account panel**, available in Settings and Cloud files, shows the actual Free / Essential / Standard /
   Pro plan, expiry, **AirLock used / limit / remaining**, and **30-day data usage**, with a refresh button.
   Missing quota is shown as unavailable. AirLock storage and traffic usage are displayed separately.
+- The **Real-Debrid account panel** shows username/email, Premium or Free status, expiry, remaining Premium time
+  and Fidelity points, with its own refresh button. Cloud provider filters also filter the account panels.
 
 ### Torrent downloads from debrid
 
@@ -97,7 +99,9 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 - **Automatic retry:** a dropped connection, a timeout or an expired download link is retried with back-off and
   resumes the partial file. **Retry all** is there for anything that still fails.
 - Choose the **download folder**, keep the torrent's folder structure or save everything flat, and run **1 to 5
-  torrents at the same time**.
+  torrents at the same time per cloud** by default. Set 5 to run up to 5 Real-Debrid, 5 TorBox and 5 AllDebrid torrents
+  independently. Turn off **Independent parallel downloads per cloud** in Settings to share one total limit.
+  Limit and mode changes apply once the queue has no active jobs; Pause all, then Resume to apply them immediately.
 - Progress shows both sides: the service's progress and the download to your computer, with speed and file count.
 
 ### Fast, private, cross-platform

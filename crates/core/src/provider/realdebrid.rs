@@ -111,6 +111,9 @@ impl Debrid for RealDebrid {
             kind: value.get("type").and_then(Value::as_str).unwrap_or_default().to_string(),
             premium: value.get("premium").and_then(Value::as_i64).unwrap_or(0),
             allows_downloads: false,
+            email: value.get("email").and_then(Value::as_str).filter(|value| !value.trim().is_empty()).map(str::to_string),
+            expiration: value.get("expiration").and_then(Value::as_str).filter(|value| !value.trim().is_empty()).map(str::to_string),
+            points: value.get("points").and_then(Value::as_u64),
         })
     }
 

@@ -82,17 +82,31 @@ async fn torbox_missing_quota_is_unknown_and_stats_failure_does_not_hide_the_pla
 async fn realdebrid_sends_the_token_only_in_the_header_and_reports_401() {
     let server = MockServer::start().await;
     Mock::given(method("GET")).and(path("/user")).and(header("authorization", "Bearer secret-token"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"username":"me","type":"premium","premium":3600})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"username":"me","type":"premium","premium":3600,"email":"me@example.com","expiration":"2026-12-07T12:00:00Z","points":0})))
         .up_to_n_times(1).mount(&server).await;
     let api = client(Provider::RealDebrid, &server, "secret-token");
     let user = api.user().await.unwrap();
     assert!(user.can_download() && user.username == "me");
+    assert_eq!(user.email.as_deref(), Some("me@example.com"));
+    assert_eq!(user.expiration.as_deref(), Some("2026-12-07T12:00:00Z"));
+    assert_eq!(user.points, Some(0));
 
     Mock::given(method("GET")).and(path("/user")).respond_with(ResponseTemplate::new(401).set_body_json(json!({"error":"bad_token secret-token","error_code":8}))).mount(&server).await;
     let error = api.user().await.unwrap_err();
     assert!(matches!(error, Error::Api { status: 401, .. }));
     assert!(error.friendly().key.starts_with("Token không hợp lệ"));
     assert!(!error.to_string().contains("secret-token"), "the token must not appear in error text: {error}");
+}
+
+#[tokio::test]
+async fn realdebrid_optional_account_fields_remain_unknown_when_missing() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET")).and(path("/user"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"username":"free-user","type":"free","premium":0,"email":"","expiration":"","points":-1})))
+        .mount(&server).await;
+    let user = client(Provider::RealDebrid, &server, "secret").user().await.unwrap();
+    assert!(!user.can_download());
+    assert_eq!((user.email, user.expiration, user.points), (None, None, None));
 }
 
 #[tokio::test]

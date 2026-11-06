@@ -1,6 +1,6 @@
 //! The queue engine end to end against a mock provider and mock file host.
 
-use rdbatch_core::engine::{wait_done, Engine, Queue};
+use rdbatch_core::engine::{wait_done, Allocator, DownloadSlots, Engine, Queue};
 use rdbatch_core::models::{Job, JobState, Provider};
 use rdbatch_core::provider::{self, Timing};
 use serde_json::json;
@@ -27,6 +27,77 @@ async fn fixture(account: Option<&str>) -> Fixture {
     let api = provider::create(Provider::RealDebrid, reqwest::Client::new(), "token", Some(&format!("{}/", server.uri())), Timing::fast());
     let engine = Engine::new(api, reqwest::Client::new(), account.map(str::to_string), queue.clone(), Timing::fast());
     Fixture { server, engine, queue, persisted }
+}
+
+async fn wait_for_state(queue: &Queue, id: &str, state: JobState) {
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while queue.get(id).unwrap().state != state {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    }).await.unwrap_or_else(|_| panic!("expected {state:?}, got {:?}", queue.get(id).unwrap()));
+}
+
+async fn cloud_slot_scenario(independent: bool) {
+    let f = fixture(None).await;
+    let tb_api = provider::create(Provider::TorBox, reqwest::Client::new(), "token", Some(&format!("{}/", f.server.uri())), Timing::fast());
+    let tb_engine = Engine::new(tb_api, reqwest::Client::new(), None, f.queue.clone(), Timing::fast());
+    Mock::given(method("GET")).and(path("/torrents/info/RD"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id":"RD","filename":"rd","status":"downloading","progress":1,"bytes":3,
+            "files":[{"id":1,"path":"/a","bytes":3,"selected":1}],"links":[]
+        }))).mount(&f.server).await;
+    Mock::given(method("GET")).and(path("/torrents/mylist"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":{
+            "id":77,"name":"tb","size":3,"progress":0.01,"download_state":"downloading",
+            "files":[{"id":1,"name":"a","size":3}]
+        }}))).mount(&f.server).await;
+    let mut rd = job("RD", Some(vec![1]));
+    rd.torrent_id = Some("RD".into());
+    let rd_id = rd.id.clone();
+    let tb = |key: &str| {
+        let mut j = Job::new(Provider::TorBox, "magnet:?xt=urn:btih:TB", key, "tb");
+        j.torrent_id = Some("77".into());
+        j
+    };
+    let (tb1, tb2) = (tb("TB1"), tb("TB2"));
+    let (tb1_id, tb2_id) = (tb1.id.clone(), tb2.id.clone());
+    for j in [rd, tb1, tb2] { f.queue.push(j); }
+    let dir = tempfile::tempdir().unwrap();
+    let rd_session = f.engine.shared_session(dir.path().into(), true, Arc::new(Allocator::new(&f.queue.snapshot())), Arc::new(DownloadSlots::new(1, independent)));
+    rd_session.enqueue(&rd_id).unwrap();
+    wait_for_state(&f.queue, &rd_id, JobState::Waiting).await;
+    // A cloud joining an already busy batch inherits the same policy and file-name allocator.
+    let (allocator, slots) = rd_session.shared();
+    let tb_session = tb_engine.shared_session(dir.path().into(), true, allocator, slots);
+    tb_session.enqueue(&tb1_id).unwrap();
+    if independent {
+        wait_for_state(&f.queue, &tb1_id, JobState::Waiting).await;
+    } else {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert_eq!(f.queue.get(&tb1_id).unwrap().state, JobState::Queued);
+        assert!(!f.server.received_requests().await.unwrap().iter().any(|r| r.url.path() == "/torrents/mylist"));
+        rd_session.stop_all().await;
+        wait_for_state(&f.queue, &tb1_id, JobState::Waiting).await;
+    }
+    // A second job on the same cloud must still wait, and stopping it must not disturb the running job.
+    tb_session.enqueue(&tb2_id).unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(f.queue.get(&tb2_id).unwrap().state, JobState::Queued);
+    tb_session.stop(&tb2_id).await;
+    assert_eq!(f.queue.get(&tb1_id).unwrap().state, JobState::Waiting);
+    rd_session.stop_all().await;
+    tb_session.stop_all().await;
+    assert!(f.queue.snapshot().iter().all(|j| !j.is_active && j.state == JobState::Stopped));
+}
+
+#[tokio::test]
+async fn a_busy_cloud_does_not_block_another_cloud_in_independent_mode() {
+    cloud_slot_scenario(true).await;
+}
+
+#[tokio::test]
+async fn clouds_share_one_total_limit_when_independent_mode_is_disabled() {
+    cloud_slot_scenario(false).await;
 }
 
 /// A torrent that first waits for file selection and is "downloaded" afterwards.

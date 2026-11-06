@@ -1,4 +1,8 @@
 {
+  "Tải song song độc lập giữa các cloud": "Independent parallel downloads per cloud",
+  "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "Each cloud downloads up to {0} torrents at once. For example: {0} Real-Debrid and {0} TorBox.",
+  "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "All clouds share a total limit of {0} torrents at once.",
+  "Thay đổi giới hạn và chế độ song song áp dụng khi hàng đợi hết tác vụ đang chạy. Có thể Pause tất cả rồi Resume để áp dụng ngay.": "Limit and parallel mode changes apply once the queue has no active jobs. Pause all, then Resume to apply them immediately.",
   "Dán torrent. Chọn nơi lưu. Tải toàn bộ.": "Paste torrents. Choose a folder. Download everything.",
   "✓  TỰ ĐỘNG CHỌN TẤT CẢ FILE": "✓  ALL FILES SELECTED AUTOMATICALLY",
   "Lấy API token ↗": "Get API token ↗",
@@ -451,5 +455,11 @@
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "These items and their files will be deleted from the service. This cannot be undone.",
   "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Related download tasks will stop and be removed from the queue. Local files will be kept.",
   "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Files already in the queue: {0}. Duplicates skipped.",
-  "Không có file mới được thêm vào hàng đợi.": "No new files were added to the queue."
+  "Không có file mới được thêm vào hàng đợi.": "No new files were added to the queue.",
+  "Tài khoản Real-Debrid": "Real-Debrid account",
+  "Premium còn lại": "Premium remaining",
+  "Điểm Fidelity": "Fidelity points",
+  "{0} ngày {1} giờ": "{0} days {1} hours",
+  "{0} giờ {1} phút": "{0} hours {1} minutes",
+  "{0} phút": "{0} minutes"
 }

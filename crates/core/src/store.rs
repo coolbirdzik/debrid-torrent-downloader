@@ -139,6 +139,23 @@ mod tests {
         assert_eq!(loaded.data.settings.concurrency, 5);
         assert_eq!(loaded.data.settings.language, "en");
         assert!(loaded.data.settings.flatten_files, "flat layout stays the default");
+        assert!(loaded.data.settings.independent_cloud_downloads, "existing settings opt into independent cloud limits");
+    }
+
+    #[test]
+    fn cloud_concurrency_mode_survives_a_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path());
+        for independent in [false, true] {
+            let mut data = Persisted::default();
+            data.settings.independent_cloud_downloads = independent;
+            data.settings.concurrency = 5;
+            store.save(&data).unwrap();
+            let loaded = store.load();
+            assert!(loaded.warning.is_none());
+            assert_eq!(loaded.data.settings.independent_cloud_downloads, independent);
+            assert_eq!(loaded.data.settings.concurrency, 5);
+        }
     }
 
     #[test]

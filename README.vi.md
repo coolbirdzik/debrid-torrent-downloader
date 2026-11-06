@@ -86,6 +86,8 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 - **Bảng tài khoản TorBox** trong Cài đặt và Quản lý cloud hiện đúng gói Free / Essential / Standard / Pro, ngày hết
   hạn, **AirLock đã dùng / giới hạn / còn lại**, **dữ liệu sử dụng 30 ngày** và nút làm mới. Nếu thiếu dữ liệu hạn mức,
   bảng báo chưa có thông tin. Dung lượng AirLock và lưu lượng sử dụng được hiển thị riêng.
+- **Bảng tài khoản Real-Debrid** hiện tên/email, loại Premium hoặc Free, ngày hết hạn, thời gian Premium còn lại và
+  điểm Fidelity, kèm nút làm mới riêng. Bộ lọc nhà cung cấp trong Quản lý cloud cũng lọc các bảng tài khoản.
 
 ### Tải torrent từ debrid
 
@@ -94,7 +96,10 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 - **Tải có resume** (`Range` + `If-Range`): dừng, tạm dừng hoặc tắt app, lần sau tải tiếp đúng từ byte đã dừng.
 - **Tự động thử lại:** rớt mạng, quá thời gian chờ hay link tải hết hạn đều được thử lại với thời gian chờ tăng dần
   và tải tiếp phần dở. Nút **Retry tất cả** dành cho những gì vẫn lỗi.
-- Chọn **thư mục lưu**, giữ cấu trúc thư mục của torrent hoặc lưu phẳng, chạy **1 đến 5 torrent cùng lúc**.
+- Chọn **thư mục lưu**, giữ cấu trúc thư mục của torrent hoặc lưu phẳng, mặc định chạy **1 đến 5 torrent cùng lúc
+  trên mỗi cloud**. Đặt 5 thì Real-Debrid, TorBox và AllDebrid mỗi bên có tối đa 5 torrent chạy độc lập. Tắt
+  **Tải song song độc lập giữa các cloud** trong Cài đặt để dùng chung một giới hạn tổng.
+  Thay đổi giới hạn và chế độ áp dụng khi hàng đợi hết tác vụ đang chạy; Pause tất cả rồi Resume để áp dụng ngay.
 - Tiến độ hiện cả hai phía: tiến độ trên dịch vụ và tiến độ tải về máy, kèm tốc độ và số file.
 
 ### Nhanh, riêng tư, đa nền tảng

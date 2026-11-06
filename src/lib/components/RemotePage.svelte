@@ -12,6 +12,7 @@
   import { emptyRemoteState, parseRemoteScope, RemoteBrowser, remoteKey, remoteQueuedKeys, type RemoteRow } from '../remote';
   import { CLOUD_KINDS, cloudKindLabel, providerLabel, type CloudFilter, type Provider, type RemoteTorrent } from '../types';
   import TorBoxAccount from './TorBoxAccount.svelte';
+  import RealDebridAccount from './RealDebridAccount.svelte';
   import Select from './Select.svelte';
   import VirtualList from './VirtualList.svelte';
   import { selectionMouseDown } from '../selection';
@@ -27,6 +28,8 @@
   const visibleErrors = $derived(Object.entries(view.errors).filter(([scope]) => filter === 'all' || parseRemoteScope(scope).provider === filter));
   const reviewTargets = $derived([...new Set(view.reviewing?.map((row) => `${providerLabel(row.provider)} · ${row.account} · ${cloudKindLabel(row.kind ?? 'torrent')}`) ?? [])].join(', '));
   const totalBytes = $derived(torrents.reduce((sum, row) => sum + row.bytes, 0));
+  const showRealDebrid = $derived((filter === 'all' || filter === 'realDebrid') && app.accounts.some((account) => account.provider === 'realDebrid' && account.hasToken));
+  const showTorBox = $derived((filter === 'all' || filter === 'torBox') && app.accounts.some((account) => account.provider === 'torBox' && account.hasToken));
 
   function load() { return remote.load(app.usableProviders, kind); }
 
@@ -78,7 +81,12 @@
     </div>
   </header>
 
-  {#if (filter === 'all' || filter === 'torBox') && app.accounts.some((a) => a.provider === 'torBox' && a.hasToken)}<div class="account-summary"><TorBoxAccount /></div>{/if}
+  {#if showRealDebrid || showTorBox}
+    <div class="account-summary" class:multiple={showRealDebrid && showTorBox}>
+      {#if showRealDebrid}<RealDebridAccount compact={showRealDebrid && showTorBox} />{/if}
+      {#if showTorBox}<TorBoxAccount compact={showRealDebrid && showTorBox} />{/if}
+    </div>
+  {/if}
 
   <div class="card table">
     <p class="note caption">{t('Quản lý dữ liệu trên dịch vụ. Xóa một mục cloud sẽ xóa các file trong mục đó trên dịch vụ; giữ file trên máy.')}</p>
@@ -130,7 +138,8 @@
   .page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
   .actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-  .account-summary { margin-bottom: 12px; }
+  .account-summary { display: grid; gap: 12px; margin-bottom: 12px; flex: none; }
+  .account-summary.multiple { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .table { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .note { padding: 12px 16px; }
   .load-error { margin: 0 16px 8px; color: var(--danger); line-height: 1.5; }

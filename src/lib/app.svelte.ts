@@ -9,7 +9,7 @@ export type Page = 'library' | 'queue' | 'remote' | 'settings';
 
 const defaults: Settings = {
   provider: 'realDebrid', language: 'en', appearance: 'system', browserView: 'list', browserSort: 'added-desc',
-  outputDirectory: '', flattenFiles: true, concurrency: 3, rememberToken: true, libraryImportPaused: false, checkUpdates: true,
+  outputDirectory: '', flattenFiles: true, concurrency: 3, independentCloudDownloads: true, rememberToken: true, libraryImportPaused: false, checkUpdates: true,
   libraryProviders: [], rememberLibraryProviders: false
 };
 
@@ -49,6 +49,9 @@ class AppState {
   cloud = $state.raw<Map<string, CloudState>>(new Map());
   /** Every service; `hasToken`/`user` below mirror the one chosen in Settings. */
   accounts = $state<AccountInfo[]>(PROVIDERS.map((p) => ({ provider: p.id, hasToken: false, user: null })));
+  accountRefreshing = $state<Partial<Record<Provider, boolean>>>({});
+  accountErrors = $state<Partial<Record<Provider, Msg | null>>>({});
+  private accountRefreshGeneration = new Map<Provider, number>();
   hasToken = $state(false);
   user = $state<User | null>(null);
   warning = $state<Msg | null>(null);
@@ -112,6 +115,9 @@ class AppState {
   }
 
   apply(snapshot: Snapshot) {
+    for (const { id } of PROVIDERS) this.accountRefreshGeneration.set(id, (this.accountRefreshGeneration.get(id) ?? 0) + 1);
+    this.accountRefreshing = {};
+    this.accountErrors = {};
     this.settings = snapshot.settings;
     this.library = snapshot.library;
     this.inspect = snapshot.inspect ?? { running: false, done: 0, total: 0 };
@@ -132,6 +138,11 @@ class AppState {
   }
 
   private setAccount(account: AccountInfo) {
+    if (!account.hasToken || !account.user) {
+      this.accountRefreshGeneration.set(account.provider, (this.accountRefreshGeneration.get(account.provider) ?? 0) + 1);
+      this.accountRefreshing[account.provider] = false;
+      this.accountErrors[account.provider] = null;
+    }
     if (account.provider === 'torBox') {
       const previous = this.accounts.find((a) => a.provider === 'torBox');
       if (!account.hasToken || (previous?.user && previous.user.username.toLowerCase() !== account.user?.username.toLowerCase())) this.clearTorboxAccount();
@@ -140,6 +151,25 @@ class AppState {
     if (account.provider === this.settings.provider) {
       this.user = account.user;
       this.hasToken = account.hasToken;
+    }
+  }
+
+  /** Refresh only this provider; never changes the service selected in Settings. */
+  async refreshAccount(provider: Provider) {
+    if (!this.accounts.some((account) => account.provider === provider && account.hasToken) || this.accountRefreshing[provider]) return;
+    const generation = (this.accountRefreshGeneration.get(provider) ?? 0) + 1;
+    this.accountRefreshGeneration.set(provider, generation);
+    this.accountRefreshing[provider] = true;
+    this.accountErrors[provider] = null;
+    try {
+      const user = await api.connect(provider);
+      if (generation !== this.accountRefreshGeneration.get(provider)) return;
+      this.setAccount({ provider, hasToken: true, user });
+      return user;
+    } catch (error) {
+      if (generation === this.accountRefreshGeneration.get(provider)) this.accountErrors[provider] = toMsg(error);
+    } finally {
+      if (generation === this.accountRefreshGeneration.get(provider)) this.accountRefreshing[provider] = false;
     }
   }
 

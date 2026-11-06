@@ -1,4 +1,8 @@
 {
+  "Tải song song độc lập giữa các cloud": "클라우드별 독립 병렬 다운로드",
+  "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "각 클라우드에서 최대 {0}개의 토렌트를 동시에 다운로드합니다. 예: Real-Debrid {0}개와 TorBox {0}개.",
+  "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "모든 클라우드가 동시 다운로드 한도 {0}개를 공유합니다.",
+  "Thay đổi giới hạn và chế độ song song áp dụng khi hàng đợi hết tác vụ đang chạy. Có thể Pause tất cả rồi Resume để áp dụng ngay.": "한도와 병렬 모드 변경은 실행 중인 작업이 없어지면 적용됩니다. 모두 일시 중지한 뒤 재개하면 즉시 적용됩니다.",
   "Dán torrent. Chọn nơi lưu. Tải toàn bộ.": "토렌트를 붙여넣고, 폴더를 선택하고, 전부 다운로드하세요.",
   "✓  TỰ ĐỘNG CHỌN TẤT CẢ FILE": "✓  모든 파일 자동 선택",
   "Lấy API token ↗": "API 토큰 받기 ↗",
@@ -451,5 +455,11 @@
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "이 항목과 포함된 파일이 서비스에서 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
   "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "관련 다운로드 작업이 중지되고 대기열에서 제거됩니다. 로컬 파일은 유지됩니다.",
   "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "이미 대기열에 있는 파일: {0}개. 중복 파일을 건너뛰었습니다.",
-  "Không có file mới được thêm vào hàng đợi.": "대기열에 추가된 새 파일이 없습니다."
+  "Không có file mới được thêm vào hàng đợi.": "대기열에 추가된 새 파일이 없습니다.",
+  "Tài khoản Real-Debrid": "Real-Debrid 계정",
+  "Premium còn lại": "Premium 남은 기간",
+  "Điểm Fidelity": "Fidelity 포인트",
+  "{0} ngày {1} giờ": "{0}일 {1}시간",
+  "{0} giờ {1} phút": "{0}시간 {1}분",
+  "{0} phút": "{0}분"
 }

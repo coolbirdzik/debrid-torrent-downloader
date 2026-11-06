@@ -1,4 +1,8 @@
 {
+  "Tải song song độc lập giữa các cloud": "Descargas paralelas independientes por nube",
+  "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "Cada nube descarga hasta {0} torrents a la vez. Por ejemplo: {0} de Real-Debrid y {0} de TorBox.",
+  "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "Todas las nubes comparten un límite total de {0} torrents simultáneos.",
+  "Thay đổi giới hạn và chế độ song song áp dụng khi hàng đợi hết tác vụ đang chạy. Có thể Pause tất cả rồi Resume để áp dụng ngay.": "Los cambios de límite y modo se aplican cuando no quedan tareas activas. Pausa todo y reanuda para aplicarlos de inmediato.",
   "Dán torrent. Chọn nơi lưu. Tải toàn bộ.": "Pega torrents. Elige una carpeta. Descárgalo todo.",
   "✓  TỰ ĐỘNG CHỌN TẤT CẢ FILE": "✓  TODOS LOS ARCHIVOS SE SELECCIONAN AUTOMÁTICAMENTE",
   "Lấy API token ↗": "Obtener token de API ↗",
@@ -451,5 +455,11 @@
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "Estos elementos y sus archivos se eliminarán del servicio. Esta acción no se puede deshacer.",
   "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Las descargas relacionadas se detendrán y se quitarán de la cola. Se conservarán los archivos locales.",
   "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Archivos ya en la cola: {0}. Se omitieron los duplicados.",
-  "Không có file mới được thêm vào hàng đợi.": "No se añadieron archivos nuevos a la cola."
+  "Không có file mới được thêm vào hàng đợi.": "No se añadieron archivos nuevos a la cola.",
+  "Tài khoản Real-Debrid": "Cuenta de Real-Debrid",
+  "Premium còn lại": "Premium restante",
+  "Điểm Fidelity": "Puntos de fidelidad",
+  "{0} ngày {1} giờ": "{0} días {1} horas",
+  "{0} giờ {1} phút": "{0} horas {1} minutos",
+  "{0} phút": "{0} minutos"
 }

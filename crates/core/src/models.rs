@@ -227,12 +227,18 @@ pub struct Unrestricted {
     pub download: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
     pub username: String,
     pub kind: String,
     pub premium: i64,
     pub allows_downloads: bool,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub expiration: Option<String>,
+    #[serde(default)]
+    pub points: Option<u64>,
 }
 
 impl User {
@@ -313,6 +319,8 @@ pub struct Settings {
     pub output_directory: String,
     pub flatten_files: bool,
     pub concurrency: u32,
+    /// Give each cloud its own concurrency limit instead of sharing one total.
+    pub independent_cloud_downloads: bool,
     pub remember_token: bool,
     pub library_import_paused: bool,
     /// Look for a newer GitHub release when the app starts.
@@ -334,6 +342,7 @@ impl Default for Settings {
             output_directory: String::new(),
             flatten_files: true,
             concurrency: 3,
+            independent_cloud_downloads: true,
             remember_token: true,
             library_import_paused: false,
             check_updates: true,
