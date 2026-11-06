@@ -287,19 +287,22 @@ without `latest.json` still have a link to their GitHub release page.
 
 Release tags require the repository secret `TAURI_SIGNING_PRIVATE_KEY`, containing the private updater key,
 and optionally `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The public key is pinned in `src-tauri/tauri.conf.json`.
-The matching private key on the initial setup machine is `%USERPROFILE%\.tauri\debriddock-updater.key`;
-back it up securely and never commit it. Set the GitHub Actions secret before publishing the first updater-enabled
-release. Keep using the same key for subsequent releases so existing installations can verify them.
+The current public key ID is **94A0B6283CDB90F6**; use its matching private key in CI and local signed builds.
+Back up the private key securely and never commit it. Keep using the same key for subsequent releases so existing
+installations can verify them. Copies built with the previous incorrect public key need one manual installation
+of a corrected build; changing the source cannot change the key already embedded in an installed executable.
 
 For a local signed installer build in PowerShell:
 
 ```powershell
-$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content "$env:USERPROFILE\.tauri\debriddock-updater.key" -Raw
+$env:TAURI_SIGNING_PRIVATE_KEY_PATH = 'C:\path\to\matching-updater.key'
 pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":true}}'
 ```
 
 CI publishes the installer signatures, a signed raw executable for Windows portable copies, the signed macOS
-app archive and Linux AppImage, and `latest.json`. Tag builds fail if the key or an update artifact is missing.
+app archive and Linux AppImage, and `latest.json`. Tag builds check the signing key against the embedded public key
+before building, then verify every artifact and its signed version before writing the manifest. Missing or
+invalid signatures stop publication.
 Updater signatures are separate from Windows Authenticode and macOS notarization.
 
 `scripts/update-manifest.mjs` reads the release repository from the updater endpoint in `src-tauri/tauri.conf.json`

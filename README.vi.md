@@ -281,13 +281,16 @@ giữ nguyên file `portable` và thư mục `data`. Sau khi mở lại, bấm R
 Các bản phát hành cũ chưa có `latest.json` vẫn có liên kết xem trên GitHub.
 
 Trước khi phát hành bản đầu tiên hỗ trợ cập nhật, thêm GitHub Actions repository secret
-`TAURI_SIGNING_PRIVATE_KEY` với nội dung khóa riêng tại `%USERPROFILE%\.tauri\debriddock-updater.key`
-trên máy thiết lập ban đầu. Khóa công khai tương ứng đã nằm trong `src-tauri/tauri.conf.json`.
+`TAURI_SIGNING_PRIVATE_KEY` với nội dung khóa riêng khớp public key trong `src-tauri/tauri.conf.json`
+(ID hiện tại: **94A0B6283CDB90F6**). Build ký trên máy cũng phải dùng đúng khóa riêng này.
 Nếu khóa có mật khẩu, thêm `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Sao lưu khóa riêng an toàn, không commit
 vào Git và giữ nguyên khóa khi phát hành các bản tiếp theo để người dùng cũ xác thực được cập nhật.
+App đã build với public key sai trước đây cần cài thủ công một lần bản đã sửa; sửa source không đổi được khóa
+đã nhúng trong file thực thi đang cài trên máy.
 
 Pipeline tạo các gói và chữ ký cập nhật cho Windows, macOS, Linux cùng `latest.json`; riêng portable Windows
-có file thực thi được ký riêng. Build theo tag sẽ dừng nếu thiếu khóa hoặc thiếu gói cập nhật.
+có file thực thi được ký riêng. Build theo tag kiểm tra khóa ký có khớp public key trước khi build, rồi xác minh
+chữ ký, nội dung và phiên bản của từng gói trước khi tạo manifest. Thiếu gói hoặc chữ ký sai sẽ dừng phát hành.
 Chữ ký cập nhật này độc lập với Authenticode Windows và notarization macOS.
 
 `scripts/update-manifest.mjs` lấy repo phát hành từ endpoint updater trong `src-tauri/tauri.conf.json` và đối chiếu
