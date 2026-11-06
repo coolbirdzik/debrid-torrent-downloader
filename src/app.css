@@ -1,0 +1,232 @@
+/* Monochrome surfaces and text; color lives in icons and in status only. */
+:root {
+  --bg: #f2f2f2;
+  --surface: #ffffff;
+  --subtle: #f7f7f7;
+  --stroke: #e2e2e2;
+  --ink: #0f0f0f;
+  --muted: #666666;
+  --accent: #111111;
+  --accent-hover: #2e2e2e;
+  --on-accent: #ffffff;
+  --accent-soft: #ededed;
+  --hover: rgb(255 255 255 / 0.62);
+  --selected: rgb(20 24 36 / 0.07);
+  --track: rgb(20 24 36 / 0.08);
+  --success: #16704f;
+  --success-soft: #e3f2ea;
+  --danger: #ac3344;
+  --danger-soft: #fbe8ec;
+  --partial: #996312;
+  --info: #2563c9;
+  --info-soft: #e6eefb;
+  --icon-blue: #2f6fed;
+  --icon-green: #1fa463;
+  --icon-orange: #f0701a;
+  --icon-red: #e5484d;
+  --icon-purple: #8e4ec6;
+  --icon-pink: #e5489a;
+  --icon-amber: #d99a00;
+  --icon-teal: #0e9aa7;
+  --icon-gray: #8a8a8a;
+  --radius: 22px;
+  --radius-sm: 12px;
+  /* Liquid glass: translucent surfaces over a soft ambient backdrop, lit from the top (specular sheen + bright rim),
+     never outlined. */
+  --backdrop: radial-gradient(1100px 700px at 6% -12%, rgb(130 155 255 / 0.30), transparent 62%),
+    radial-gradient(900px 640px at 104% 6%, rgb(255 170 210 / 0.24), transparent 60%),
+    radial-gradient(1000px 760px at 62% 118%, rgb(120 220 205 / 0.24), transparent 62%),
+    linear-gradient(180deg, #f5f6f9, #e8eaef);
+  --glass: rgb(255 255 255 / 0.44);
+  --glass-strong: rgb(255 255 255 / 0.84);
+  --raised: rgb(255 255 255 / 0.92);
+  --glint: linear-gradient(118deg, rgb(255 255 255 / 0) 8%, rgb(255 255 255 / 0.38) 18%, rgb(255 255 255 / 0) 30%);
+  --sheen: linear-gradient(180deg, rgb(255 255 255 / 0.92) 0%, rgb(255 255 255 / 0.28) 36%, rgb(255 255 255 / 0) 62%);
+  --rim: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 -1px 0 rgb(255 255 255 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.5);
+  --lift: 0 14px 34px -12px rgb(35 45 70 / 0.22), 0 2px 6px -2px rgb(35 45 70 / 0.10);
+  --well: rgb(255 255 255 / 0.42);
+  --well-shadow: inset 0 1px 3px rgb(35 45 70 / 0.12), inset 0 -1px 0 rgb(255 255 255 / 0.85);
+  --gloss: linear-gradient(180deg, #55565c 0%, #1d1e22 50%, #0c0c0f 100%);
+  --gloss-hover: linear-gradient(180deg, #67686f 0%, #2a2b30 50%, #141418 100%);
+  --gloss-shadow: inset 0 1px 0 rgb(255 255 255 / 0.38), inset 0 -3px 8px rgb(0 0 0 / 0.45), 0 10px 22px -8px rgb(10 12 20 / 0.55);
+  --font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0c0c0c;
+  --surface: #171717;
+  --subtle: #1e1e1e;
+  --stroke: #2b2b2b;
+  --ink: #f2f2f2;
+  --muted: #a3a3a3;
+  --accent: #f2f2f2;
+  --accent-hover: #dadada;
+  --on-accent: #0f0f0f;
+  --accent-soft: #262626;
+  --hover: rgb(255 255 255 / 0.07);
+  --selected: rgb(255 255 255 / 0.11);
+  --track: rgb(255 255 255 / 0.10);
+  --success: #7cd6af;
+  --success-soft: #243e36;
+  --danger: #ffadba;
+  --danger-soft: #492c35;
+  --partial: #edbb60;
+  --info: #8db2ff;
+  --info-soft: #1f2b45;
+  --icon-blue: #5b8cff;
+  --icon-green: #3dd68c;
+  --icon-orange: #ff8a3d;
+  --icon-red: #ff6369;
+  --icon-purple: #b07ce8;
+  --icon-pink: #ff6bb5;
+  --icon-amber: #ffc53d;
+  --icon-teal: #3cc9d6;
+  --icon-gray: #9a9a9a;
+  --backdrop: radial-gradient(1100px 700px at 6% -12%, rgb(90 115 255 / 0.20), transparent 62%),
+    radial-gradient(900px 640px at 104% 6%, rgb(210 90 165 / 0.14), transparent 60%),
+    radial-gradient(1000px 760px at 62% 118%, rgb(50 190 170 / 0.13), transparent 62%),
+    linear-gradient(180deg, #0f1014, #08090b);
+  --glass: rgb(255 255 255 / 0.055);
+  --glass-strong: rgb(32 34 40 / 0.86);
+  --raised: rgb(255 255 255 / 0.13);
+  --glint: linear-gradient(118deg, rgb(255 255 255 / 0) 8%, rgb(255 255 255 / 0.05) 18%, rgb(255 255 255 / 0) 30%);
+  --sheen: linear-gradient(180deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.03) 38%, rgb(255 255 255 / 0) 62%);
+  --rim: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  --lift: 0 16px 36px -12px rgb(0 0 0 / 0.65);
+  --well: rgb(0 0 0 / 0.26);
+  --well-shadow: inset 0 1px 3px rgb(0 0 0 / 0.55), inset 0 -1px 0 rgb(255 255 255 / 0.06);
+  --gloss: linear-gradient(180deg, #ffffff 0%, #dcdee3 52%, #c3c6cc 100%);
+  --gloss-hover: linear-gradient(180deg, #ffffff 0%, #e8e9ed 52%, #d3d5da 100%);
+  --gloss-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 -3px 8px rgb(0 0 0 / 0.18), 0 10px 22px -8px rgb(0 0 0 / 0.7);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    --bg: #0c0c0c;
+    --surface: #171717;
+    --subtle: #1e1e1e;
+    --stroke: #2b2b2b;
+    --ink: #f2f2f2;
+    --muted: #a3a3a3;
+    --accent: #f2f2f2;
+    --accent-hover: #dadada;
+    --on-accent: #0f0f0f;
+    --accent-soft: #262626;
+    --hover: rgb(255 255 255 / 0.07);
+    --selected: rgb(255 255 255 / 0.11);
+    --track: rgb(255 255 255 / 0.10);
+    --success: #7cd6af;
+    --success-soft: #243e36;
+    --danger: #ffadba;
+    --danger-soft: #492c35;
+    --partial: #edbb60;
+    --info: #8db2ff;
+    --info-soft: #1f2b45;
+    --icon-blue: #5b8cff;
+    --icon-green: #3dd68c;
+    --icon-orange: #ff8a3d;
+    --icon-red: #ff6369;
+    --icon-purple: #b07ce8;
+    --icon-pink: #ff6bb5;
+    --icon-amber: #ffc53d;
+    --icon-teal: #3cc9d6;
+    --icon-gray: #9a9a9a;
+    --backdrop: radial-gradient(1100px 700px at 6% -12%, rgb(90 115 255 / 0.20), transparent 62%),
+      radial-gradient(900px 640px at 104% 6%, rgb(210 90 165 / 0.14), transparent 60%),
+      radial-gradient(1000px 760px at 62% 118%, rgb(50 190 170 / 0.13), transparent 62%),
+      linear-gradient(180deg, #0f1014, #08090b);
+    --glass: rgb(255 255 255 / 0.055);
+    --glass-strong: rgb(32 34 40 / 0.86);
+    --raised: rgb(255 255 255 / 0.13);
+  --glint: linear-gradient(118deg, rgb(255 255 255 / 0) 8%, rgb(255 255 255 / 0.05) 18%, rgb(255 255 255 / 0) 30%);
+    --sheen: linear-gradient(180deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.03) 38%, rgb(255 255 255 / 0) 62%);
+    --rim: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 1px rgb(255 255 255 / 0.06);
+    --lift: 0 16px 36px -12px rgb(0 0 0 / 0.65);
+    --well: rgb(0 0 0 / 0.26);
+    --well-shadow: inset 0 1px 3px rgb(0 0 0 / 0.55), inset 0 -1px 0 rgb(255 255 255 / 0.06);
+    --gloss: linear-gradient(180deg, #ffffff 0%, #dcdee3 52%, #c3c6cc 100%);
+    --gloss-hover: linear-gradient(180deg, #ffffff 0%, #e8e9ed 52%, #d3d5da 100%);
+    --gloss-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 -3px 8px rgb(0 0 0 / 0.18), 0 10px 22px -8px rgb(0 0 0 / 0.7);
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--backdrop); background-color: var(--bg); color: var(--ink); font: 13px/1.45 var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; user-select: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+input, textarea { user-select: text; }
+h1, h2, h3, p { margin: 0; }
+svg { flex: none; }
+
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+button:disabled { cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Buttons are droplets: plain ones stay clear until hovered, then catch the light. */
+.btn { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 12px; color: var(--muted); white-space: nowrap; transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.12s; }
+.btn:hover:not(:disabled) { background: var(--sheen), var(--hover); box-shadow: var(--rim), 0 4px 12px -6px rgb(35 45 70 / 0.25); color: var(--ink); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled { opacity: 0.45; }
+.btn.outline { background: var(--sheen), var(--glass); box-shadow: var(--rim), var(--lift); color: var(--ink); }
+.btn.primary { background: var(--gloss); box-shadow: var(--gloss-shadow); color: var(--on-accent); min-height: 40px; padding: 8px 20px; justify-content: center; }
+.btn.primary:hover:not(:disabled) { background: var(--gloss-hover); box-shadow: var(--gloss-shadow); color: var(--on-accent); }
+.btn.primary:disabled { opacity: 0.35; box-shadow: none; }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover:not(:disabled) { color: var(--danger); }
+.btn.icon { width: 32px; padding: 0; justify-content: center; }
+.btn.link { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; padding: 0; min-height: 24px; }
+.btn.link:hover:not(:disabled) { background: none; box-shadow: none; }
+
+/* A pane of glass: blurred backdrop, top sheen, bright rim and a soft drop shadow instead of an outline. */
+.card { background: var(--glint), var(--sheen), var(--glass); border-radius: var(--radius); box-shadow: var(--rim), var(--lift); backdrop-filter: blur(28px) saturate(170%); -webkit-backdrop-filter: blur(28px) saturate(170%); }
+.caption { color: var(--muted); font-size: 12px; }
+.title { font: 600 26px/1.15 var(--font-display); letter-spacing: -0.01em; }
+.section { font: 600 16px/1.2 var(--font-display); }
+.mono { font-family: var(--mono); }
+
+/* Fields are wells pressed into the glass. */
+input[type='text'], input[type='password'], select, textarea { background-color: var(--well); border: 0; box-shadow: var(--well-shadow); border-radius: 14px; padding: 8px 12px; min-height: 36px; width: 100%; transition: box-shadow 0.18s, background-color 0.18s; }
+textarea { resize: none; font-family: var(--mono); font-size: 12px; line-height: 1.5; border-radius: 16px; }
+input:focus, textarea:focus, select:focus { outline: none; background-color: var(--glass-strong); box-shadow: var(--well-shadow), 0 0 0 3px rgb(120 140 200 / 0.22); }
+select { appearance: none; padding-right: 28px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+
+input[type='checkbox'] { appearance: none; width: 18px; height: 18px; border: 0; border-radius: 6px; background: var(--well); box-shadow: var(--well-shadow), inset 0 0 0 1px rgb(120 125 140 / 0.35); display: inline-grid; place-content: center; cursor: pointer; margin: 0; flex: none; }
+input[type='checkbox']:checked { background: var(--gloss); box-shadow: var(--gloss-shadow); }
+input[type='checkbox']:checked::after { content: ''; width: 9px; height: 5px; border-left: 2px solid var(--on-accent); border-bottom: 2px solid var(--on-accent); transform: rotate(-45deg) translate(1px, -1px); }
+
+.pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--sheen), var(--track); box-shadow: var(--rim); color: var(--muted); white-space: nowrap; }
+.pill.success { background: var(--sheen), var(--success-soft); color: var(--success); }
+.pill.danger { background: var(--sheen), var(--danger-soft); color: var(--danger); }
+.pill.info { background: var(--sheen), var(--info-soft); color: var(--info); }
+.pill.partial { color: var(--partial); }
+
+/* Progress: a glossy bead of liquid in a recessed channel. */
+.bar { height: 6px; border-radius: 999px; background: var(--track); box-shadow: var(--well-shadow); overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--gloss); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35); border-radius: 999px; transition: width 0.25s; }
+
+.ic { color: var(--icon-gray); }
+.ic.blue { color: var(--icon-blue); } .ic.green { color: var(--icon-green); } .ic.orange { color: var(--icon-orange); }
+.ic.red { color: var(--icon-red); } .ic.purple { color: var(--icon-purple); } .ic.pink { color: var(--icon-pink); }
+.ic.amber { color: var(--icon-amber); } .ic.teal { color: var(--icon-teal); }
+/* Icon chips are tinted droplets: the color shows through, a highlight sits on top. */
+.chip { display: grid; place-content: center; border-radius: 40%; position: relative; flex: none; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55), 0 4px 10px -6px currentColor; }
+.chip::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(120% 90% at 30% 15%, rgb(255 255 255 / 0.55), transparent 55%), currentColor; opacity: 0.2; }
+.chip > svg { position: relative; }
+
+/* Shared list styling: rows are separated by air, not lines; the selected row rises as a droplet. */
+.row-glass { margin: 2px 8px; border-radius: 14px; transition: background 0.15s, box-shadow 0.15s; }
+.row-glass:hover { background: var(--hover); }
+.row-glass.on { background: var(--sheen), var(--raised); box-shadow: var(--rim), 0 8px 18px -12px rgb(35 45 70 / 0.45); }
+.menu-glass { background: var(--sheen), var(--glass-strong); }
+
+/* Thin, quiet scrollbars that float over the glass. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--track); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

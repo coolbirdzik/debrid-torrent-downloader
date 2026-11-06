@@ -1,4 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
-  <ItemGroup><EmbeddedResource Include="Strings.en.json" WithCulture="false" LogicalName="RdBatch.Core.Strings.en.json" /></ItemGroup>
-</Project>

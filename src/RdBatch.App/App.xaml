@@ -1,4 +1,0 @@
-<Application x:Class="RdBatch.App.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- Styles.xaml is the application dictionary itself: theme swaps in a nested merged dictionary do not refresh open windows. -->
-  <Application.Resources><ResourceDictionary Source="Styles.xaml"/></Application.Resources>
-</Application>

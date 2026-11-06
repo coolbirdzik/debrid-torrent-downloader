@@ -1,136 +1,219 @@
-# Real-Debrid Torrent Multiple Downloader
+# DebridDock: ứng dụng all-in-one cho Real-Debrid, TorBox và AllDebrid
 
 [English](README.md) · Tiếng Việt
 
-[![Build and release](https://github.com/coolbirdzik/realdebrid/actions/workflows/build-release.yml/badge.svg)](https://github.com/coolbirdzik/realdebrid/actions/workflows/build-release.yml)
+[![Build and release](https://github.com/coolbirdzik/realdebrid/actions/workflows/build.yml/badge.svg)](https://github.com/coolbirdzik/realdebrid/actions/workflows/build.yml)
+![Nền tảng: Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational)
+![Dịch vụ debrid: Real-Debrid, TorBox, AllDebrid](https://img.shields.io/badge/debrid-Real--Debrid%20%7C%20TorBox%20%7C%20AllDebrid-blueviolet)
 
-**[Tải bản Windows x64 (.exe)](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.exe)** · [Bản ZIP](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.zip) · [Tất cả phiên bản](https://github.com/coolbirdzik/realdebrid/releases)
+**DebridDock là ứng dụng debrid miễn phí cho máy tính: một app duy nhất để thêm torrent vào Real-Debrid, TorBox hoặc
+AllDebrid, duyệt chúng trong thư viện ảo, chọn đúng file cần lấy rồi tải về máy qua một hàng đợi tải nhanh, có thể
+tiếp tục (resume).** Không còn phải mở nhiều tab web, copy từng link và dùng thêm một trình quản lý tải riêng cho mỗi
+dịch vụ debrid. Chạy trên Windows, macOS và Linux.
 
-App desktop Windows để duyệt và tải các file đã chọn trong torrent qua Real-Debrid. Dán magnet, URL `.torrent` hoặc thêm nhiều file `.torrent`; xem cây thư mục, tìm tên file, lọc video rồi đưa đúng các kết quả đã chọn vào hàng đợi.
+![DebridDock: thư viện torrent ảo cho Real-Debrid, TorBox và AllDebrid, giao diện sáng](docs/images/app-vi.png)
 
-## Giao diện
+## Mục lục
 
-![Cây thư mục và kết quả tìm video trong torrent](docs/images/app-vi.png)
+- [Vì sao dùng DebridDock](#vì-sao-dùng-debriddock)
+- [Tính năng](#tính-năng)
+- [Cách hoạt động](#cách-hoạt-động)
+- [Ảnh chụp màn hình](#ảnh-chụp-màn-hình)
+- [Tải về và cài đặt](#tải-về-và-cài-đặt)
+- [Câu hỏi thường gặp](#câu-hỏi-thường-gặp)
+- [Dành cho lập trình viên](#dành-cho-lập-trình-viên)
 
-Ảnh render trực tiếp từ giao diện WPF với dữ liệu minh họa, không dùng tài khoản hoặc tải torrent thật. [Xem giao diện tiếng Anh](docs/images/app-en.png).
+## Vì sao dùng DebridDock
 
-<details>
-<summary>Giao diện tối</summary>
+Dịch vụ debrid tải torrent trên máy chủ tốc độ cao của họ rồi đưa cho bạn link tải HTTPS trực tiếp. Làm tay cho cả
+một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet trên web, chờ, chọn file, unrestrict từng link rồi
+đưa link vào trình quản lý tải. DebridDock làm trọn chuỗi đó trong một cửa sổ:
 
-![Real-Debrid Batch với giao diện tối](docs/images/app-vi-dark.png)
-
-</details>
+- **Một giao diện cho mọi dịch vụ debrid.** Real-Debrid, TorBox và AllDebrid dùng chung thư viện, hàng đợi và cách
+  thao tác. Đổi dịch vụ trong Cài đặt; mỗi dịch vụ giữ token và torrent riêng.
+- **Thư viện ảo thay cho một đống link.** Torrent được đọc trên dịch vụ và hiện thành thư mục, file như trình quản lý
+  file, trước khi có bất kỳ thứ gì ghi xuống ổ đĩa.
+- **Chỉ tải những gì bạn chọn.** Chọn từng video, cả thư mục hoặc toàn bộ phần còn lại; chỉ những file đó được chọn
+  trên dịch vụ và tải về.
+- **Hàng đợi tải cứ để đó mà chạy.** Thêm vào là tải ngay, tiếp tục được sau khi dừng hay app bị tắt, tự thử lại khi
+  rớt mạng.
 
 ## Tính năng
 
-| Tính năng | Hoạt động |
+### Ứng dụng debrid all-in-one
+
+- Hỗ trợ **Real-Debrid, TorBox và AllDebrid**. Mỗi dịch vụ là một adapter riêng sau một giao diện chung, nên có thể
+  thêm dịch vụ khác.
+- Thêm **link magnet**, **URL `.torrent`** hoặc **file `.torrent` trên máy** (dán cả danh sách, hoặc kéo thả file vào
+  cửa sổ). Torrent trùng được phát hiện.
+- Xem và dọn **torrent trên tài khoản debrid**: liệt kê mọi torrent và xóa những cái không cần nữa, có bước xem lại
+  trước khi xóa.
+
+### Thư viện torrent ảo
+
+- Duyệt mọi torrent dưới dạng **thư mục và file**, có lùi, tiến, lên một cấp (dùng được nút bên hông chuột, Alt+←/→
+  và Backspace), breadcrumb và chế độ **Tất cả file** dạng phẳng.
+- **Xem dạng danh sách hoặc lưới**, sắp xếp theo tên hoặc ngày thêm, bấm tiêu đề cột để sắp xếp (tên, dung lượng,
+  trạng thái).
+- **Tìm kiếm** trong thư mục và mọi thư mục con, bộ lọc **Chỉ video** hiện mọi video trong cây thư mục hiện tại.
+- Mỗi file cho biết **đã tải xong, tải một phần hay đã có trong hàng đợi**, và giữ dấu đó kể cả khi xóa hàng đợi
+  hay mở lại app.
+- Bỏ file hoặc thư mục khỏi thư viện mà không đụng tới ổ đĩa hay dịch vụ, có hoàn tác (Ctrl+Z).
+
+### Tải torrent từ debrid
+
+- **Thêm file đã chọn, hoặc mọi file còn lại** trong thư viện vào hàng đợi chỉ với một cú bấm. Tải bắt đầu ngay.
+- **Tải có resume** (`Range` + `If-Range`): dừng, tạm dừng hoặc tắt app, lần sau tải tiếp đúng từ byte đã dừng.
+- **Tự động thử lại:** rớt mạng, quá thời gian chờ hay link tải hết hạn đều được thử lại với thời gian chờ tăng dần
+  và tải tiếp phần dở. Nút **Retry tất cả** dành cho những gì vẫn lỗi.
+- Chọn **thư mục lưu**, giữ cấu trúc thư mục của torrent hoặc lưu phẳng, chạy **1 đến 5 torrent cùng lúc**.
+- Tiến độ hiện cả hai phía: tiến độ trên dịch vụ và tiến độ tải về máy, kèm tốc độ và số file.
+
+### Nhanh, riêng tư, đa nền tảng
+
+- Viết bằng **Rust** (engine tải) và **Tauri 2** (vỏ ứng dụng native) nên nhẹ và tốn ít RAM.
+- Vẫn mượt với **hơn 30.000 file** trong thư viện và **hàng nghìn file** trong một torrent.
+- API token nằm trong **keychain của hệ điều hành** (Windows Credential Manager, macOS Keychain, Linux Secret
+  Service), không bao giờ ghi vào file cài đặt dạng thường, không bao giờ hiện trong thông báo lỗi.
+- Bộ cài cho Windows, macOS và Linux, cùng **bản portable cho Windows** giữ toàn bộ dữ liệu cạnh file chạy.
+- Giao diện tiếng Việt và tiếng Anh, sáng và tối.
+
+## Cách hoạt động
+
+1. **Kết nối dịch vụ.** Chọn Real-Debrid, TorBox hoặc AllDebrid trong Cài đặt và dán API token (app có nút mở trang
+   lấy token của từng dịch vụ).
+2. **Thêm torrent.** Dán link magnet hoặc URL `.torrent`, hoặc thả file `.torrent` vào. DebridDock thêm chúng vào tài
+   khoản debrid và đọc danh sách file.
+3. **Duyệt và chọn.** Mở thư mục trong thư viện ảo, tìm kiếm, lọc video và chọn những gì cần.
+4. **Tải về.** Bấm **Thêm vào hàng đợi**. DebridDock chọn các file đó trên dịch vụ, chờ dịch vụ xử lý xong, lấy link
+   trực tiếp và tải về thư mục của bạn, có resume và tự thử lại.
+
+DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ tải qua HTTPS từ dịch vụ debrid.
+
+## Ảnh chụp màn hình
+
+![Hàng đợi tải của DebridDock: tải có resume, Retry tất cả và nút thao tác trên từng dòng](docs/images/queue-vi.png)
+
+<details>
+<summary>Giao diện tối và bản tiếng Anh</summary>
+
+![Thư viện ảo của DebridDock, giao diện tối](docs/images/app-vi-dark.png)
+
+![DebridDock bản tiếng Anh](docs/images/app-en.png)
+
+</details>
+
+Ảnh chụp từ app thật với dữ liệu mẫu (`scripts/seed-sample-data.py`), không dùng tài khoản hay tải thật.
+
+## Tải về và cài đặt
+
+Tải bộ cài cho hệ điều hành của bạn ở trang [Releases](https://github.com/coolbirdzik/realdebrid/releases): `.msi`
+hoặc `.exe` cho Windows, `.dmg` cho macOS, `.deb`, `.rpm` hoặc `.AppImage` cho Linux. Bản portable cho Windows build
+được từ mã nguồn bằng `pnpm build:portable` (xem [Build và test](#build-và-test)).
+
+Bản build **chưa được ký số**, nên lần đầu mở hệ điều hành sẽ cảnh báo:
+
+- **Windows:** SmartScreen hiện "Windows protected your PC". Bấm *More info*, rồi *Run anyway*.
+- **macOS:** chuột phải vào app, chọn *Open*, hoặc chạy `xattr -dr com.apple.quarantine "/Applications/DebridDock.app"`.
+- **Linux:** AppImage cần `chmod +x`. Để nhớ API token, gói `.deb` và `.rpm` cần keyring Secret Service (GNOME Keyring
+  hoặc KWallet).
+
+## Câu hỏi thường gặp
+
+**Dịch vụ debrid là gì?**
+Là dịch vụ trả phí như Real-Debrid, TorBox hay AllDebrid, tải torrent (và file từ các trang lưu trữ) trên máy chủ của
+họ rồi cho bạn link tải trực tiếp tốc độ cao. DebridDock là ứng dụng khách cho các dịch vụ đó; bạn cần tài khoản và
+API token của riêng mình.
+
+**DebridDock có miễn phí không?**
+Có. DebridDock miễn phí và mã nguồn mở (MIT). Bạn chỉ trả tiền gói debrid của mình.
+
+**DebridDock có tải torrent bằng BitTorrent trên máy tôi không?**
+Không. Dịch vụ debrid lấy torrent. DebridDock chỉ tải file đã xong qua HTTPS, nên không peer nào thấy IP của bạn.
+
+**Có tải được chỉ vài file trong torrent, ví dụ một tập phim, không?**
+Được. Thư viện ảo sinh ra để làm việc đó: mở torrent, chọn file hoặc thư mục cần lấy rồi thêm vào hàng đợi. Chỉ những
+file đó được chọn trên dịch vụ và tải về.
+
+**Rớt mạng hoặc tắt app giữa chừng thì sao?**
+File dở được giữ lại. Lỗi kết nối được tự thử lại, và sau khi mở lại app, **Bắt đầu / Resume** tải tiếp mọi file từ
+đúng byte đã dừng.
+
+**Dùng được nhiều tài khoản debrid không?**
+Bạn giữ được token cho từng dịch vụ và chuyển giữa Real-Debrid, TorBox, AllDebrid trong Cài đặt. Mỗi torrent trong
+hàng đợi nhớ tài khoản của nó và không bao giờ được tiếp tục bằng tài khoản khác.
+
+**Token và dữ liệu được lưu ở đâu?**
+Token nằm trong keychain của hệ điều hành. Thư viện, hàng đợi và cài đặt nằm trong một file `data.json` ở thư mục dữ
+liệu của app (hoặc cạnh file chạy với bản portable).
+
+Vui lòng chỉ tải nội dung bạn có quyền tải.
+
+## Dành cho lập trình viên
+
+DebridDock gồm lõi và engine tải viết bằng Rust, vỏ Tauri 2 và giao diện Svelte 5.
+
+### Cấu trúc thư mục
+
+| Đường dẫn | Nội dung |
 | --- | --- |
-| Thêm hàng loạt | Magnet, URL `.torrent`, nhiều file `.torrent` hoặc kéo thả. |
-| Duyệt torrent | Cây thư mục, chế độ Danh sách/Lưới; tìm theo tên/đường dẫn trong cả thư mục con. |
-| Tìm và chọn video | Lọc định dạng video, tick từng file hoặc chọn tất cả kết quả rồi thêm vào hàng đợi. |
-| Dọn thư viện ảo | Tìm và bỏ file không cần, hoàn tác, rồi thêm toàn bộ file còn lại vào queue. Nhớ file đã bỏ và kiểu xem khi mở lại. |
-| Batch mới | Xóa cả thư viện ảo, ô nhập và bộ lọc bằng **Batch mới**; giữ công việc đã đưa vào queue. |
-| Xóa torrent trên Real-Debrid | Xem lại đúng các ID đã chọn rồi xác nhận xóa từ xa; dừng tác vụ liên quan trước, giữ file trên máy và báo lỗi từng torrent. |
-| Tải song song | Xử lý 1–5 torrent; hiển thị riêng tiến trình Real-Debrid và tải về máy. |
-| Tiếp tục tải | Retry / Resume / Stop từng dòng hoặc nhiều dòng; giữ file `.part`. |
-| Quản lý hàng đợi | Pause / Stop tất cả, xóa dòng đã chọn hoặc xóa toàn bộ; nhớ hàng đợi khi mở lại. |
-| Sắp xếp file | Lưu phẳng hoặc giữ thư mục torrent; tự tránh trùng tên, không ghi đè file có sẵn. |
-| Việt / Anh | Mặc định tiếng Anh; đổi ngôn ngữ ngay và nhớ lựa chọn. |
-| Giao diện phẳng | Ô nhập luôn hiện, dùng đường phân cách, chế độ Danh sách/Lưới và nhớ theme sáng/tối/theo Windows. |
-| Lưu token | Tùy chọn nhớ token, mã hóa bằng Windows DPAPI theo tài khoản hiện tại. |
-| Bản portable | Một file `.exe` cho Windows x64, kèm .NET runtime; không cần cài .NET riêng. |
+| `crates/core` | `rdbatch-core`: adapter cho từng dịch vụ, downloader có resume, engine hàng đợi, lưu trữ. Không phụ thuộc UI hay Tauri nên `cargo test` chạy ở đâu cũng được. |
+| `src-tauri` | `rdbatch-desktop`: trạng thái ứng dụng, lệnh IPC, sự kiện gộp, truy cập keychain. |
+| `src` | Giao diện Svelte. `src/lib/browser.ts` chứa logic duyệt thư viện dưới dạng hàm thuần, có test. |
+| `scripts` | `check-i18n.mjs` (mọi chuỗi UI đều có bản dịch tiếng Anh), `seed-sample-data.py` (thư viện mẫu để chụp ảnh), `fake-realdebrid.py` (server giả để chạy end-to-end). |
+| `.github/workflows/build.yml` | Test trên cả ba hệ điều hành, build bộ cài và tạo draft release. |
 
-## Mở app
+### Build và test
 
-Tải `RealDebridBatch-win-x64.exe` từ [GitHub Releases](https://github.com/coolbirdzik/realdebrid/releases/latest) rồi mở trực tiếp. Nếu dùng bản ZIP, giải nén rồi chạy `RealDebridBatch.exe`. Cần Windows x64 và tài khoản Real-Debrid Premium còn hạn; không cần cài .NET riêng.
+Yêu cầu: Rust (stable), Node 22+, pnpm 10. Trên Linux cần thêm
+`libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev patchelf`.
 
-Nếu chạy từ mã nguồn, mở `artifacts\RealDebridBatch\RealDebridBatch.exe` hoặc chạy `run.ps1` để tự build nếu chưa có exe.
-
-1. Lấy private API token tại https://real-debrid.com/apitoken sau khi đăng nhập. Dán vào app và bấm **Kiểm tra**. Cần tài khoản Premium còn hạn.
-2. Chọn nơi lưu toàn bộ. Mặc định bật **Lưu phẳng**: tất cả file nằm trực tiếp trong thư mục đã chọn. Bỏ chọn nếu muốn tạo thư mục riêng và giữ cấu trúc torrent.
-3. Dán mỗi dòng một magnet hoặc URL trả về nội dung `.torrent`, hoặc chọn/kéo thả nhiều file `.torrent`. Các thao tác này chỉ điền ô nhập; bấm **Thêm vào thư viện** mới đọc cả loạt torrent. Không hỗ trợ URL trang chi tiết torrent/HTML. Ô nhập luôn hiện trên mọi tab, vẫn gõ/paste được khi queue hoặc bước đọc metadata đang chạy. Nội dung nhập thêm trong lúc đọc được giữ lại để bạn bấm thêm batch tiếp theo.
-4. Trong tab **File trong torrent**, chọn **Danh sách** hoặc **Lưới**, duyệt cây thư mục hoặc tìm theo tên/đường dẫn. Tìm kiếm gồm thư mục hiện tại và thư mục con; chọn **Tất cả torrent** để tìm trên cả thư viện. Bật **Chỉ video** để bỏ phụ đề và các file khác.
-5. Tìm file không muốn tải, tick từng file hoặc **Chọn / bỏ chọn kết quả**, rồi **Bỏ khỏi thư viện** (hoặc Delete khi đang thao tác ở phần file). Chỉ bỏ bản ghi ảo và thư mục đã trống; giữ file trên máy, torrent trên Real-Debrid và queue đã tạo. **Hoàn tác** khôi phục lượt bỏ gần nhất trong phiên hiện tại; file đã bỏ vẫn được nhớ khi mở lại app. Ctrl+A chọn các kết quả đang thấy, Ctrl+Z hoàn tác trong phần file.
-6. Sau khi dọn, bấm **Thêm tất cả còn lại (N)** để đưa toàn bộ file còn lại trong cả thư viện vào queue, kể cả ngoài thư mục/từ khóa hiện tại; file đã có trong queue được bỏ qua. Hoặc chọn riêng kết quả cần tải rồi **Thêm vào hàng đợi**. Đổi bộ lọc sẽ bỏ chọn; đổi Danh sách/Lưới giữ lựa chọn. File đã có trong queue vẫn có thể bỏ khỏi thư viện ảo nhưng không bị thêm queue trùng.
-7. Mở tab **Hàng đợi tải**, bấm **Bắt đầu / Resume**. Song song 1–5 torrent (mặc định 3); mỗi dòng chỉ tải lần lượt các file đã chọn.
-
-Đọc metadata cần thêm nguồn lên Real-Debrid, nhưng chưa chọn file và chưa tải về máy. **Dừng đọc** hủy bước chờ; **Thêm vào thư viện** thử lại bằng ID đã lưu. Thư viện, file đã bỏ, kiểu xem và ID file đã chọn được nhớ khi mở lại app. Nếu thêm các file khác từ cùng torrent, app tạo dòng queue riêng và thêm torrent mới trên Real-Debrid lúc bắt đầu để giữ lựa chọn của tác vụ cũ.
-
-Để bỏ cả thư mục, chọn nó trong cây bên trái rồi bấm nút thùng rác **Bỏ thư mục** phía trên cây, nhấn Delete hoặc chuột phải → **Bỏ thư mục khỏi thư viện**. Thao tác bỏ toàn bộ file và thư mục con, kể cả file bị bộ lọc tìm kiếm/video ẩn. Bỏ thư mục gốc torrent sẽ ẩn cả gốc, kể cả khi chưa có metadata. **Hoàn tác** khôi phục thư mục cùng các lựa chọn bỏ file trước đó; giữ file trên máy, queue và danh sách ID từ xa. Thư mục gốc tự biến mất khi file cuối cùng bị bỏ; các thư mục đã bỏ không xuất hiện lại sau khi mở app.
-
-**Shift+click** chọn một dải từ mốc chọn trước đó trong Danh sách/Lưới và bảng Real-Debrid. Shift+click tiếp giữ nguyên mốc; **Ctrl+Shift+click** thêm dải và **Ctrl+click** bật/tắt từng mục. Checkbox và ô lưới vẫn bật/tắt riêng được khi không giữ Ctrl. Dải chọn theo đúng thứ tự đang sort/lọc. Đổi bộ lọc sẽ đặt lại mốc; đổi Danh sách/Lưới giữ mốc. Hộp thoại xác nhận và thông báo của app dùng đúng theme sáng/tối, gồm cả thanh tiêu đề. Xác nhận xóa mặc định chọn **Hủy**.
-
-App mặc định dùng **English** khi chưa có lựa chọn ngôn ngữ. Chọn **Tiếng Việt / English** ở góc trên bên phải để đổi ngay, kể cả khi đang tải. Lựa chọn đã lưu được giữ khi cập nhật app. Bên cạnh là bộ chọn **Theo hệ thống / Sáng / Tối**; mặc định theo giao diện Windows. Tên file và phản hồi gốc từ máy chủ được giữ nguyên.
-
-Hai cột tiến trình tách riêng phần Real-Debrid đang tải torrent và phần app tải về máy. Torrent không có seed có thể chờ lâu trên Real-Debrid.
-
-Khi Real-Debrid đang tải, queue hiển thị số seed và tốc độ máy chủ báo về. **0 seed / 0 B/s** nghĩa là đang chờ nguồn tải và có thể chưa có link để tải về máy. App giữ nguyên ID file đã chọn và vẫn cho thêm các torrent khác trong lúc chờ.
-
-## Batch mới và xóa torrent từ xa
-
-Bấm **Batch mới** trong tab **File trong torrent** để xóa cả thư viện ảo, lịch sử bỏ file, ô nhập và bộ lọc tìm kiếm/video. Ô nhập vẫn hiện sẵn cho batch tiếp theo. Giữ hàng đợi, file đã tải và torrent trên Real-Debrid. ID từ xa vẫn được nhớ sau khi xóa thư viện hoặc queue, kể cả torrent mới đọc metadata chưa đưa vào queue.
-
-Mở tab **Torrent trên Real-Debrid** để xem toàn bộ torrent trong tài khoản Real-Debrid của token, kể cả torrent thêm trên web. Danh sách tự tải khi mở tab (hoặc bấm **Tải lại**) và hiện dung lượng, trạng thái/tiến độ, ngày thêm, kèm nhãn **Trong hàng đợi** cho torrent đang gắn với hàng đợi tải. Đổi token sẽ xóa danh sách cũ. Tick từng torrent hoặc **Chọn / bỏ chọn tất cả**, bấm **Xóa torrent đã chọn…**, xem lại đúng tên/ID trong bảng rồi **Xác nhận xóa trên Real-Debrid**. Bấm **Hủy** trước khi bắt đầu sẽ giữ nguyên. Khi đang xóa, Hủy dừng các yêu cầu còn lại; các torrent đã xóa từ xa không thể Hoàn tác.
-
-Trước khi xóa, app kiểm tra token vẫn thuộc đúng tài khoản đã tải danh sách; nếu khác thì không xóa gì. Sau đó app chờ tác vụ gắn với từng ID đã chọn dừng rồi mới xóa ID đó. Torrent đã xóa thành công/đã không còn biến khỏi danh sách, các dòng queue liên quan được bỏ khỏi dữ liệu lưu. Torrent bị lỗi vẫn hiện lý do và giữ dòng queue đã dừng để thử lại. Giữ file đã tải và `.part` trên máy. Metadata ảo vẫn duyệt được; nếu đưa các file này vào queue lần nữa, app sẽ thêm torrent mới khi bắt đầu tải. [Ảnh màn hình xem lại trước khi xóa](docs/images/remote-delete-vi.png) dùng dữ liệu minh họa.
-
-Mỗi dòng có nút **Retry**, **Resume**, **Stop**, **Xóa**; có thể chọn nhiều dòng rồi dùng các nút tương ứng bên dưới:
-
-- **Retry**: chạy lại ngay torrent bị lỗi, dùng lại ID Real-Debrid và tải tiếp phần `.part` nếu có. Có thể retry khi các torrent khác vẫn đang chạy; tác vụ mới tuân theo giới hạn song song đã chọn.
-- **Resume**: bắt đầu torrent đang chờ hoặc tiếp tục torrent đã pause/stop. Giữ tên file và thư mục đã được gán; bỏ qua file đã hoàn tất. Nếu máy chủ không hỗ trợ tải tiếp, app tải lại file đó từ đầu.
-- **Stop**: dừng tác vụ trong app và giữ file tạm để Resume sau. Torrent đang chờ lượt cũng có thể stop. Các torrent khác tiếp tục chạy. Stop chỉ dừng xử lý/tải về máy trong app; torrent trên Real-Debrid tiếp tục xử lý.
-- **Xóa**: dừng và chờ tác vụ thoát trước khi xóa dòng khỏi danh sách, kể cả khi dòng đó đang tải. Giữ file đã tải, file tạm và torrent trên Real-Debrid.
-- **Pause tất cả** / **Stop tất cả**: ngừng cả lượt xử lý và giữ phần đã tải. **Bắt đầu / Resume** tiếp tục các dòng đang chờ, pause hoặc stop; các dòng lỗi dùng **Retry** riêng.
-- **Xóa toàn bộ**: xác nhận rồi dừng mọi tác vụ, chờ file đang ghi đóng lại và xóa toàn bộ bản ghi hàng đợi, kể cả dòng đang dừng, hoàn tất hoặc lỗi. Hủy cả bước kết nối đang chờ. Giữ nguyên file đã tải, file `.part`, metadata tải tiếp và torrent trên Real-Debrid.
-
-## Lưu trữ
-
-- **Lưu phẳng** (mặc định): `<nơi lưu>\<tên file>`. Không tạo thư mục torrent hoặc các thư mục con. File trùng tên được thêm hậu tố ` (2)`, ` (3)`... kể cả khi trùng giữa nhiều torrent tải song song, file đã có trên máy, hoặc file `.part` đang tải dở.
-- Bỏ chọn **Lưu phẳng**: file nằm trong `<nơi lưu>\<tên torrent>_<mã hàng đợi>\...`, giữ cây thư mục khi API cung cấp ánh xạ file rõ ràng. Tải theo lựa chọn cần link riêng khớp từng file; nếu RD trả link gộp, thiếu file hoặc tên/kích thước không khớp, app báo lỗi trước khi tải file đó để tránh lưu nhầm. Queue từ phiên bản cũ giữ hành vi tải toàn bộ, kể cả archive/split.
-- Lựa chọn được nhớ khi mở lại app. Khi tiếp tục torrent đã có file tải dở, app giữ chế độ và đường dẫn cũ. Thay đổi nơi lưu hoặc chế độ áp dụng cho torrent chưa bắt đầu lưu file; app không tự di chuyển các file cũ.
-- Hàng đợi và cài đặt: `%LOCALAPPDATA%\RealDebridBatch\settings.json`. Token được mã hóa bằng Windows DPAPI theo tài khoản hiện tại khi bật **Nhớ token trên máy này**. Không đưa token vào URL, mã nguồn hoặc log.
-- Bỏ dòng khỏi hàng đợi chỉ bỏ bản ghi trong app. File trên máy và torrent trên Real-Debrid vẫn giữ nguyên. App không tự xóa torrent trên tài khoản.
-- App không ghi đè file hoàn tất đã tồn tại. Tải tiếp dùng HTTP Range/If-Range nếu server hỗ trợ; nếu server trả cả file, app tải lại từ đầu. Kích thước được kiểm tra trước khi đổi `.part` thành file hoàn tất.
-- Đóng app sẽ hủy tác vụ và lưu hàng đợi. Mở lại rồi bấm **Bắt đầu / Resume**; không tự chạy nền khi đóng. Trạng thái Stop được nhớ khi mở lại app.
-
-## Build và kiểm tra
-
-Yêu cầu .NET 10 SDK để build. Không dùng thư viện NuGet bên ngoài.
-
-```powershell
-dotnet build src/RdBatch.App -c Release
-dotnet run --project tests/RdBatch.Tests -c Release
-dotnet run --project tests/RdBatch.App.Tests -c Release
-.\build.ps1
+```sh
+pnpm install
+pnpm tauri dev            # chạy app
+cargo test --workspace
+pnpm check && pnpm test && node scripts/check-i18n.mjs
+pnpm tauri build          # bộ cài cho hệ điều hành hiện tại, trong target/release/bundle
+pnpm build:portable       # bản portable, trong dist/portable và dist/DebridDock-portable-win-x64.zip (Windows)
 ```
 
-`build.ps1 -FrameworkDependent` cho bản nhỏ hơn, cần .NET 10 Desktop Runtime trên máy đích. API chính thức: https://api.real-debrid.com/.
+`RDBATCH_DATA_DIR=<thư mục>` gom toàn bộ dữ liệu (hàng đợi, thư viện, cài đặt) vào một thư mục: dùng portable, test,
+chụp ảnh. Bản portable có sẵn file `portable` cạnh file chạy, làm điều tương tự với thư mục `data` ngay bên cạnh.
+API token không bao giờ ghi vào đó; token nằm trong keychain của hệ điều hành và tạm giữ trong bộ nhớ nếu máy không có
+keychain.
 
-Các kiểm tra tự động dùng HTTP giả lập, không cần token và không gửi torrent thật lên tài khoản. Bao gồm đọc metadata, tìm thư mục con, lọc video, gửi đúng ID file, chỉ tải lựa chọn từ torrent đã cache, khôi phục/Resume và từ chối link gộp. Kiểm tra WPF thao tác bộ duyệt file và render hai ngôn ngữ, hai theme, cửa sổ thường/nhỏ.
+### Vì sao nhanh
 
-## CI/CD và phát hành
+- Tiến độ không bao giờ gửi theo từng chunk. Engine cập nhật hàng đợi; một task gửi bản mới nhất của mỗi job thay đổi
+  khoảng 250 ms một lần. UI bận không làm chậm việc tải, việc tải nhanh không làm ngập UI.
+- Khi resume, mọi file của torrent được ghép trong một lượt, nên torrent hàng nghìn file cũng tiếp tục ngay.
+- `data.json` được ghi nguyên tử và gộp lần ghi, trừ khi vừa tạo ID torrent từ xa: lúc đó ghi ngay để lỡ crash cũng
+  không để lại torrent mồ côi trên dịch vụ.
+- Danh sách được ảo hóa; thư viện lọc 30.000 file trong vài mili giây (`browser.test.ts` kiểm tra).
 
-- **Push lên `main` / pull request:** chạy kiểm tra core và WPF trên Windows, build bản portable, lưu `.exe`, ZIP, SHA-256 và ảnh giao diện trong mục **Artifacts** của [GitHub Actions](https://github.com/coolbirdzik/realdebrid/actions). Artifact được giữ 14 ngày và tải xuống khi đăng nhập GitHub.
-- **Chạy thủ công:** vào **Actions → Build and release → Run workflow** để kiểm tra và lấy artifact; thao tác này không tạo Release.
-- **Đẩy tag `vMAJOR.MINOR.PATCH`:** sau khi test và build thành công, workflow tự tạo GitHub Release với ghi chú thay đổi, file `.exe`, ZIP và `SHA256SUMS.txt`. Tag có hậu tố như `v0.2.0-beta.1` tạo prerelease.
-- Workflow dùng `GITHUB_TOKEN` sẵn có; chỉ job phát hành có quyền `contents: write`. Không cần thêm API token Real-Debrid, GitHub PAT hay SSH key vào secrets.
+### Các quy tắc an toàn được test
 
-Ví dụ phát hành phiên bản tiếp theo:
+Resume bằng `Range` + `If-Range`, tải lại từ đầu khi server bỏ qua `Range`, từ chối `Content-Range` sai, không coi
+body bị cụt là đã xong, không bao giờ ghi đè file đã hoàn tất, giữ file dở khi dừng, từ chối path traversal và thư mục
+symlink, tự thử lại lỗi kết nối nhưng không bao giờ gửi lại upload hoặc xóa chưa rõ kết quả, không để token lọt vào
+bất kỳ thông báo lỗi nào (kể cả URL tải của TorBox), từ chối torrent thuộc tài khoản hoặc dịch vụ khác.
 
-```powershell
-git push origin main
-git tag -a v0.2.1 -m 'Release v0.2.1'
-git push origin v0.2.1
+### Phát hành
+
+`.github/workflows/build.yml` test và build bộ cài trên mỗi lần push lên `main` và mỗi pull request (lưu dạng
+artifact 14 ngày). Với tag `vX.Y.Z` khớp `version` trong `src-tauri/tauri.conf.json`, workflow còn tạo draft release
+kèm checksum:
+
+```sh
+git tag -a v0.3.0 -m "Release v0.3.0"
+git push origin v0.3.0
 ```
 
-Build bộ file phát hành ngay trên máy:
+### Lịch sử
 
-```powershell
-.\tools\Build-Release.ps1 -Version 0.2.1
-```
+DebridDock trước đây tên Real-Debrid Batch, đổi tên khi hỗ trợ nhiều dịch vụ. Dự án bắt đầu là app WPF/.NET chỉ chạy
+trên Windows; phần code đó đã bị xóa khi app Tauri thay thế và vẫn xem được trong lịch sử git đến commit `8e3a5d1`.
 
-Kết quả nằm trong `artifacts/release/`. Kiểm tra SHA-256 của file tải về bằng `Get-FileHash .\RealDebridBatch-win-x64.exe -Algorithm SHA256` và đối chiếu với `SHA256SUMS.txt` trong cùng Release. Release chưa ký số Authenticode.
+## Giấy phép
 
-Kiểm tra WPF dùng thư mục cài đặt thử riêng, xác minh đổi ngôn ngữ và tạo ảnh giao diện ở `artifacts/ui-checks/`. Icon mới có nguồn vector tại `src/RdBatch.App/Assets/AppIcon.svg`; chạy `tools/Generate-Icon.ps1` để tạo lại PNG và ICO đa kích thước (16–256 px), dùng cho cửa sổ, taskbar và file exe.
-
-Để cập nhật ảnh trong README sau khi đổi UI, chạy kiểm tra WPF ở thư mục gốc repo rồi chép `artifacts/ui-checks/browser-grid-vietnamese.png` sang `docs/images/app-vi.png` và `browser-grid-english.png` sang `docs/images/app-en.png`. Ảnh tối là `browser-vietnamese-dark.png` và `browser-english-dark.png`.
+MIT.

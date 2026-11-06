@@ -1,136 +1,223 @@
-# Real-Debrid Torrent Multiple Downloader
+# DebridDock: all-in-one desktop app for Real-Debrid, TorBox and AllDebrid
 
 English · [Tiếng Việt](README.vi.md)
 
-[![Build and release](https://github.com/coolbirdzik/realdebrid/actions/workflows/build-release.yml/badge.svg)](https://github.com/coolbirdzik/realdebrid/actions/workflows/build-release.yml)
+[![Build and release](https://github.com/coolbirdzik/realdebrid/actions/workflows/build.yml/badge.svg)](https://github.com/coolbirdzik/realdebrid/actions/workflows/build.yml)
+![Platforms: Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational)
+![Debrid services: Real-Debrid, TorBox, AllDebrid](https://img.shields.io/badge/debrid-Real--Debrid%20%7C%20TorBox%20%7C%20AllDebrid-blueviolet)
 
-**[Download for Windows x64 (.exe)](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.exe)** · [ZIP package](https://github.com/coolbirdzik/realdebrid/releases/latest/download/RealDebridBatch-win-x64.zip) · [All releases](https://github.com/coolbirdzik/realdebrid/releases)
+**DebridDock is a free desktop debrid client: one app to add torrents to Real-Debrid, TorBox or AllDebrid, browse
+them in a virtual library, pick the exact files you want and download them to your computer through a fast,
+resumable download queue.** It replaces the browser tabs, copy-pasted links and separate download manager you would
+otherwise juggle for each debrid service. It runs on Windows, macOS and Linux.
 
-Browse and download selected torrent files with Real-Debrid from a Windows desktop queue. Paste magnets, direct `.torrent` URLs or choose local `.torrent` files. Browse folders, search filenames, filter videos and add only your selected results to the queue.
+![DebridDock: virtual torrent library for Real-Debrid, TorBox and AllDebrid, light appearance](docs/images/app-en.png)
 
-## Screenshot
+## Contents
 
-![Real-Debrid Batch showing torrent folders and video search results](docs/images/app-en.png)
+- [Why DebridDock](#why-debriddock)
+- [Features](#features)
+- [How it works](#how-it-works)
+- [Screenshots](#screenshots)
+- [Download and install](#download-and-install)
+- [FAQ](#faq)
+- [For developers](#for-developers)
 
-Rendered directly from the WPF interface using sample data, without a real account or torrent transfer. [View the Vietnamese interface](docs/images/app-vi.png).
+## Why DebridDock
 
-<details>
-<summary>Dark appearance</summary>
+A debrid service downloads a torrent on its own fast servers and gives you a direct HTTPS link. Doing that by hand
+for a season of episodes or a large batch means adding each magnet on the website, waiting, selecting files,
+unrestricting every link and feeding the links to a download manager. DebridDock does the whole chain in one window:
 
-![Real-Debrid Batch in dark appearance](docs/images/app-en-dark.png)
-
-</details>
+- **One UI for every debrid service.** Real-Debrid, TorBox and AllDebrid share the same library, queue and controls.
+  Switch service in Settings; each one keeps its own token and torrents.
+- **A virtual library instead of a pile of links.** Torrents are read on the service and shown as folders and files,
+  like a file explorer, before anything reaches your disk.
+- **Download only what you choose.** Pick single videos, whole folders or everything left, and only those files are
+  selected on the service and downloaded.
+- **A download queue you can leave running.** Downloads start as soon as you queue them, resume after a stop or a
+  crash, and retry by themselves when a connection drops.
 
 ## Features
 
-| Feature | Behavior |
+### All-in-one debrid client
+
+- Supports **Real-Debrid, TorBox and AllDebrid**. Each service is a separate adapter behind one interface, so more
+  can be added.
+- Add **magnet links**, **`.torrent` URLs** or **local `.torrent` files** (paste a list, or drag and drop files onto
+  the window). Duplicates are detected.
+- See and clean up the **torrents on your debrid account**: list every torrent and delete the ones you no longer
+  need, with a review step before anything is removed.
+
+### Virtual torrent library
+
+- Browse every torrent as **folders and files**, with back, forward and up navigation (mouse side buttons, Alt+←/→
+  and Backspace work too), breadcrumbs and an **All files** flat view.
+- **List or grid view**, sorting by name or date added, and sortable columns (name, size, status).
+- **Search** across folders and subfolders, and a **Videos only** filter that surfaces every video in the current
+  folder tree.
+- Each file shows whether it is **downloaded, partly downloaded or already queued**, and keeps that mark after you
+  clear the queue or restart the app.
+- Remove files or folders from the library without touching your disk or the service, with undo (Ctrl+Z).
+
+### Torrent downloads from debrid
+
+- **Queue selected files, or everything that is left** in the library, with one click. Downloads start right away.
+- **Resumable downloads** (`Range` + `If-Range`): stop, pause or close the app and continue from the exact byte later.
+- **Automatic retry:** a dropped connection, a timeout or an expired download link is retried with back-off and
+  resumes the partial file. **Retry all** is there for anything that still fails.
+- Choose the **download folder**, keep the torrent's folder structure or save everything flat, and run **1 to 5
+  torrents at the same time**.
+- Progress shows both sides: the service's progress and the download to your computer, with speed and file count.
+
+### Fast, private, cross-platform
+
+- Built with **Rust** (download engine) and **Tauri 2** (native shell), so it is small and light on memory.
+- Stays responsive with **30,000+ files** in the library and **thousands of files** in a single torrent.
+- Your API token is stored in the **operating system keychain** (Windows Credential Manager, macOS Keychain, Linux
+  Secret Service), never in a plain settings file, and never shown in error messages.
+- Windows, macOS and Linux installers, and a **portable Windows build** that keeps all data next to the app.
+- English and Vietnamese interface, light and dark appearance.
+
+## How it works
+
+1. **Connect your service.** Choose Real-Debrid, TorBox or AllDebrid in Settings and paste your API token (the app
+   links to each service's token page).
+2. **Add torrents.** Paste magnet links or `.torrent` URLs, or drop `.torrent` files. DebridDock adds them to your
+   debrid account and reads their file lists.
+3. **Browse and pick.** Open folders in the virtual library, search, filter to videos and select what you want.
+4. **Download.** Click **Add to queue**. DebridDock selects those files on the service, waits for it to finish, gets
+   the direct links and downloads them to your folder with resume and automatic retry.
+
+DebridDock never connects to torrent peers itself: your computer only downloads over HTTPS from your debrid service.
+
+## Screenshots
+
+![DebridDock download queue with resumable downloads, retry all and per-row controls](docs/images/queue-en.png)
+
+<details>
+<summary>Dark appearance and Vietnamese interface</summary>
+
+![DebridDock virtual library in dark appearance](docs/images/app-en-dark.png)
+
+![DebridDock in Vietnamese](docs/images/app-vi.png)
+
+</details>
+
+The screenshots come from the real app with sample data (`scripts/seed-sample-data.py`); no account or transfer is
+involved.
+
+## Download and install
+
+Get the installer for your system from the [Releases](https://github.com/coolbirdzik/realdebrid/releases) page:
+`.msi` or `.exe` for Windows, `.dmg` for macOS, `.deb`, `.rpm` or `.AppImage` for Linux. A portable Windows build
+can be made from source with `pnpm build:portable` (see [Build and test](#build-and-test)).
+
+Builds are **not code-signed yet**, so the system warns on first launch:
+
+- **Windows:** SmartScreen shows "Windows protected your PC". Click *More info*, then *Run anyway*.
+- **macOS:** right-click the app and choose *Open*, or run `xattr -dr com.apple.quarantine "/Applications/DebridDock.app"`.
+- **Linux:** the AppImage needs `chmod +x`. To remember the API token, the `.deb` and `.rpm` need a Secret Service
+  keyring (GNOME Keyring or KWallet).
+
+## FAQ
+
+**What is a debrid service?**
+A paid service such as Real-Debrid, TorBox or AllDebrid that downloads torrents (and files from file hosts) on its own
+servers and gives you fast direct download links. DebridDock is a client for those services; you need your own
+account and API token.
+
+**Is DebridDock free?**
+Yes. DebridDock is free and open source (MIT). You only pay for your debrid subscription.
+
+**Does DebridDock download torrents with BitTorrent on my computer?**
+No. The debrid service fetches the torrent. DebridDock only downloads the finished files over HTTPS, so no peers ever
+see your IP address.
+
+**Can I download only some files from a torrent, such as one episode?**
+Yes. That is what the virtual library is for: open the torrent, select the files or folders you want and queue them.
+Only those files are selected on the service and downloaded.
+
+**What happens if my connection drops or I close the app mid-download?**
+Partial files are kept. Connection problems are retried automatically, and after a restart **Start / Resume**
+continues every file from the byte where it stopped.
+
+**Does it work with several debrid accounts?**
+You can keep a token for each service and switch between Real-Debrid, TorBox and AllDebrid in Settings. Each
+queued torrent remembers the account it belongs to and is never resumed with another one.
+
+**Where are my token and data stored?**
+The token is in your system keychain. The library, queue and settings are in one `data.json` file in the app data
+folder (or next to the app in the portable build).
+
+Please download only content you have the right to download.
+
+## For developers
+
+DebridDock is a Rust core and download engine, a Tauri 2 shell and a Svelte 5 UI.
+
+### Layout
+
+| Path | What it is |
 | --- | --- |
-| Bulk input | Magnets, direct `.torrent` URLs, multiple local `.torrent` files and drag-and-drop. |
-| Torrent browser | Folder tree with List/Grid views, and filename/path search through subfolders. |
-| Video search and selection | Filter video formats, select individual files or all matching results, then add them to the queue. |
-| Virtual library cleanup | Search and remove unwanted files, undo removals, then queue all remaining files. Exclusions and view preferences survive restart. |
-| New batches | Clear the whole virtual library, input and filters with **New batch**, while keeping existing queue work. |
-| Remote torrent deletion | Review selected tracked torrent IDs, then delete them from Real-Debrid. Stop linked writers first, keep local files and report failures per torrent. |
-| Parallel torrents | Process 1–5 torrents with separate Real-Debrid and local progress. |
-| Resumable downloads | Retry, resume or stop individual/multiple rows while keeping `.part` files. |
-| Queue management | Pause/stop all, remove selected rows or clear the entire queue; restore it after restarting. |
-| File layout | Flat output or torrent folders, with collision handling and no overwriting. |
-| English / Vietnamese | English by default; switch immediately and remember the language choice. |
-| Flat desktop UI | A persistent source input, simple dividers, List/Grid views and saved light/dark/system appearance. |
-| Token storage | Optional token saving with Windows DPAPI encryption for the current account. |
-| Portable executable | A single Windows x64 `.exe` with the .NET runtime included. |
+| `crates/core` | `rdbatch-core`: provider adapters, resumable downloader, queue engine, persistence. No UI or Tauri dependency, so `cargo test` runs anywhere. |
+| `src-tauri` | `rdbatch-desktop`: application state, IPC commands, coalesced events, keychain access. |
+| `src` | Svelte UI. `src/lib/browser.ts` holds the Library browser logic as pure, tested functions. |
+| `scripts` | `check-i18n.mjs` (every UI string has an English translation), `seed-sample-data.py` (sample library for screenshots), `fake-realdebrid.py` (fake server for end-to-end runs). |
+| `.github/workflows/build.yml` | Tests on all three systems, builds installers and drafts releases. |
 
-## Getting started
+### Build and test
 
-Download `RealDebridBatch-win-x64.exe` from [GitHub Releases](https://github.com/coolbirdzik/realdebrid/releases/latest) and run it directly. For the ZIP package, extract it and run `RealDebridBatch.exe`. Requires Windows x64 and an active Real-Debrid Premium account; no separate .NET installation is needed.
+Requirements: Rust (stable), Node 22+, pnpm 10. On Linux also
+`libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev patchelf`.
 
-From source, run `artifacts\RealDebridBatch\RealDebridBatch.exe`, or use `run.ps1` to build it if needed.
-
-1. Get your private API token from <https://real-debrid.com/apitoken>, paste it into the app and click **Connect**. An active Premium subscription is required.
-2. Choose a download folder. **Flat layout** puts all files directly in that folder; uncheck it to keep separate torrent folders and preserve their structure when possible.
-3. Paste one magnet or direct `.torrent` URL per line, or choose/drop multiple local `.torrent` files. These actions only fill the input box. Click **Add to library** to inspect the batch. HTML torrent detail pages are not supported. The input stays visible on every tab and remains editable while the queue or an inspection is running. New text entered during inspection is kept for the next manual import.
-4. In **Torrent files**, choose **List** or **Grid**, browse folders or search names and paths. Search includes the current folder and its subfolders; **All torrents** searches the entire library. Enable **Videos only** to exclude subtitles and other files.
-5. Search for unwanted files, tick them or use **Select / clear results**, then **Remove from library** (or Delete while the file view has focus). This removes only virtual entries, including now-empty folders. Local files, remote torrents and previously created queue entries are kept. **Undo** restores the last removal in the current session; exclusions remain after restarting. Ctrl+A selects visible results and Ctrl+Z undoes a removal within the file view.
-6. To download what remains after cleanup, click **Queue all remaining (N)**. This covers the entire virtual library, including files outside the current folder/search, and skips previously queued files. Alternatively, select specific results and click **Add to queue**. Changing search/folder/video filters clears selection; switching List/Grid keeps it. Previously queued files can be removed from the virtual library but are never queued twice.
-7. Open **Download queue** and click **Start / Resume**. Set parallel processing from 1 to 5 torrents (default: 3). Each queue entry downloads its chosen files sequentially.
-
-Inspection adds the source to Real-Debrid to obtain metadata, but does not select files or start local downloads. **Stop inspection** cancels waiting; **Add to library** retries using the saved remote ID. The file library, virtual exclusions, view preference and selected IDs are saved across restarts. Adding more files from the same source creates a separate queue entry and remote torrent when started, so existing downloads keep their selection.
-
-To remove an entire folder, select it in the tree and click the trash **Remove folder** button above the tree, press Delete, or use **Remove folder from library** in its right-click menu. This removes all descendants, including files hidden by the current search/video filter, from the virtual library. Removing a torrent root also hides that root, even when its metadata is empty. **Undo** restores the folder with its previous file exclusions; local files, existing queue entries and remote tracking stay intact. Empty torrent roots disappear when their last visible file is removed, and removed folders stay absent after restart.
-
-**Shift+click** selects a range from the last selection anchor in List/Grid and the Real-Debrid table. Repeated Shift clicks keep that anchor; **Ctrl+Shift+click** adds a range and **Ctrl+click** toggles an item. Checkboxes and grid tiles also toggle individually without Ctrl. Ranges follow the visible sorted/filtered order. Changing filters resets the anchor; switching List/Grid preserves it. App confirmation and information dialogs follow the active light/dark theme, including their title bars. Destructive confirmations default to **Cancel**.
-
-**English is the default** when no language has been selected. Switch languages at the top right, including during a download. Saved choices are preserved when updating. The adjacent appearance selector offers **System theme / Light / Dark** and follows Windows by default. Original filenames and raw server responses are preserved.
-
-## New batches and remote torrents
-
-Click **New batch** in **Torrent files** to clear the virtual library, excluded-file history, pending source text and search/video filters. The source input remains visible for the next batch. Existing queue entries, local downloads and remote torrents are kept. Remote IDs remain tracked after clearing the library or queue, including preview torrents that were never queued.
-
-Open **Real-Debrid torrents** to see every torrent in the token's Real-Debrid account, including ones added on the website. The list loads when the tab opens (or with **Reload**) and shows size, status/progress, date added, and an **In queue** tag for torrents linked to the download queue. Changing the token clears the list. Select individual rows or **Select / clear all**, click **Delete selected torrents…**, review the exact names/IDs in the table, then **Confirm deletion on Real-Debrid**. **Cancel** leaves them unchanged before deletion starts. During deletion, it cancels remaining requests; a completed remote deletion cannot be undone.
-
-Before deleting, the app checks that the token still belongs to the account the list was loaded for; otherwise nothing is deleted. It then waits for tasks linked to each selected ID to stop, then deletes that ID. Successfully deleted (or already absent) torrents leave the list, and linked queue rows are removed from saved state. Failures stay listed with their errors and stopped queue rows, so they can be retried. Local completed/partial files are kept. Virtual metadata remains browsable; queueing those files again creates a new remote torrent when started. The account table and confirmation UI use sample data in this [review screenshot](docs/images/remote-delete-en.png).
-
-## Queue actions
-
-- **Retry** retries a failed torrent, reusing its Real-Debrid ID and resuming partial files where supported. Other torrents can keep running.
-- **Resume** starts a queued torrent or resumes a paused/stopped torrent using its assigned paths. Completed files are skipped after checking their size.
-- **Stop** cancels the selected local task and keeps partial files. The remote torrent continues on Real-Debrid.
-- **Remove** stops a task and waits for it to finish before removing the row. Local files, partial files and the remote torrent are kept.
-- **Pause all / Stop all** stop local queue processing and preserve progress. Use **Start / Resume** to continue; failed rows need **Retry**.
-- **Clear queue** asks for confirmation, stops all tasks and waits for file writers to close before removing every queue record, including completed, failed and already-stopping rows. It also cancels a pending connection. Downloaded files, `.part` files, resume metadata and remote torrents are kept.
-
-Row actions also apply to multiple selected rows using the buttons below the queue. Real-Debrid and local progress are shown separately.
-
-While Real-Debrid is downloading, the queue shows the reported seed count and speed. A torrent reporting **0 seed / 0 B/s** is waiting for remote sources and may not have download links yet. The app preserves the selected file IDs and keeps accepting other torrents while waiting.
-
-## Storage and resume
-
-Settings and queue data are stored in `%LOCALAPPDATA%\RealDebridBatch\settings.json`. Remembered tokens are encrypted with Windows DPAPI for the current Windows account. Tokens are not placed in URLs, source code or logs.
-
-Flat downloads use `<download folder>\<filename>`. Collisions with existing files, other torrents or partial downloads receive suffixes such as ` (2)`. Folder layout uses `<download folder>\<torrent name>_<queue ID>\...`. Selected downloads require a matching link for each selected file. Combined archives, missing selections or mismatched filenames/sizes fail before downloading the affected file, preventing unwanted files from being saved. Queues saved by earlier versions retain their all-files behavior, including archive/split links.
-
-Changing the folder or layout only affects torrents that have not started allocating files. Existing partial downloads keep their original paths. HTTP Range/If-Range is used when supported; if a server ignores Range, the file restarts cleanly. Completed existing files are never overwritten, and sizes are checked before renaming `.part` files.
-
-Closing the app cancels local work and saves the queue. Reopen it and click **Start / Resume** to continue. The app does not keep downloading after closing and never automatically deletes remote torrents.
-
-## Build and verify
-
-Requires the .NET 10 SDK. No external NuGet packages are needed.
-
-```powershell
-dotnet build src/RdBatch.App -c Release
-dotnet run --project tests/RdBatch.Tests -c Release
-dotnet run --project tests/RdBatch.App.Tests -c Release
-.\build.ps1
+```sh
+pnpm install
+pnpm tauri dev            # run the app
+cargo test --workspace
+pnpm check && pnpm test && node scripts/check-i18n.mjs
+pnpm tauri build          # installers for the current OS, in target/release/bundle
+pnpm build:portable       # portable build, in dist/portable and dist/DebridDock-portable-win-x64.zip (Windows)
 ```
 
-`build.ps1 -FrameworkDependent` creates a smaller app that requires the .NET 10 Desktop Runtime. Automated core checks use fake HTTP responses and never upload real torrents. Checks cover metadata inspection, nested search, video filters, selected-ID requests, cached-torrent subsets, restart/resume and rejection of combined links. WPF checks use isolated settings, exercise the browser and queue, and render both languages to `artifacts/ui-checks/`.
+`RDBATCH_DATA_DIR=<folder>` keeps all data (queue, library, settings) in one folder, for portable use, tests and
+screenshots. The portable build ships a `portable` marker file next to the executable, which does the same with a
+`data` folder beside it. API tokens are never written there; they live in the operating system keychain and fall back
+to memory for the session if no keychain is available.
 
-## CI/CD and releases
+### How it stays fast
 
-- **Push to `main` / pull request:** run core and WPF checks on Windows, build a portable executable and upload the `.exe`, ZIP, SHA-256 checksums and UI screenshots to the workflow's **Artifacts** section in [GitHub Actions](https://github.com/coolbirdzik/realdebrid/actions). Artifacts are retained for 14 days and require signing in to download.
-- **Manual build:** choose **Actions → Build and release → Run workflow** to run checks and download artifacts. A manual run does not publish a Release.
-- **Push a `vMAJOR.MINOR.PATCH` tag:** after all checks pass, publish a GitHub Release with generated notes, the executable, ZIP and `SHA256SUMS.txt`. Tags such as `v0.2.0-beta.1` create prereleases.
-- Uses the automatic `GITHUB_TOKEN`, with `contents: write` limited to the release job. No Real-Debrid token, GitHub PAT or SSH key needs to be added to repository secrets.
+- Progress is never sent per chunk. The engine updates the queue; one task emits the latest copy of each changed job
+  about every 250 ms. A busy UI cannot slow a transfer, and a fast transfer cannot flood the UI.
+- Resuming a torrent matches all of its files in one pass, so a torrent with thousands of files resumes instantly.
+- `data.json` is written atomically and debounced, except when a remote torrent ID is created: that is flushed
+  immediately so a crash cannot orphan a torrent on the service.
+- Lists are virtualized, and the Library filters 30,000 files in a few milliseconds (`browser.test.ts` checks it).
 
-To publish the next version:
+### Safety rules the tests cover
 
-```powershell
-git push origin main
-git tag -a v0.2.1 -m 'Release v0.2.1'
-git push origin v0.2.1
+Resume with `Range` + `If-Range`, restart when the server ignores `Range`, reject a wrong `Content-Range`, never
+accept a short body as finished, never overwrite a finished file, keep partial files when stopped, reject path
+traversal and symlinked folders, retry connection failures but never replay an ambiguous upload or delete, keep
+tokens out of every error message (including the TorBox download URL), refuse torrents from another account or
+provider.
+
+### Releases
+
+`.github/workflows/build.yml` tests on all three systems and builds installers on every push to `main` and pull
+request (uploaded as workflow artifacts for 14 days). For a tag named `vX.Y.Z` that matches the `version` in
+`src-tauri/tauri.conf.json` it also drafts a GitHub release with checksums:
+
+```sh
+git tag -a v0.3.0 -m "Release v0.3.0"
+git push origin v0.3.0
 ```
 
-To build release assets locally:
+### History
 
-```powershell
-.\tools\Build-Release.ps1 -Version 0.2.1
-```
+DebridDock was called Real-Debrid Batch until it grew beyond one service. It began as a Windows-only WPF/.NET app;
+that code was removed when the Tauri app replaced it and remains in the git history up to commit `8e3a5d1`.
 
-Output goes to `artifacts/release/`. Use `Get-FileHash .\RealDebridBatch-win-x64.exe -Algorithm SHA256` and compare it with `SHA256SUMS.txt` from the same Release. Releases are not Authenticode-signed.
+## License
 
-The icon source is `src/RdBatch.App/Assets/AppIcon.svg`. Run `tools/Generate-Icon.ps1` on Windows to rebuild its PNG and multi-resolution ICO (16–256 px). The icon is included in the window, taskbar and published executable.
-
-To refresh README screenshots after UI changes, run the WPF checks from the repository root, then copy `artifacts/ui-checks/browser-grid-english.png` to `docs/images/app-en.png` and `browser-grid-vietnamese.png` to `docs/images/app-vi.png`. Use `browser-english-dark.png` and `browser-vietnamese-dark.png` for dark appearance.
-
-Official API reference: <https://api.real-debrid.com/>.
+MIT.
