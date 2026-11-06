@@ -3,120 +3,105 @@
   import CloudArrowDown from 'phosphor-svelte/lib/CloudArrowDown';
   import CheckSquare from 'phosphor-svelte/lib/CheckSquare';
   import Trash from 'phosphor-svelte/lib/Trash';
-  import X from 'phosphor-svelte/lib/X';
-  import { api, toMsg } from '../api';
+  import { onDestroy, untrack } from 'svelte';
+  import { api } from '../api';
   import { app } from '../app.svelte';
   import { formatBytes } from '../browser';
   import { languageTag } from '../languages';
   import { t, tm } from '../i18n.svelte';
-  import { providerLabel, type Msg, type RemoteTorrent } from '../types';
+  import { emptyRemoteState, parseRemoteScope, RemoteBrowser, remoteKey, remoteQueuedKeys, type RemoteRow } from '../remote';
+  import { CLOUD_KINDS, cloudKindLabel, providerLabel, type CloudFilter, type Provider, type RemoteTorrent } from '../types';
+  import TorBoxAccount from './TorBoxAccount.svelte';
+  import Select from './Select.svelte';
   import VirtualList from './VirtualList.svelte';
+  import { selectionMouseDown } from '../selection';
+  import CloudDeleteDialog from './CloudDeleteDialog.svelte';
 
-  let torrents = $state.raw<RemoteTorrent[]>([]);
-  let account = $state('');
-  let loading = $state(false);
-  let loadedFor = $state('');
-  let error = $state<Msg | null>(null);
-  let selected = $state.raw(new Set<string>());
-  let reviewing = $state<string[] | null>(null);
-  let deleting = $state(false);
-  let failures = $state<Record<string, Msg>>({});
-  let token = 0;
+  let view = $state.raw(emptyRemoteState());
+  let filter = $state<Provider | 'all'>('all');
+  let kind = $state<CloudFilter>('all');
+  let listRef: { reveal: (index: number) => void } | undefined = $state();
+  const remote = new RemoteBrowser(api, (next) => (view = next));
+  const torrents = $derived(view.rows.filter((row) => filter === 'all' || row.provider === filter));
+  const queuedKeys = $derived(remoteQueuedKeys(app.jobs));
+  const visibleErrors = $derived(Object.entries(view.errors).filter(([scope]) => filter === 'all' || parseRemoteScope(scope).provider === filter));
+  const reviewTargets = $derived([...new Set(view.reviewing?.map((row) => `${providerLabel(row.provider)} · ${row.account} · ${cloudKindLabel(row.kind ?? 'torrent')}`) ?? [])].join(', '));
+  const totalBytes = $derived(torrents.reduce((sum, row) => sum + row.bytes, 0));
 
-  const provider = $derived(app.settings.provider);
-  const queuedIds = $derived(new Set(app.jobs.filter((job) => job.provider === provider).map((job) => job.torrentId).filter((id): id is string => !!id)));
+  function load() { return remote.load(app.usableProviders, kind); }
 
-  async function load() {
-    const mine = ++token;
-    loading = true;
-    error = null;
-    try {
-      const result = await api.remoteList();
-      if (mine !== token) return;
-      torrents = result.torrents;
-      account = result.account;
-      loadedFor = provider;
-      selected = new Set();
-      failures = {};
-    } catch (e) {
-      if (mine === token) { error = toMsg(e); torrents = []; }
-    } finally {
-      if (mine === token) loading = false;
+  function keydown(event: KeyboardEvent) {
+    const result = remote.keydown(torrents, event);
+    if (!result) return;
+    event.preventDefault();
+    if (result.index !== undefined) {
+      listRef?.reveal(result.index);
+      (event.currentTarget as HTMLElement).focus();
     }
   }
 
-  // Load when the page opens and again when the provider changes; a token change clears the list.
+  // Connecting/disconnecting a service or changing a known identity invalidates the old list.
   $effect(() => {
-    provider;
-    if (loadedFor !== provider && app.hasToken) void load();
-    else if (!app.hasToken) { torrents = []; error = { key: 'Dán API token để xem torrent trên dịch vụ đã chọn.', args: [] }; loadedFor = ''; }
+    const accounts = app.accounts.map((a) => ({ ...a, user: a.user ? { ...a.user } : null }));
+    const currentKind = kind;
+    untrack(() => { void remote.syncAccounts(accounts, currentKind); });
   });
+  onDestroy(() => remote.invalidate());
 
   const tone = (status: string) => (status === 'downloaded' ? 'success' : ['error', 'magnet_error', 'virus', 'dead'].includes(status) ? 'danger' : ['downloading', 'queued', 'magnet_conversion', 'compressing', 'uploading', 'waiting_files_selection'].includes(status) ? 'info' : '');
   const statusText = (torrent: RemoteTorrent) => `${torrent.status.replaceAll('_', ' ')}${torrent.status === 'downloaded' ? '' : ` ${torrent.progress.toFixed(0)}%`}`;
 
-  function toggle(id: string) {
-    const next = new Set(selected);
-    if (!next.delete(id)) next.add(id);
-    selected = next;
-  }
-
-  function review() {
-    reviewing = torrents.filter((torrent) => selected.has(torrent.id)).map((torrent) => torrent.id);
+  function changeFilter(value: Provider | 'all') {
+    if (view.deleting || view.reviewing) return;
+    filter = value;
+    remote.clearSelection();
   }
 
   async function confirmDelete() {
-    if (!reviewing) return;
-    deleting = true;
-    const ids = reviewing;
-    try {
-      const outcomes = await api.remoteDelete(ids, account);
-      const done = new Set(outcomes.filter((o) => o.ok).map((o) => o.id));
-      failures = Object.fromEntries(outcomes.filter((o) => !o.ok && o.message).map((o) => [o.id, o.message as Msg]));
-      torrents = torrents.filter((torrent) => !done.has(torrent.id));
-      selected = new Set([...selected].filter((id) => !done.has(id)));
-      if (done.size) app.toast({ key: 'Đã xóa {0} torrent trên {1}.', args: [String(done.size), providerLabel(provider)] }, 'success');
-    } catch (e) {
-      app.toast(toMsg(e), 'error');
-    } finally {
-      deleting = false;
-      reviewing = null;
-    }
+    const targets = reviewTargets;
+    const count = await remote.confirmDelete();
+    if (count) app.toast({ key: 'Đã xóa {0} mục cloud trên {1}.', args: [String(count), targets] }, 'success');
+    if (count) void app.refreshTorboxAccount(true);
   }
 </script>
 
 <section class="page">
   <header class="head">
     <div>
-      <h1 class="title">{t('Torrent trên {0}', providerLabel(provider))}</h1>
-      <p class="caption">{t('{0} torrent trên tài khoản · {1} đã chọn', torrents.length, selected.size)}</p>
+      <h1 class="title">{t('Quản lý cloud')}</h1>
+      <p class="caption">{t('{0} mục cloud · {1} đã chọn · {2}', torrents.length, view.selected.size, formatBytes(totalBytes))}</p>
     </div>
     <div class="actions">
-      <button class="btn" disabled={loading || reviewing !== null || deleting} onclick={load}><span class="ic blue"><ArrowClockwise size={16} weight="bold" /></span>{t('Tải lại')}</button>
+      <Select label={t('Nhà cung cấp')} width="180px" value={filter} options={[{ value: 'all' as const, label: t('Tất cả dịch vụ') }, ...app.accounts.filter((a) => a.hasToken || a.provider === filter).map((a) => ({ value: a.provider, label: providerLabel(a.provider) }))]} onchange={changeFilter} />
+      <Select label={t('Loại dữ liệu cloud')} width="170px" value={kind} options={[{ value: 'all' as const, label: t('Tất cả loại') }, ...CLOUD_KINDS.map((value) => ({ value, label: cloudKindLabel(value) }))]} onchange={(value: CloudFilter) => { if (view.reviewing || view.deleting) return; remote.clearSelection(); kind = value; }} />
+      <button class="btn" disabled={view.loading || view.reviewing !== null || view.deleting} onclick={load}><span class="ic blue"><ArrowClockwise size={16} weight="bold" /></span>{t('Tải lại')}</button>
     </div>
   </header>
 
+  {#if (filter === 'all' || filter === 'torBox') && app.accounts.some((a) => a.provider === 'torBox' && a.hasToken)}<div class="account-summary"><TorBoxAccount /></div>{/if}
+
   <div class="card table">
-    <p class="note caption">{t('Torrent trên tài khoản {0}. Xóa tại đây sẽ xóa trên dịch vụ; giữ file trên máy.', providerLabel(provider))}</p>
-    {#if loading}<div class="indeterminate" role="progressbar"></div>{/if}
-    {#if reviewing}
-      <div class="review">{t('Xóa {0} torrent ID liệt kê bên dưới khỏi {1}. Dừng các tác vụ liên quan và bỏ dòng trong hàng đợi; giữ file trên máy. Xóa từ xa không thể hoàn tác.', reviewing.length, providerLabel(provider))}</div>
-    {/if}
-    <div class="cols head-row"><span></span><span>{t('Torrent / ID')}</span><span>{t('Dung lượng')}</span><span>{t('Trạng thái')}</span><span>{t('Ngày thêm')}</span></div>
+    <p class="note caption">{t('Quản lý dữ liệu trên dịch vụ. Xóa một mục cloud sẽ xóa các file trong mục đó trên dịch vụ; giữ file trên máy.')}</p>
+    {#if view.loading}<div class="indeterminate" role="progressbar" aria-label={t('Đang tải danh sách…')}></div>{/if}
+    {#each visibleErrors as [scope, error]}
+      <p class="load-error" role="alert"><b>{providerLabel(parseRemoteScope(scope).provider)} · {cloudKindLabel(parseRemoteScope(scope).kind)}</b> · {tm(error)}</p>
+    {/each}
+    <div class="cols head-row"><span></span><span>{t('Tên / ID')}</span><span>{t('Dung lượng')}</span><span>{t('Trạng thái')}</span><span>{t('Ngày thêm')}</span></div>
     <div class="body">
       {#if torrents.length === 0}
         <div class="empty">
           <span class="chip ic purple" style="width:48px;height:48px;border-radius:14px"><CloudArrowDown size={22} weight="duotone" /></span>
-          <p class="caption">{error ? tm(error) : loading ? t('Đang tải danh sách…') : t('Không có torrent nào trên tài khoản.')}</p>
+          <p class="caption">{view.loading ? t('Đang tải danh sách…') : !app.usableProviders.length ? t('Dán API token để xem torrent trên dịch vụ đã chọn.') : visibleErrors.length ? t('Không tải được danh sách. Bấm Tải lại để thử lại.') : t('Không có mục cloud nào trong bộ lọc này.')}</p>
         </div>
       {:else}
-        <VirtualList items={torrents} rowHeight={60} key={(torrent) => torrent.id} label={t('Danh sách torrent trên tài khoản dịch vụ')}>
-          {#snippet row(torrent: RemoteTorrent)}
-            <div class="cols item row-glass" class:on={selected.has(torrent.id)}>
-              <input type="checkbox" checked={selected.has(torrent.id)} disabled={reviewing !== null || deleting} onchange={() => toggle(torrent.id)} aria-label={torrent.filename} />
+        {#key `${filter}|${kind}`}
+        <VirtualList bind:this={listRef} items={torrents} rowHeight={60} key={remoteKey} onkeydown={keydown} label={t('Danh sách dữ liệu cloud')}>
+          {#snippet row(torrent: RemoteRow)}
+            <div class="cols item row-glass" class:on={view.selected.has(remoteKey(torrent))} role="option" aria-selected={view.selected.has(remoteKey(torrent))} tabindex="-1" onmousedown={selectionMouseDown} onclick={(e) => remote.pick(torrent, torrents, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })} onkeydown={() => {}}>
+              <input type="checkbox" checked={view.selected.has(remoteKey(torrent))} disabled={view.loading || view.reviewing !== null || view.deleting} onclick={(e) => { e.stopPropagation(); remote.toggle(torrent, e.shiftKey, torrents); }} aria-label={`${providerLabel(torrent.provider)} · ${torrent.account} · ${torrent.filename}`} />
               <div class="names">
                 <b class="ell" title={torrent.filename}>{torrent.filename}</b>
-                <span class="line"><span class="mono id">{torrent.id}</span>{#if queuedIds.has(torrent.id)}<span class="pill info">{t('Trong hàng đợi')}</span>{/if}{#if failures[torrent.id]}<span class="pill danger">{tm(failures[torrent.id])}</span>{/if}</span>
+                <span class="line"><span class="account ell" title={`${providerLabel(torrent.provider)} · ${torrent.account} · ${cloudKindLabel(torrent.kind ?? 'torrent')}`}>{providerLabel(torrent.provider)} · {torrent.account} · {cloudKindLabel(torrent.kind ?? 'torrent')}</span><span class="mono id">{torrent.id}</span>{#if queuedKeys.has(remoteKey(torrent))}<span class="pill info">{t('Trong hàng đợi')}</span>{/if}{#if view.failures[remoteKey(torrent)]}<span class="pill danger" title={tm(view.failures[remoteKey(torrent)])}>{tm(view.failures[remoteKey(torrent)])}</span>{/if}</span>
               </div>
               <span>{formatBytes(torrent.bytes)}</span>
               <span><span class="pill {tone(torrent.status)}" title={torrent.status}>{statusText(torrent)}</span></span>
@@ -124,29 +109,31 @@
             </div>
           {/snippet}
         </VirtualList>
+        {/key}
       {/if}
     </div>
     <footer class="foot">
-      <button class="btn" disabled={torrents.length === 0 || reviewing !== null} onclick={() => (selected = selected.size === torrents.length ? new Set() : new Set(torrents.map((x) => x.id)))}><span class="ic teal"><CheckSquare size={16} weight="duotone" /></span>{t('Chọn / bỏ chọn tất cả')}</button>
+      <button class="btn" disabled={view.loading || torrents.length === 0 || view.reviewing !== null || view.deleting} onclick={() => remote.toggleAll(torrents)}><span class="ic teal"><CheckSquare size={16} weight="duotone" /></span>{t('Chọn / bỏ chọn tất cả')}</button>
       <div class="actions">
-        {#if reviewing}
-          <button class="btn" disabled={deleting} onclick={() => (reviewing = null)}><span class="ic red"><X size={16} weight="bold" /></span>{t('Hủy')}</button>
-          <button class="btn danger" disabled={deleting} onclick={confirmDelete}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Xác nhận xóa từ xa')}</button>
-        {:else}
-          <button class="btn danger" disabled={selected.size === 0} onclick={review}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Xóa torrent đã chọn…')}</button>
-        {/if}
+        <button class="btn danger" disabled={view.loading || view.deleting || view.selected.size === 0} onclick={() => remote.review()}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Xóa mục đã chọn…')}</button>
+        <button class="btn danger" disabled={view.loading || view.deleting || torrents.length === 0 || visibleErrors.length > 0} onclick={() => remote.reviewAll(torrents)}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Xóa tất cả cloud…')}</button>
       </div>
     </footer>
   </div>
 </section>
 
+{#if view.reviewing}
+  <CloudDeleteDialog rows={view.reviewing} deleting={view.deleting} oncancel={() => remote.cancelReview()} onconfirm={confirmDelete} />
+{/if}
+
 <style>
   .page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
-  .actions { display: flex; align-items: center; gap: 4px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .account-summary { margin-bottom: 12px; }
   .table { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .note { padding: 12px 16px; }
-  .review { margin: 0 16px 12px; padding: 12px 16px; background: var(--danger-soft); border-radius: 16px; line-height: 1.5; }
+  .load-error { margin: 0 16px 8px; color: var(--danger); line-height: 1.5; }
   .cols { display: grid; grid-template-columns: 52px minmax(180px, 1fr) 100px 190px 136px; align-items: center; padding-right: 16px; }
   .head-row { height: 36px; margin: 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; }
   .body { flex: 1; min-height: 0; position: relative; }
@@ -154,10 +141,12 @@
   .item input { justify-self: center; }
   .names { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .line { display: flex; gap: 8px; align-items: center; }
-  .id { font-size: 11px; color: var(--muted); }
+  .line { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .account { color: var(--muted); font-size: 11px; }
+  .line .pill { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .id { font-size: 11px; color: var(--muted); white-space: nowrap; flex: none; }
   .empty { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; text-align: center; padding: 24px; }
-  .foot { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
+  .foot { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; gap: 8px; flex-wrap: wrap; }
   .indeterminate { position: absolute; left: 0; right: 0; top: 40px; height: 3px; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: slide 1.2s linear infinite; }
   @keyframes slide { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 </style>

@@ -4,7 +4,7 @@ mod theme;
 
 use app::{AddResult, App, DeleteOutcome, LibraryPatch, QueueItem, RemoteList, SettingsPatch, Snapshot};
 use rdbatch_core::error::Error;
-use rdbatch_core::models::{Msg, Settings, User};
+use rdbatch_core::models::{CloudKind, Msg, Provider, Settings, TorBoxAccount, User};
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::{Manager, State};
@@ -101,13 +101,18 @@ async fn queue_clear(app: Shared<'_>, only_completed: bool) -> Cmd<Vec<String>> 
 }
 
 #[tauri::command]
-async fn remote_list(app: Shared<'_>) -> Cmd<RemoteList> {
-    Ok(app.remote_list().await?)
+async fn torbox_account(app: Shared<'_>) -> Cmd<TorBoxAccount> {
+    Ok(app.torbox_account().await?)
 }
 
 #[tauri::command]
-async fn remote_delete(app: Shared<'_>, ids: Vec<String>, list_account: String) -> Cmd<Vec<DeleteOutcome>> {
-    Ok(app.remote_delete(ids, list_account).await?)
+async fn remote_list(app: Shared<'_>, provider: Provider, kind: Option<CloudKind>) -> Cmd<RemoteList> {
+    Ok(app.remote_list(provider, kind.unwrap_or_default()).await?)
+}
+
+#[tauri::command]
+async fn remote_delete(app: Shared<'_>, provider: Provider, kind: Option<CloudKind>, ids: Vec<String>, list_account: String) -> Cmd<Vec<DeleteOutcome>> {
+    Ok(app.remote_delete(provider, kind.unwrap_or_default(), ids, list_account).await?)
 }
 
 #[tauri::command]
@@ -132,6 +137,12 @@ async fn check_update(handle: tauri::AppHandle) -> Cmd<update::UpdateInfo> {
     update::check(&current).await.map_err(ApiError)
 }
 
+#[tauri::command]
+async fn install_update(handle: tauri::AppHandle, app: Shared<'_>, guard: State<'_, update::UpdateGuard>, version: String) -> Cmd<()> {
+    let _lock = guard.0.try_lock().map_err(|_| ApiError(Msg::plain("Đang cập nhật ứng dụng…")))?;
+    update::install(&handle, app.inner(), &version).await.map_err(ApiError)
+}
+
 /// Opens a release page or installer; only GitHub release URLs of this project are accepted.
 #[tauri::command]
 fn open_release(handle: tauri::AppHandle, url: String) -> Cmd<()> {
@@ -146,6 +157,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(update::UpdateGuard::default())
         .setup(|app| {
             // RDBATCH_DATA_DIR keeps all data in one folder (tests, screenshots). A file named `portable` next to the
             // executable does the same with `<exe folder>/data`, which is how the portable zip is laid out.
@@ -200,9 +213,11 @@ pub fn run() {
             queue_clear,
             remote_list,
             remote_delete,
+            torbox_account,
             open_folder,
             open_token_page,
             check_update,
+            install_update,
             open_release,
         ])
         .run(tauri::generate_context!())

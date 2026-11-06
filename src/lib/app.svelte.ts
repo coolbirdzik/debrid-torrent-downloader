@@ -1,7 +1,8 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { api, on, toMsg } from './api';
 import { setLanguage } from './i18n.svelte';
-import type { AccountInfo, CloudState, Draft, Job, Marks, Msg, Provider, Settings, Snapshot, UpdateInfo, User } from './types';
+import { activeDrafts, fileIdentity, visibleFiles } from './browser';
+import type { AccountInfo, CloudState, Draft, Job, Marks, Msg, Provider, Settings, Snapshot, TorBoxAccount, UpdateInfo, User } from './types';
 import { canRetry, canResume, PROVIDERS } from './types';
 
 export type Page = 'library' | 'queue' | 'remote' | 'settings';
@@ -26,6 +27,23 @@ class AppState {
   settings = $state<Settings>({ ...defaults });
   // Large and replaced wholesale on every update, so keep them out of Svelte's deep proxies.
   library = $state.raw<Draft[]>([]);
+  private seenLibraryFiles = $state.raw<Set<string>>(new Set());
+  private clearedLibraryDrafts = new Map<string, string | null>();
+  /** Navigation counts always cover every service, independent of the Library's current filters. */
+  libraryBadges = $derived.by(() => {
+    let pending = 0;
+    const unread = new Set<string>();
+    for (const draft of activeDrafts(this.library)) {
+      if (draft.files.length === 0) pending++;
+      else if (this.page !== 'library') {
+        for (const file of visibleFiles(draft)) {
+          const key = fileIdentity(draft, file);
+          if (!this.seenLibraryFiles.has(key)) unread.add(key);
+        }
+      }
+    }
+    return { pending, newFiles: unread.size };
+  });
   jobs = $state.raw<Job[]>([]);
   /** Cloud progress per Library torrent (key: `provider|sourcekey`), kept apart so it never rebuilds the rows. */
   cloud = $state.raw<Map<string, CloudState>>(new Map());
@@ -42,6 +60,14 @@ class AppState {
   version = $state('');
   update = $state<UpdateInfo | null>(null);
   checkingUpdate = $state(false);
+  updating = $state(false);
+  updateProgress = $state<import('./types').UpdateProgress | null>(null);
+  updateError = $state<Msg | null>(null);
+  torboxAccount = $state.raw<TorBoxAccount | null>(null);
+  torboxAccountLoading = $state(false);
+  torboxAccountError = $state<Msg | null>(null);
+  private torboxAccountGeneration = 0;
+  private torboxAccountUpdated = 0;
 
   /** Services with a token: the ones the Library and the queue can use. */
   usableProviders = $derived(this.accounts.filter((a) => a.hasToken).map((a) => a.provider));
@@ -88,9 +114,15 @@ class AppState {
   apply(snapshot: Snapshot) {
     this.settings = snapshot.settings;
     this.library = snapshot.library;
+    this.inspect = snapshot.inspect ?? { running: false, done: 0, total: 0 };
+    this.clearedLibraryDrafts.clear();
+    // Existing files are the startup baseline; later metadata arrivals can be new while another page is open.
+    this.seenLibraryFiles = new Set();
+    this.markLibrarySeen();
     this.jobs = snapshot.jobs;
     this.cloud = new Map(snapshot.library.filter((d) => d.cloud).map((d) => [cloudKey(d), d.cloud!]));
     this.accounts = snapshot.accounts;
+    this.clearTorboxAccount();
     this.hasToken = snapshot.account.hasToken;
     this.user = snapshot.account.user;
     this.warning = snapshot.warning;
@@ -100,6 +132,10 @@ class AppState {
   }
 
   private setAccount(account: AccountInfo) {
+    if (account.provider === 'torBox') {
+      const previous = this.accounts.find((a) => a.provider === 'torBox');
+      if (!account.hasToken || (previous?.user && previous.user.username.toLowerCase() !== account.user?.username.toLowerCase())) this.clearTorboxAccount();
+    }
     this.accounts = this.accounts.map((a) => (a.provider === account.provider ? account : a));
     if (account.provider === this.settings.provider) {
       this.user = account.user;
@@ -107,12 +143,64 @@ class AppState {
     }
   }
 
+  private clearTorboxAccount() {
+    this.torboxAccountGeneration++;
+    this.torboxAccount = null;
+    this.torboxAccountError = null;
+    this.torboxAccountLoading = false;
+    this.torboxAccountUpdated = 0;
+  }
+
+  async refreshTorboxAccount(force = false) {
+    if (!this.accounts.some((a) => a.provider === 'torBox' && a.hasToken) || this.torboxAccountLoading) return;
+    if (!force && this.torboxAccount && Date.now() - this.torboxAccountUpdated < 60_000) return;
+    const generation = ++this.torboxAccountGeneration;
+    this.torboxAccountLoading = true;
+    this.torboxAccountError = null;
+    try {
+      const details = await api.torboxAccount();
+      if (generation !== this.torboxAccountGeneration) return;
+      this.torboxAccount = details;
+      this.torboxAccountUpdated = Date.now();
+    } catch (error) {
+      if (generation === this.torboxAccountGeneration) this.torboxAccountError = toMsg(error);
+    } finally {
+      if (generation === this.torboxAccountGeneration) this.torboxAccountLoading = false;
+    }
+  }
+
   cloudOf(draft: Draft): CloudState | undefined {
     return this.cloud.get(cloudKey(draft));
   }
 
+  /** Opening the Library acknowledges all currently visible files, including copies on another service. */
+  markLibrarySeen() {
+    const seen = new Set(this.seenLibraryFiles);
+    for (const draft of activeDrafts(this.library)) {
+      for (const file of visibleFiles(draft)) seen.add(fileIdentity(draft, file));
+    }
+    if (seen.size !== this.seenLibraryFiles.size) this.seenLibraryFiles = seen;
+  }
+
+  resetLibraryActivity() {
+    this.seenLibraryFiles = new Set();
+  }
+
+  clearLibraryView() {
+    for (const draft of this.library) this.clearedLibraryDrafts.set(cloudKey(draft), draft.addedAt);
+    this.library = [];
+    this.inspect = { running: false, done: 0, total: 0 };
+    this.cloud = new Map();
+    this.resetLibraryActivity();
+  }
+
   private upsertDraft(draft: Draft) {
     const key = cloudKey(draft);
+    // An inspection that finished during reset must not resurrect a removed row. A deliberate re-import has a new date.
+    if (this.clearedLibraryDrafts.has(key)) {
+      if (this.clearedLibraryDrafts.get(key) === draft.addedAt) return;
+      this.clearedLibraryDrafts.delete(key);
+    }
     if ((draft.cloud ?? undefined) !== this.cloud.get(key)) {
       const next = new Map(this.cloud);
       if (draft.cloud) next.set(key, draft.cloud);
@@ -180,14 +268,17 @@ class AppState {
   }
 
   async saveToken(token: string) {
-    const warning = await this.run(() => api.saveToken(token));
-    this.setAccount({ provider: this.settings.provider, hasToken: token.trim().length > 0, user: null });
-    if (warning) this.toast(warning, 'error');
+    const provider = this.settings.provider;
+    const result = await this.run(async () => ({ warning: await api.saveToken(token) }));
+    if (!result) return;
+    if (provider === 'torBox') this.clearTorboxAccount();
+    this.setAccount({ provider, hasToken: token.trim().length > 0, user: null });
+    if (result.warning) this.toast(result.warning, 'error');
   }
 
   /** `quiet` is the startup check: it never reports a failure or an up-to-date result. */
   async checkUpdate(quiet = false) {
-    if (this.checkingUpdate) return;
+    if (this.checkingUpdate || this.updating) return;
     this.checkingUpdate = true;
     try {
       const info = await api.checkUpdate();
@@ -202,9 +293,24 @@ class AppState {
     }
   }
 
-  openUpdate() {
-    const url = this.update?.downloadUrl ?? this.update?.pageUrl;
-    if (url) return this.run(() => api.openRelease(url));
+  async installUpdate() {
+    if (this.updating || this.checkingUpdate || !this.update?.available || !this.update.canInstall || !this.update.latest) return;
+    this.updating = true;
+    this.updateError = null;
+    this.updateProgress = { phase: 'downloading', downloaded: 0, total: null };
+    let unlisten: (() => void) | undefined;
+    try {
+      // Subscribe before invoking the backend, including on a fast/cached download.
+      unlisten = await on('update-progress', (progress) => (this.updateProgress = progress));
+      await api.installUpdate(this.update.latest);
+    } catch (error) {
+      this.updateError = toMsg(error);
+      this.toast(this.updateError, 'error');
+    } finally {
+      unlisten?.();
+      this.updating = false;
+      this.updateProgress = null;
+    }
   }
 
   switchProvider(provider: Provider) {

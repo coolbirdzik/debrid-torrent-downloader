@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { open as pickFiles } from '@tauri-apps/plugin-dialog';
   import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
   import ArrowRight from 'phosphor-svelte/lib/ArrowRight';
@@ -36,45 +37,60 @@
   import { app } from '../app.svelte';
   import CloudArrowDown from 'phosphor-svelte/lib/CloudArrowDown';
   import { breadcrumbs, draftId, formatBytes, isStatusDone, isStatusPartial, magnetOf, type Entry, type HeaderSort, type SourceFilter } from '../browser';
-  import { providerLabel, providerShort, type Settings } from '../types';
+  import { PROVIDERS, providerLabel, providerShort, type Settings } from '../types';
   import Select from './Select.svelte';
   import { confirmAction, dialog } from '../confirm.svelte';
   import { destinationDialog } from '../destination.svelte';
   import { languageTag } from '../languages';
-  import { t } from '../i18n.svelte';
+  import { t, tm } from '../i18n.svelte';
   import { countSources, library } from '../library.svelte';
-  import { api } from '../api';
+  import { selectionControl, selectionMouseDown } from '../selection';
   import VirtualList from './VirtualList.svelte';
 
   const crumbs = $derived(breadcrumbs(library.location, library.drafts));
   const grid = $derived(app.settings.browserView === 'grid');
   const sources = $derived(countSources(library.input));
-  let listRef: { reveal: (index: number) => void } | undefined = $state();
+  const importTotal = $derived(app.inspect.running && app.inspect.total > 0 ? app.inspect.total : library.importSummary.total);
+  const importDone = $derived(Math.min(importTotal, app.inspect.running && app.inspect.total > 0 ? app.inspect.done : library.importSummary.ready));
+  const importPercent = $derived(importTotal > 0 ? Math.max(0, Math.min(100, importDone / importTotal * 100)) : 0);
+  const importPhase = $derived(app.inspect.running ? app.settings.libraryImportPaused ? t('Đang dừng…') : t('Đang import thư viện…')
+    : library.importSummary.pending === 0 ? t('Import hoàn tất')
+    : app.settings.libraryImportPaused ? t('Import đã tạm dừng')
+    : library.importSummary.needsAccount === library.importSummary.pending ? t('Chờ kết nối tài khoản để import')
+    : library.importSummary.errors > 0 ? t('Chờ thử lại import') : t('Đang chờ import'));
+  $effect(() => {
+    app.library;
+    untrack(() => app.markLibrarySeen());
+  });
+  let listRef: { reveal: (index: number) => void; columns: () => number } | undefined = $state();
   const sourceOptions = $derived<{ value: SourceFilter; label: string }[]>([
     { value: 'all', label: t('Tất cả nguồn') },
-    ...library.sources.map((id) => ({ value: id as SourceFilter, label: providerLabel(id) }))
+    ...PROVIDERS.map((provider) => ({ value: provider.id as SourceFilter, label: provider.label }))
   ]);
 
   interface CloudView {
     label: string;
     progress: number | null;
     tone: 'busy' | 'warn';
+    detail?: string;
   }
 
-  /**
-   * The torrent's trip to the service's cloud while it is still under way (or broke). A finished copy, and a
-   * Real-Debrid torrent that waits for a file selection, leave the local status in place.
-   */
+  /** Live service progress is also shown while the import is still waiting for its file list. */
   function cloudView(entry: Entry): CloudView | null {
-    if (entry.pending) return null;
+    if (entry.pending) {
+      if (app.settings.libraryImportPaused) return { label: t('Import đã tạm dừng'), progress: null, tone: 'warn' };
+      if (!app.usableProviders.includes(entry.draft.provider)) return { label: t('Chờ kết nối tài khoản để import'), progress: null, tone: 'warn' };
+      if (entry.draft.inspectionError) return { label: t('Chờ thử lại import'), progress: null, tone: 'warn', detail: tm(entry.draft.inspectionError) };
+    }
+    const percent = (value: number) => Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : null;
     const job = library.jobCloud.get(draftId(entry.draft));
-    if (job !== undefined) return { label: t('Dịch vụ đang tải {0}%', job.toFixed(0)), progress: job, tone: 'busy' };
+    if (job !== undefined) return { label: t('Dịch vụ đang tải'), progress: percent(job), tone: 'busy' };
     const cloud = app.cloudOf(entry.draft);
-    if (!cloud) return null;
+    if (!cloud) return entry.pending ? { label: t('Đang chờ import'), progress: null, tone: 'busy' } : null;
     switch (cloud.status) {
       case 'downloaded':
       case 'waiting_files_selection':
-        return null;
+        return entry.pending ? { label: t('Đang lấy metadata'), progress: null, tone: 'busy' } : null;
       case 'missing':
         return { label: t('Không còn trên dịch vụ'), progress: null, tone: 'warn' };
       case 'magnet_error':
@@ -83,12 +99,12 @@
       case 'dead':
         return { label: t('Lỗi trên dịch vụ'), progress: null, tone: 'warn' };
       case 'magnet_conversion':
-        return { label: t('Đang lấy metadata'), progress: null, tone: 'busy' };
+        return { label: t('Đang lấy metadata'), progress: percent(cloud.progress), tone: 'busy' };
       case 'queued':
-        return { label: t('Đang xếp hàng trên dịch vụ'), progress: cloud.progress, tone: 'busy' };
+        return { label: t('Đang xếp hàng trên dịch vụ'), progress: percent(cloud.progress), tone: 'busy' };
       default: {
         const speed = cloud.speed ? ` · ${formatBytes(cloud.speed)}/s` : '';
-        return { label: t('Dịch vụ đang tải {0}%', cloud.progress.toFixed(0)) + speed, progress: cloud.progress, tone: 'busy' };
+        return { label: t('Dịch vụ đang tải'), detail: t('Dịch vụ đang tải') + speed, progress: percent(cloud.progress), tone: 'busy' };
       }
     }
   }
@@ -122,28 +138,31 @@
 
   async function newBatch() {
     const sure = await confirmAction({
-      title: { key: 'Batch mới', args: [] },
-      body: { key: 'Xóa toàn bộ thư viện ảo, ô nhập và bộ lọc để thêm batch mới. Giữ hàng đợi, file trên máy và torrent trên dịch vụ.', args: [] },
-      confirm: { key: 'Batch mới', args: [] }
+      title: { key: 'Xóa toàn bộ thư viện?', args: [] },
+      body: { key: 'Xóa {0} mục khỏi thư viện của tất cả nhà cung cấp, kể cả mục đang chờ đọc. Giữ hàng đợi, file trên máy và dữ liệu cloud.', args: [String(app.library.length)] },
+      confirm: { key: 'Xóa toàn bộ thư viện', args: [] },
+      danger: true
     });
     if (sure) await library.newBatch();
   }
 
   function keydown(event: KeyboardEvent) {
+    if (selectionControl(event)) return;
+    const selection = library.keydown(event, listRef?.columns() ?? 1);
+    if (selection) {
+      event.preventDefault();
+      if (selection.index !== undefined) {
+        listRef?.reveal(selection.index);
+        (event.currentTarget as HTMLElement).focus();
+      }
+      return;
+    }
     const ctrl = event.ctrlKey || event.metaKey;
-    if (ctrl && event.key.toLowerCase() === 'a') { event.preventDefault(); library.toggleAll(); }
-    else if (ctrl && event.key.toLowerCase() === 'z') { event.preventDefault(); void library.undo(); }
+    if (ctrl && event.key.toLowerCase() === 'z') { event.preventDefault(); void library.undo(); }
     else if (event.key === 'Delete') { event.preventDefault(); void library.removeSelected(); }
     else if (event.key === 'Enter') { const target = library.selectedEntries[0]; if (target) library.open(target); }
     else if (event.key === 'Backspace' || (event.altKey && event.key === 'ArrowLeft')) { event.preventDefault(); event.altKey ? library.goBack() : library.goUp(); }
     else if (event.altKey && event.key === 'ArrowRight') { event.preventDefault(); library.goForward(); }
-    else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      const entries = library.entries;
-      const current = library.anchor ? entries.findIndex((e) => e.key === library.anchor) : -1;
-      const next = Math.max(0, Math.min(entries.length - 1, current + (event.key === 'ArrowDown' ? 1 : -1)));
-      if (entries[next]) { library.select(entries[next], { ctrl: false, shift: event.shiftKey }); listRef?.reveal(next); }
-    }
   }
 
   // Mouse side buttons move through the library history, as in a file explorer. A plain mouse sends them as buttons
@@ -157,11 +176,11 @@
     else library.goForward();
   }
 
-  // Sort menu: the toolbar order (name / newest / oldest). A column header sort, when set, takes precedence.
+  // Newest first is the default; an explicitly chosen column sort still takes precedence.
   const sorts: { value: Settings['browserSort']; label: string; short: string }[] = $derived([
-    { value: 'name', label: t('Theo tên'), short: t('Tên') },
     { value: 'added-desc', label: t('Ngày thêm: mới nhất'), short: t('Mới nhất') },
-    { value: 'added-asc', label: t('Ngày thêm: cũ nhất'), short: t('Cũ nhất') }
+    { value: 'added-asc', label: t('Ngày thêm: cũ nhất'), short: t('Cũ nhất') },
+    { value: 'name', label: t('Theo tên'), short: t('Tên') }
   ]);
   const currentSort = $derived(sorts.find((s) => s.value === app.settings.browserSort) ?? sorts[0]);
   const columnLabels = $derived({ name: t('Tên file'), source: t('Nguồn'), size: t('Dung lượng'), added: t('Ngày thêm'), status: t('Loại / Trạng thái') });
@@ -266,6 +285,18 @@
   {:else}<File {size} weight="duotone" />{/if}
 {/snippet}
 
+{#snippet progressCell(view: CloudView, entry: Entry)}
+  <span class="status-cell" title={`${view.detail ?? view.label}${view.progress !== null ? ` · ${view.progress.toFixed(0)}%` : ''}`}>
+    <span class="status-line">
+      <span class="caption cloud {view.tone}"><CloudArrowDown size={13} weight="bold" /><span class="ell">{view.label}</span></span>
+      {#if view.progress !== null}<b class="progress-value">{view.progress.toFixed(0)}%</b>{/if}
+    </span>
+    {#if view.progress !== null || view.tone === 'busy'}
+      <span class="bar mini" class:indeterminate={view.progress === null && (!entry.pending || app.inspect.running)} role="progressbar" aria-label={`${entry.name} · ${view.label}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={view.progress ?? undefined} aria-valuetext={`${view.label}${view.progress !== null ? ` · ${view.progress.toFixed(0)}%` : ''}`}><span style:width="{view.progress ?? 0}%"></span></span>
+    {/if}
+  </span>
+{/snippet}
+
 <section class="page">
   <header class="head">
     <div>
@@ -276,14 +307,14 @@
       {#if app.usableProviders.length === 0}
         <button class="btn" onclick={() => (app.page = 'settings')}><span class="ic blue"><User size={16} weight="duotone" /></span>{t('Kết nối tài khoản')}</button>
       {/if}
-      {#if library.pendingCount > 0}
-        <button class="btn" onclick={() => api.libraryRetry()}><span class="ic blue"><ArrowsClockwise size={16} weight="duotone" /></span>{t('Thử lại tất cả ({0})', library.pendingCount)}</button>
+      {#if library.importSummary.pending > 0}
+        <button class="btn" disabled={app.inspect.running} onclick={() => library.retryImport()}><span class="ic blue"><ArrowsClockwise size={16} weight="duotone" /></span>{t('Thử lại tất cả ({0})', library.importSummary.pending)}</button>
       {/if}
       {#if library.canRemoveFolder}
         <button class="btn danger" onclick={() => library.removeFolder()}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Bỏ thư mục')}</button>
       {/if}
       <button class="btn" onclick={() => library.showAll()}><span class="ic purple"><FileText size={16} weight="duotone" /></span>{t('Tất cả file')}</button>
-      <button class="btn" disabled={library.drafts.length === 0 && !library.input} onclick={newBatch}><span class="ic green"><Plus size={16} weight="duotone" /></span>{t('Batch mới')}</button>
+      <button class="btn danger" disabled={library.clearing || (app.library.length === 0 && !library.input)} onclick={newBatch}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Xóa toàn bộ thư viện…')}</button>
     </div>
   </header>
 
@@ -301,12 +332,21 @@
       </div>
       <div class="go">
         {#if app.inspect.running}
-          <button class="btn outline" onclick={() => api.libraryCancelInspect()}><span class="ic red"><X size={16} weight="bold" /></span>{t('Dừng đọc')}</button>
+          <button class="btn outline stop-inspection" disabled={app.settings.libraryImportPaused} onclick={() => library.pauseImport()}><span class="ic red" aria-hidden="true"><X size={16} weight="bold" /></span>{t(app.settings.libraryImportPaused ? 'Đang dừng…' : 'Dừng đọc')}</button>
         {/if}
         <button class="btn primary" disabled={sources === 0} onclick={() => library.add()}><Plus size={16} weight="bold" />{t('Thêm vào thư viện')}</button>
       </div>
     </div>
-    {#if app.inspect.running}<div class="indeterminate" role="progressbar" aria-label={t('Đang đọc torrent…')}></div>{/if}
+    {#if library.importSummary.total > 0}
+      <section class="import-progress" class:complete={!app.inspect.running && library.importSummary.pending === 0} class:waiting={!app.inspect.running && library.importSummary.pending > 0} aria-label={t('Tiến độ import')}>
+        <div class="import-header">
+          <strong role="status">{#if app.inspect.running}<ArrowsClockwise size={14} weight="bold" class="spin" />{/if}{importPhase}</strong>
+          <span class="caption">{app.inspect.running ? t('Đã xử lý {0}/{1} mục', importDone, importTotal) : t('Đã đọc {0}/{1} mục', importDone, importTotal)} · {importPercent.toFixed(0)}%</span>
+        </div>
+        <div class="import-track" role="progressbar" aria-label={t('Tiến độ import')} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(importPercent)} aria-valuetext={`${importPhase} · ${importDone}/${importTotal}`}><span style:width="{importPercent}%"></span></div>
+        <p class="caption">{t('{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ', library.importSummary.ready, library.importSummary.pending, library.importSummary.errors)}</p>
+      </section>
+    {/if}
   </div>
 
   <div class="browser card">
@@ -355,9 +395,7 @@
       <button class="btn outline toggle" class:on={library.videosOnly} aria-pressed={library.videosOnly} onclick={() => library.setVideosOnly(!library.videosOnly)} title={t('Hiện trực tiếp video trong thư mục hiện tại và mọi thư mục con.')}>
         <span class="ic purple"><FilmSlate size={16} weight={library.videosOnly ? 'fill' : 'duotone'} /></span>{t('Chỉ video')}
       </button>
-      {#if library.sources.length > 1}
-        <Select width="168px" label={t('Lọc theo nguồn')} value={library.source} options={sourceOptions} onchange={(v: SourceFilter) => library.setSource(v)} />
-      {/if}
+      <Select width="168px" label={t('Nhà cung cấp')} value={library.source} options={sourceOptions} onchange={(v: SourceFilter) => { library.setSource(v); listRef?.reveal(0); }} />
       <button class="btn icon" onclick={() => library.toggleAll()} disabled={library.entries.length === 0} title="{t('Chọn / bỏ chọn kết quả (Ctrl+A)')}" aria-label={t('Chọn / bỏ chọn kết quả')}><span class="ic teal"><CheckSquare size={17} weight="duotone" /></span></button>
     </div>
 
@@ -376,7 +414,7 @@
           {#snippet row(entry: Entry)}
             {@const cloud = cloudView(entry)}
             <div class="tile" class:on={library.selected.has(entry.key)} role="option" aria-selected={library.selected.has(entry.key)} tabindex="-1" title={gridTitle(entry)}
-              onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
+              onmousedown={selectionMouseDown} onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
               <div class="tile-top">
                 <span class="chip kind-{entry.videoKind}" style="width:38px;height:38px">{@render kindIcon(entry, 20)}</span>
                 <span class="tag" title={providerLabel(entry.draft.provider)}>{providerShort(entry.draft.provider)}</span>
@@ -384,8 +422,7 @@
               <div class="tile-name"><b>{entry.name}</b><span class="m {isStatusDone(entry) ? 'done' : isStatusPartial(entry) ? 'partial' : ''}">{mark(entry)}</span></div>
               <span class="caption">{sizeLabel(entry)}</span>
               {#if cloud}
-                <span class="caption tiny-text cloud {cloud.tone}" title={cloud.label}>{cloud.label}</span>
-                {#if cloud.progress !== null}<span class="bar mini"><span style:width="{cloud.progress}%"></span></span>{/if}
+                {@render progressCell(cloud, entry)}
               {:else}
                 <span class="caption tiny-text">{statusLabel(entry)}</span>
               {/if}
@@ -397,7 +434,7 @@
           {#snippet row(entry: Entry)}
             {@const cloud = cloudView(entry)}
             <div class="cols item row-glass" class:on={library.selected.has(entry.key)} role="option" aria-selected={library.selected.has(entry.key)} tabindex="-1"
-              onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
+              onmousedown={selectionMouseDown} onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
               <input type="checkbox" checked={library.selected.has(entry.key)} onclick={(e) => { e.stopPropagation(); library.toggle(entry, e.shiftKey); }} aria-label={entry.location} />
               <div class="name">
                 <span class="chip kind-{entry.videoKind}" style="width:34px;height:34px">{@render kindIcon(entry, 18)}</span>
@@ -410,10 +447,7 @@
               <span>{sizeLabel(entry)}</span>
               <span class="caption">{dateLabel(entry)}</span>
               {#if cloud}
-                <span class="status-cell" title={cloud.label}>
-                  <span class="caption ell cloud {cloud.tone}"><CloudArrowDown size={13} weight="bold" />{cloud.label}</span>
-                  {#if cloud.progress !== null}<span class="bar mini"><span style:width="{cloud.progress}%"></span></span>{/if}
-                </span>
+                {@render progressCell(cloud, entry)}
               {:else}
                 <span class="caption ell" title={statusLabel(entry)}>{statusLabel(entry)}</span>
               {/if}
@@ -457,7 +491,7 @@
 
 <style>
   .page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
   .actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
   .add { padding: 16px 18px; margin-bottom: 16px; position: relative; overflow: hidden; }
   .label { display: block; margin-bottom: 8px; }
@@ -465,8 +499,19 @@
   .input .row { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
   .spacer { flex: 1; }
   .go { display: flex; flex-direction: column; gap: 8px; }
-  .indeterminate { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: slide 1.2s linear infinite; }
-  @keyframes slide { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+  .stop-inspection { min-height: 40px; justify-content: center; }
+  .stop-inspection .ic { display: inline-flex; line-height: 0; }
+  .import-progress { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--subtle); display: flex; flex-direction: column; gap: 8px; }
+  .import-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+  .import-header strong { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+  .import-header > span { font-variant-numeric: tabular-nums; }
+  .import-track { height: 6px; border-radius: 999px; background: var(--track); overflow: hidden; }
+  .import-track > span { display: block; height: 100%; background: var(--accent); }
+  .complete .import-track > span { background: var(--success); }
+  .waiting .import-track > span { background: var(--partial); }
+  :global(.spin) { animation: spin 1.2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { :global(.spin) { animation: none; } }
   .browser { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px 0; }
   .toolbar.second { padding-top: 10px; padding-bottom: 10px; }
@@ -524,10 +569,30 @@
   .source { min-width: 0; }
   .tile-top .tag { align-self: flex-start; }
   .status-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding-right: 8px; }
-  .cloud { display: inline-flex; align-items: center; gap: 5px; }
+  .status-line { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+  .progress-value { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .tile .status-cell { padding-right: 0; }
+  .tile .status-cell .caption { font-size: 10px; }
+  .cloud { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+  .cloud :global(svg) { flex: none; }
   .cloud.busy { color: var(--accent); }
   .cloud.warn { color: var(--danger); }
   .bar.mini { height: 4px; }
-  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+  .bar.indeterminate > span { width: 35% !important; animation: import-pending 1.3s ease-in-out infinite alternate; }
+  @keyframes import-pending { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+  @media (prefers-reduced-motion: reduce) { .bar.indeterminate > span { animation: none; transform: translateX(90%); } }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; flex-wrap: wrap; }
+  @media (max-width: 1100px) {
+    .head { margin-bottom: 12px; }
+    .head > div:first-child { flex: 1 1 220px; min-width: 0; }
+    .head > .actions { flex: 0 1 auto; }
+    .add { padding: 12px; margin-bottom: 12px; }
+    .input textarea { height: 56px; min-height: 56px; }
+    .import-progress { margin-top: 8px; padding: 8px 10px; gap: 6px; }
+    .toolbar { padding-top: 8px; }
+    .toolbar.second { padding-top: 6px; padding-bottom: 6px; }
+    .foot { padding-top: 8px; padding-bottom: 8px; }
+    .cols { grid-template-columns: 42px minmax(140px, 1fr) 82px 76px 112px 146px; }
+  }
   .sum { display: flex; flex-direction: column; min-width: 0; }
 </style>

@@ -211,9 +211,15 @@ impl Engine {
 
     /// Inspection never selects files or starts local transfers.
     pub async fn inspect(&self, torrent_id: &str, ct: &CancellationToken) -> Result<TorrentInfo> {
+        self.inspect_with_progress(torrent_id, ct, |_| {}).await
+    }
+
+    /// Forward each provider snapshot while waiting for metadata, so pending Library rows can show live progress.
+    pub async fn inspect_with_progress(&self, torrent_id: &str, ct: &CancellationToken, progress: impl Fn(&TorrentInfo) + Send + Sync) -> Result<TorrentInfo> {
         let work = async {
             loop {
                 let info = self.api.info(torrent_id).await?;
+                progress(&info);
                 if failed_status(&info.status) {
                     return Err(Error::operation("Torrent không tải được trên {0}: {1}", &[&self.api.provider().label(), &info.status]));
                 }

@@ -30,11 +30,11 @@ for a season of episodes or a large batch means adding each magnet on the websit
 unrestricting every link and feeding the links to a download manager. DebridDock does the whole chain in one window:
 
 - **One UI for every debrid service.** Real-Debrid, TorBox and AllDebrid share the same library, queue and controls.
-  Switch service in Settings; each one keeps its own token and torrents.
+  Connect each service in Settings, then use them together; each keeps its own token and account.
 - **A virtual library instead of a pile of links.** Torrents are read on the service and shown as folders and files,
   like a file explorer, before anything reaches your disk.
-- **Download only what you choose.** Pick single videos, whole folders or everything left, and only those files are
-  selected on the service and downloaded.
+- **Download only what you choose to your computer.** Pick single videos, whole folders or everything left. The
+  service may fetch the whole torrent into its cloud; the local queue downloads your selected files.
 - **A download queue you can leave running.** Downloads start as soon as you queue them, resume after a stop or a
   crash, and retry by themselves when a connection drops.
 
@@ -42,23 +42,52 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 
 ### All-in-one debrid client
 
-- Supports **Real-Debrid, TorBox and AllDebrid**. Each service is a separate adapter behind one interface, so more
-  can be added.
+- Use **Real-Debrid, TorBox and AllDebrid together**, with one saved token per service.
 - Add **magnet links**, **`.torrent` URLs** or **local `.torrent` files** (paste a list, or drag and drop files onto
-  the window). Duplicates are detected.
-- See and clean up the **torrents on your debrid account**: list every torrent and delete the ones you no longer
-  need, with a review step before anything is removed.
+  the window). With several services connected, choose **one, some or all** for each import, or remember your choice.
+- Duplicates are detected per service. When the same torrent file is available through several services, queue
+  actions avoid downloading that file twice and prefer the cloud copy that is furthest along.
 
 ### Virtual torrent library
 
 - Browse every torrent as **folders and files**, with back, forward and up navigation (mouse side buttons, Alt+←/→
   and Backspace work too), breadcrumbs and an **All files** flat view.
-- **List or grid view**, sorting by name or date added, and sortable columns (name, size, status).
+- **List or grid view**, newest added first by default, sorting by name or date added, and sortable columns
+  (name, provider, size, date and status). The **Provider** filter is always available, including in an empty library.
 - **Search** across folders and subfolders, and a **Videos only** filter that surfaces every video in the current
   folder tree.
+- **Import progress** shows the processed count and percentage for the active pass, with ready, pending and error
+  counts across all services. Stop an import, retry pending items, or see when it is waiting for an account or a
+  retry. Pending imports survive app restarts and are retried while import is unpaused; use Retry to resume paused
+  work.
+  The **Type / Status** column shows each torrent's service percentage and progress bar, including while metadata
+  is pending; imports without progress data show their waiting state. Grid view shows the same information.
+- Two separate **Library menu badges** show pending torrents and new unseen files. Opening Library clears the
+  unseen-file badge; the pending badge remains until metadata arrives. The same file on several services counts once
+  in the new-file badge.
 - Each file shows whether it is **downloaded, partly downloaded or already queued**, and keeps that mark after you
   clear the queue or restart the app.
 - Remove files or folders from the library without touching your disk or the service, with undo (Ctrl+Z).
+- Select ranges with **Shift+click** or **Shift+arrow keys** across Library lists/grids, Queue and Cloud files.
+  Ctrl/Cmd+click toggles individual items; Shift+click on a checkbox checks or unchecks a range. Ctrl/Cmd+A selects
+  all items in the current view, including rows outside the visible scroll area.
+- **Clear entire library** confirms removal of all providers' library entries, including pending imports, and resets
+  the input and browser filters. It keeps the download queue, local files and cloud data.
+
+### Cloud files and TorBox account
+
+- **Cloud files** is a separate menu page. Browse torrents on all three services and existing **Web Downloads and
+  Usenet downloads on TorBox**, with provider and download-type filters.
+- Items are sorted by **newest added first across providers and types**. Each row identifies the provider, account,
+  type and ID, alongside size, status and date added; the header shows the item count and combined size.
+- **Delete selected items** or **Delete all cloud items** in the current provider/type filter. Both show the exact
+  items and accounts in a confirmation modal with a scrollable list. Deletion stays tied to those accounts even if Settings changes;
+  failed items remain visible. Delete all is unavailable while loading or when part of that scope failed to load.
+- Cloud deletion removes the selected items and their files from the service, and stops/removes linked queue tasks.
+  Local files are kept. It is separate from clearing the virtual library.
+- The **TorBox account panel**, available in Settings and Cloud files, shows the actual Free / Essential / Standard /
+  Pro plan, expiry, **AirLock used / limit / remaining**, and **30-day data usage**, with a refresh button.
+  Missing quota is shown as unavailable. AirLock storage and traffic usage are displayed separately.
 
 ### Torrent downloads from debrid
 
@@ -78,22 +107,31 @@ unrestricting every link and feeding the links to a download manager. DebridDock
   Secret Service), never in a plain settings file, and never shown in error messages.
 - Windows, macOS and Linux installers, and a **portable Windows build** that keeps all data next to the app.
 - Interface in English, Vietnamese, Simplified Chinese, Turkish, Spanish, German, French, Korean, Japanese, Brazilian Portuguese and Russian; light and dark appearance.
+- **In-app updates** in Settings show download progress, verify the update signature, save and pause the queue, then
+  install and restart. Windows portable updates preserve the existing `data` folder. Resume the queue after restart.
 
 ## How it works
 
-1. **Connect your service.** Choose Real-Debrid, TorBox or AllDebrid in Settings and paste your API token (the app
-   links to each service's token page).
+1. **Connect your services.** In Settings, paste and check the API token for each service you want to use. The app
+   links to each service's token page; TorBox account details appear once connected.
 2. **Add torrents.** Paste magnet links or `.torrent` URLs, or drop `.torrent` files. DebridDock adds them to your
-   debrid account and reads their file lists.
-3. **Browse and pick.** Open folders in the virtual library, search, filter to videos and select what you want.
-4. **Download.** Click **Add to queue**. DebridDock selects those files on the service, waits for it to finish, gets
-   the direct links and downloads them to your folder with resume and automatic retry.
+   chosen service(s) and reads their file lists. Follow import progress and retry or stop pending work as needed.
+3. **Browse and pick.** Library defaults to newest added first. Filter by provider, open folders, search or filter to
+   videos, then select the files or folders you want.
+4. **Download.** Click **Add to queue**, choose a destination and confirm. New queue entries start immediately;
+   DebridDock waits for cloud preparation, gets direct links and downloads your selected files with resume and retry.
+5. **Manage cloud separately.** Open **Cloud files** to inspect or delete remote items. Clearing Library keeps those
+   cloud items and your existing queue.
 
 DebridDock never connects to torrent peers itself: your computer only downloads over HTTPS from your debrid service.
 
 ## Screenshots
 
 ![DebridDock download queue with resumable downloads, retry all and per-row controls](docs/images/queue-en.png)
+
+![Library import progress with processed counts and pending imports, Vietnamese interface](docs/images/import-vi.png)
+
+![Cloud files across providers and types, with TorBox plan and AirLock quota, Vietnamese interface](docs/images/cloud-vi.png)
 
 <details>
 <summary>Dark appearance and Vietnamese interface</summary>
@@ -104,8 +142,8 @@ DebridDock never connects to torrent peers itself: your computer only downloads 
 
 </details>
 
-The screenshots come from the real app with sample data (`scripts/seed-sample-data.py`); no account or transfer is
-involved.
+Screenshots show the application UI with sample data; no real account or transfer is involved. The import and cloud
+examples above use the Vietnamese interface.
 
 ## Download and install
 
@@ -115,7 +153,17 @@ Get the installer for your system from the [Releases](https://github.com/coolbir
 a `data` folder next to it (the WebView2 runtime, included with Windows 11, must be installed). It can also be built
 from source with `pnpm build:portable` (see [Build and test](#build-and-test)).
 
-Builds are **not code-signed yet**, so the system warns on first launch:
+The Windows `-setup.exe` lets you choose the installation folder, including another drive such as
+`D:\Apps\DebridDock`, and whether to install for the current user or all users. Protected folders such as
+`D:\Program Files\DebridDock` need administrator permission; choose installation for all users and approve Windows'
+administrator prompt. If an older setup reports **Error opening file for writing**, cancel it and run it as
+administrator, or choose a folder your account can write to. Close any running installed copy before reinstalling.
+
+After installation, use **Settings → Updates → Update and restart** when a compatible signed update is available.
+Older releases without an updater package can still be downloaded from the release page.
+
+Builds do not yet have **Windows Authenticode signing or macOS notarization**, so the system may warn on first launch.
+Updater signatures verify in-app downloads separately:
 
 - **Windows:** SmartScreen shows "Windows protected your PC". Click *More info*, then *Run anyway*.
 - **macOS:** right-click the app and choose *Open*, or run `xattr -dr com.apple.quarantine "/Applications/DebridDock.app"`.
@@ -138,19 +186,34 @@ see your IP address.
 
 **Can I download only some files from a torrent, such as one episode?**
 Yes. That is what the virtual library is for: open the torrent, select the files or folders you want and queue them.
-Only those files are selected on the service and downloaded.
+Only those files are downloaded to your computer. TorBox and AllDebrid fetch the torrent into their cloud without
+per-file selection; choosing files in DebridDock controls the local download.
 
 **What happens if my connection drops or I close the app mid-download?**
 Partial files are kept. Connection problems are retried automatically, and after a restart **Start / Resume**
 continues every file from the byte where it stopped.
 
 **Does it work with several debrid accounts?**
-You can keep a token for each service and switch between Real-Debrid, TorBox and AllDebrid in Settings. Each
-queued torrent remembers the account it belongs to and is never resumed with another one.
+Yes: keep one token for each service and use Real-Debrid, TorBox and AllDebrid together. Choose the service(s) at
+import, filter Library by provider, and manage remote items in Cloud files. Each queued torrent retains its original
+provider and account; it is never resumed with another account.
+
+**What is the difference between clearing Library and deleting cloud items?**
+**Clear entire library** removes virtual entries across every provider and keeps the queue, local files and cloud
+items. **Delete all cloud items** targets the current Cloud files filter, shows the exact items for confirmation,
+then deletes them on the service and stops/removes linked queue tasks. Local files remain in both cases.
+
+**What do the two Library badges mean?**
+The clock counts torrents still waiting for a file list. The file-plus badge counts new unseen files and clears when
+you open Library. Both cover all services, regardless of the current Library filter.
+
+**What does TorBox's remaining space mean?**
+It is **AirLock storage remaining**, calculated from the quota and usage returned by TorBox. The separate 30-day
+usage value is traffic, not free storage. If TorBox omits its quota data, the panel shows it as unavailable.
 
 **Where are my token and data stored?**
-The token is in your system keychain. The library, queue and settings are in one `data.json` file in the app data
-folder (or next to the app in the portable build).
+The token is in your system keychain when remembering tokens is enabled. The library, queue and settings are in one
+`data.json` file in the app data folder, or in `data/data.json` beside the executable in a portable build.
 
 Please download only content you have the right to download.
 
@@ -164,8 +227,8 @@ DebridDock is a Rust core and download engine, a Tauri 2 shell and a Svelte 5 UI
 | --- | --- |
 | `crates/core` | `rdbatch-core`: provider adapters, resumable downloader, queue engine, persistence. No UI or Tauri dependency, so `cargo test` runs anywhere. |
 | `src-tauri` | `rdbatch-desktop`: application state, IPC commands, coalesced events, keychain access. |
-| `src` | Svelte UI. `src/lib/browser.ts` holds the Library browser logic as pure, tested functions. |
-| `scripts` | `check-i18n.mjs` (every UI string has an English translation, and every locale matches its keys and placeholders), `seed-sample-data.py` (sample library for screenshots), `fake-realdebrid.py` (fake server for end-to-end runs). |
+| `src` | Svelte UI. `src/lib/browser.ts` holds Library browsing logic; `src/lib/remote.ts` handles cloud scopes and reviewed deletion; `TorBoxAccount.svelte` displays account usage. |
+| `scripts` | Translation checks, sample data/fake provider tools, portable builds, and signed update manifest generation and tests. |
 | `.github/workflows/build.yml` | Tests on all three systems, builds installers and publishes releases. |
 
 ### Build and test
@@ -178,9 +241,13 @@ pnpm install
 pnpm tauri dev            # run the app
 cargo test --workspace
 pnpm check && pnpm test && node scripts/check-i18n.mjs
+pnpm test:updater         # updater UI logic and release manifest tests
 pnpm tauri build          # installers for the current OS, in target/release/bundle
 pnpm build:portable       # portable build, in dist/portable and dist/DebridDock-portable-win-x64.zip (Windows)
 ```
+
+On Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-portable-update.ps1` checks portable
+replacement and rollback with disposable files.
 
 `RDBATCH_DATA_DIR=<folder>` keeps all data (queue, library, settings) in one folder, for portable use, tests and
 screenshots. The portable build ships a `portable` marker file next to the executable, which does the same with a
@@ -203,16 +270,41 @@ accept a short body as finished, never overwrite a finished file, keep partial f
 traversal and symlinked folders, retry connection failures but never replay an ambiguous upload or delete, keep
 tokens out of every error message (including the TorBox download URL), refuse torrents from another account or
 provider.
+Cloud tests also cover provider/account/type isolation for overlapping IDs, reviewed bulk deletion, and unknown
+TorBox quota values.
 
 ### Releases
 
+In **Settings → Updates**, **Update and restart** downloads and verifies the signed update, saves and pauses the
+queue, installs it, and reopens the app. Windows portable copies replace their existing executable in place;
+the `portable` marker and `data` folder remain intact. Resume the saved queue after restart. Older releases
+without `latest.json` still have a link to their GitHub release page.
+
+Release tags require the repository secret `TAURI_SIGNING_PRIVATE_KEY`, containing the private updater key,
+and optionally `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The public key is pinned in `src-tauri/tauri.conf.json`.
+The matching private key on the initial setup machine is `%USERPROFILE%\.tauri\debriddock-updater.key`;
+back it up securely and never commit it. Set the GitHub Actions secret before publishing the first updater-enabled
+release. Keep using the same key for subsequent releases so existing installations can verify them.
+
+For a local signed installer build in PowerShell:
+
+```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content "$env:USERPROFILE\.tauri\debriddock-updater.key" -Raw
+pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":true}}'
+```
+
+CI publishes the installer signatures, a signed raw executable for Windows portable copies, the signed macOS
+app archive and Linux AppImage, and `latest.json`. Tag builds fail if the key or an update artifact is missing.
+Updater signatures are separate from Windows Authenticode and macOS notarization.
+
 `.github/workflows/build.yml` tests on all three systems and builds installers on every push to `main` and pull
 request (uploaded as workflow artifacts for 14 days). For a tag named `vX.Y.Z` that matches the `version` in
-`package.json` (the app, the installers and the update check all read it) it also publishes a GitHub release with checksums:
+`package.json` (the app, the installers and the update check all read it) it also publishes a GitHub release with
+checksums. Replace `X.Y.Z` below with that version after updating the version files:
 
 ```sh
-git tag -a v0.3.0 -m "Release v0.3.0"
-git push origin v0.3.0
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
 ```
 
 ### History

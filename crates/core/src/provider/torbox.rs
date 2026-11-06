@@ -1,7 +1,7 @@
 use super::http::{date, decimal, flag, items, num, prop, str_of, ProviderHttp};
 use super::{Debrid, Timing};
 use crate::error::{Error, Result};
-use crate::models::{Msg, Provider, RemoteTorrent, TorrentFile, TorrentInfo, Unrestricted, User};
+use crate::models::{CloudKind, Msg, Provider, RemoteTorrent, TorBoxAccount, TorrentFile, TorrentInfo, Unrestricted, User};
 use async_trait::async_trait;
 use reqwest::multipart::{Form, Part};
 use reqwest::Method;
@@ -17,6 +17,23 @@ pub struct TorBox {
 
 fn escape(value: &str) -> String {
     percent_encoding::utf8_percent_encode(value, percent_encoding::NON_ALPHANUMERIC).to_string()
+}
+
+fn plan_name(plan: i64) -> String {
+    match plan { 0 => "Free".into(), 1 => "Essential".into(), 2 => "Pro".into(), 3 => "Standard".into(), _ => format!("Plan {plan}") }
+}
+
+fn optional_bytes(value: &Value, key: &str) -> Option<u64> {
+    let field = value.get(key)?;
+    field.as_u64().or_else(|| field.as_str()?.parse().ok())
+}
+
+fn cloud_paths(kind: CloudKind) -> (&'static str, &'static str, &'static str) {
+    match kind {
+        CloudKind::Torrent => ("torrents", "controltorrent", "torrent_id"),
+        CloudKind::WebDownload => ("webdl", "controlwebdownload", "webdl_id"),
+        CloudKind::Usenet => ("usenet", "controlusenetdownload", "usenet_id"),
+    }
 }
 
 impl TorBox {
@@ -88,7 +105,7 @@ impl Debrid for TorBox {
         if identity.is_empty() {
             return Err(Error::invalid("TorBox: missing account ID."));
         }
-        let plan = if num(&user, "plan") == 0 { "Free" } else { "Premium" };
+        let plan = plan_name(num(&user, "plan"));
         Ok(User { username: identity, kind: format!("TorBox · {plan}"), premium: 1, allows_downloads: true })
     }
 
@@ -147,10 +164,15 @@ impl Debrid for TorBox {
     }
 
     async fn list(&self) -> Result<Vec<RemoteTorrent>> {
+        self.cloud_list(CloudKind::Torrent).await
+    }
+
+    async fn cloud_list(&self, kind: CloudKind) -> Result<Vec<RemoteTorrent>> {
+        let (group, _, _) = cloud_paths(kind);
         let mut all: Vec<RemoteTorrent> = Vec::new();
         let mut offset = 0;
         while offset < 100_000 {
-            let data = self.api.send(Method::GET, &format!("torrents/mylist?bypass_cache=true&offset={offset}&limit=1000"), &|r| r, true).await?;
+            let data = self.api.send(Method::GET, &format!("{group}/mylist?bypass_cache=true&offset={offset}&limit=1000"), &|r| r, true).await?;
             let batch = items(&data);
             all.extend(batch.iter().map(|item| remote(item)));
             if batch.len() < 1000 {
@@ -203,10 +225,48 @@ impl Debrid for TorBox {
     }
 
     async fn delete(&self, id: &str) -> Result<()> {
+        self.cloud_delete(CloudKind::Torrent, id).await
+    }
+
+    async fn cloud_delete(&self, kind: CloudKind, id: &str) -> Result<()> {
+        let (group, operation, id_key) = cloud_paths(kind);
         let number: i64 = id.parse().map_err(|_| Error::invalid("TorBox: invalid torrent ID."))?;
-        let body = json!({ "torrent_id": number, "operation": "delete", "all": false });
-        self.api.send(Method::POST, "torrents/controltorrent", &|r| r.json(&body), false).await?;
+        let body = json!({ (id_key): number, "operation": "delete", "all": false });
+        self.api.send(Method::POST, &format!("{group}/{operation}"), &|r| r.json(&body), false).await?;
         Ok(())
+    }
+
+    async fn torbox_account(&self) -> Result<TorBoxAccount> {
+        let user = self.api.send(Method::GET, "user/me", &|r| r, true).await?;
+        let mut account = str_of(&user, "auth_id");
+        if account.is_empty() { account = str_of(&user, "id"); }
+        if account.is_empty() { return Err(Error::invalid("TorBox: missing account ID.")); }
+        let email = str_of(&user, "email");
+        let mut details = TorBoxAccount {
+            account,
+            email: if email.is_empty() { None } else { Some(email) },
+            plan: plan_name(num(&user, "plan")),
+            expires_at: date(&user, "premium_expires_at"),
+            downloaded_bytes: optional_bytes(&user, "total_bytes_downloaded"),
+            uploaded_bytes: optional_bytes(&user, "total_bytes_uploaded"),
+            ..Default::default()
+        };
+        match self.api.send(Method::GET, "user/stats?general=true&bandwidth=true&bandwidth_grouping=day", &|r| r, true).await {
+            Ok(stats) => {
+                let general = prop(&stats, "general");
+                // These fields are also used by TorBox's own account panel (Avatar bundle).
+                details.airlock_used_bytes = optional_bytes(general, "airlocked_downloads");
+                details.airlock_limit_bytes = optional_bytes(general, "airlock_storage_limit");
+                details.airlock_remaining_bytes = details.airlock_limit_bytes.zip(details.airlock_used_bytes).map(|(limit, used)| limit.saturating_sub(used));
+                details.downloaded_bytes = optional_bytes(general, "total_bytes_downloaded").or(details.downloaded_bytes);
+                details.uploaded_bytes = optional_bytes(general, "total_bytes_uploaded").or(details.uploaded_bytes);
+                details.bandwidth_30d_bytes = stats.get("bandwidth").and_then(Value::as_array).and_then(|rows| {
+                    rows.iter().try_fold(0u64, |sum, row| sum.checked_add(optional_bytes(row, "bytes_downloaded")?))
+                });
+            }
+            Err(error) => details.warning = Some(error.friendly()),
+        }
+        Ok(details)
     }
 }
 

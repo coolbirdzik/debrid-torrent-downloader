@@ -13,7 +13,8 @@
     "tauri": "tauri",
     "icons": "node scripts/generate-icons.mjs",
     "build:portable": "node scripts/build-portable.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:updater": "vitest run scripts/update-manifest.test.mjs src/lib/update.test.ts"
   },
   "license": "MIT",
   "dependencies": {

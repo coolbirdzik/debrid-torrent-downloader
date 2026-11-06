@@ -11,9 +11,10 @@
     row: Snippet<[T, number]>;
     onkeydown?: (event: KeyboardEvent) => void;
     label?: string;
+    role?: 'listbox' | 'list';
   }
 
-  let { items, rowHeight, tileWidth, gap = 8, key, row, onkeydown, label }: Props = $props();
+  let { items, rowHeight, tileWidth, gap = 8, key, row, onkeydown, label, role = 'listbox' }: Props = $props();
 
   let viewport: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
@@ -44,6 +45,8 @@
   }
 
   /** Scroll so a row is visible (keyboard navigation). */
+  export function columns() { return perRow; }
+
   export function reveal(index: number) {
     if (!viewport) return;
     const top = Math.floor(index / perRow) * stride;
@@ -52,7 +55,9 @@
   }
 </script>
 
-<div class="viewport" bind:this={viewport} bind:clientHeight={height} bind:clientWidth={width} {onscroll} {onkeydown} role="listbox" aria-label={label} tabindex="0">
+<!-- A scrollable read-only list is focusable so keyboard users can review offscreen items. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div class="viewport" bind:this={viewport} bind:clientHeight={height} bind:clientWidth={width} {onscroll} {onkeydown} {role} aria-multiselectable={role === 'listbox' ? true : undefined} aria-label={label} tabindex="0">
   <div class="space" style:height="{rows * stride}px">
     {#each visible as { index, item } (key(item))}
       <div

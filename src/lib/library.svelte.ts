@@ -5,6 +5,7 @@ import { askDestination } from './destination.svelte';
 import { activeDrafts, buildEntries, draftId, queueRequests, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
 import { chooseProviders } from './providers.svelte';
 import { PROVIDERS, type LibraryPatch, type Provider } from './types';
+import { emptySelection, selectAll, selectItem, selectionKey } from './selection';
 
 /** Distinct magnets, links and .torrent paths in the add box. */
 export function countSources(text: string): number {
@@ -22,10 +23,11 @@ class LibraryState {
   search = $state('');
   videosOnly = $state(false);
   header = $state<HeaderSort>(null);
-  selected = $state.raw<Set<string>>(new Set());
-  anchor = $state<string | null>(null);
+  selection = $state.raw(emptySelection());
+  selected = $derived(this.selection.selected);
   undoStack = $state.raw<LibraryPatch[][]>([]);
   input = $state('');
+  clearing = $state(false);
   /** Which service's torrents are shown. */
   source = $state<SourceFilter>('all');
 
@@ -69,6 +71,12 @@ class LibraryState {
   canQueue = $derived(this.selectedEntries.some((entry) => !entry.queued && (entry.kind === 'file' || entry.fileCount > 0)));
   selectedBytes = $derived(this.selectedEntries.reduce((sum, entry) => sum + entry.size, 0));
   pendingCount = $derived(this.drafts.filter((d) => d.files.length === 0).length);
+  /** Import is shared across services even when the browser is filtered to only one. */
+  importSummary = $derived.by(() => {
+    const drafts = activeDrafts(app.library);
+    const pending = drafts.filter((draft) => draft.files.length === 0);
+    return { total: drafts.length, ready: drafts.length - pending.length, pending: pending.length, errors: pending.filter((draft) => !!draft.inspectionError).length, needsAccount: pending.filter((draft) => !app.usableProviders.includes(draft.provider)).length };
+  });
   readyCount = $derived(this.drafts.length - this.pendingCount);
   subfolders = $derived(this.drafts.reduce((sum, d) => sum + new Set(visibleFiles(d).map((f) => f.path.replace(/\\/g, '/').split('/').slice(0, -1).join('/').toLowerCase())).size, 0));
   canRemoveFolder = $derived(this.location.draft !== null && !this.location.flat);
@@ -106,8 +114,7 @@ class LibraryState {
   }
 
   clearSelection() {
-    this.selected = new Set();
-    this.anchor = null;
+    this.selection = emptySelection();
   }
 
   navigate(location: Location) {
@@ -160,33 +167,42 @@ class LibraryState {
     this.forward = [];
     this.go({ ...HOME });
     this.undoStack = [];
+    this.header = null;
+  }
+
+  async retryImport() {
+    await app.run(async () => {
+      await api.libraryRetry();
+      app.settings = { ...app.settings, libraryImportPaused: false };
+    });
+  }
+
+  async pauseImport() {
+    await app.run(async () => {
+      await api.libraryCancelInspect();
+      app.settings = { ...app.settings, libraryImportPaused: true };
+    });
   }
 
   /** Plain click selects one row, Ctrl toggles, Shift selects the range from the anchor. */
   select(entry: Entry, modifiers: { ctrl: boolean; shift: boolean }) {
-    const next = new Set(modifiers.ctrl || modifiers.shift ? this.selected : []);
-    if (modifiers.shift && this.anchor) {
-      const from = this.entries.findIndex((e) => e.key === this.anchor);
-      const to = this.entries.findIndex((e) => e.key === entry.key);
-      if (from >= 0 && to >= 0) for (const e of this.entries.slice(Math.min(from, to), Math.max(from, to) + 1)) next.add(e.key);
-    } else if (modifiers.ctrl && next.has(entry.key)) next.delete(entry.key);
-    else next.add(entry.key);
-    if (!modifiers.shift) this.anchor = entry.key;
-    this.selected = next;
+    this.selection = selectItem(this.selection, this.entries.map((e) => e.key), entry.key, modifiers);
   }
 
   toggle(entry: Entry, shift = false) {
-    if (shift && this.anchor) return this.select(entry, { ctrl: true, shift: true });
-    const next = new Set(this.selected);
-    if (!next.delete(entry.key)) next.add(entry.key);
-    this.anchor = entry.key;
-    this.selected = next;
+    this.selection = selectItem(this.selection, this.entries.map((e) => e.key), entry.key, { shift }, true);
   }
 
   toggleAll() {
     this.flush();
-    this.selected = this.entries.every((e) => this.selected.has(e.key)) ? new Set() : new Set(this.entries.map((e) => e.key));
-    this.anchor = null;
+    this.selection = this.entries.every((e) => this.selected.has(e.key)) ? emptySelection() : selectAll(this.entries.map((e) => e.key));
+  }
+
+  keydown(event: KeyboardEvent, columns: number) {
+    this.flush();
+    const result = selectionKey(this.selection, this.entries.map((e) => e.key), event, columns);
+    if (result) this.selection = result.selection;
+    return result;
   }
 
   async removeSelected() {
@@ -261,10 +277,18 @@ class LibraryState {
   }
 
   async newBatch() {
-    await app.run(() => api.libraryReset());
-    app.library = [];
-    this.input = '';
-    this.resetNavigation();
+    if (this.clearing) return;
+    this.clearing = true;
+    try {
+      const cleared = await app.run(async () => { await api.libraryReset(); return true; });
+      if (!cleared) return;
+      app.clearLibraryView();
+      this.input = '';
+      this.source = 'all';
+      this.resetNavigation();
+    } finally {
+      this.clearing = false;
+    }
   }
 
   async add() {
@@ -281,6 +305,7 @@ class LibraryState {
     }
     const result = await app.run(() => api.libraryAdd(text, choice.providers));
     if (!result) return;
+    app.settings = { ...app.settings, libraryImportPaused: false };
     this.input = '';
     if (result.errors.length) app.toast(result.errors[0], 'error');
     if (result.duplicates) app.toast({ key: '{0} torrent đã có trong thư viện.', args: [String(result.duplicates)] });

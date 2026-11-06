@@ -1,7 +1,7 @@
 //! Provider adapters against a mock server: auth, error envelopes, retry rules, credential isolation.
 
 use rdbatch_core::error::Error;
-use rdbatch_core::models::Provider;
+use rdbatch_core::models::{CloudKind, Provider};
 use rdbatch_core::provider::{self, Timing};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -14,6 +14,68 @@ fn client(provider: Provider, server: &MockServer, token: &str) -> std::sync::Ar
         _ => format!("{}/", server.uri()),
     };
     provider::create(provider, reqwest::Client::new(), token, Some(&base), Timing::fast())
+}
+
+#[tokio::test]
+async fn torbox_cloud_types_delete_only_the_exact_ids_and_never_use_all() {
+    let server = MockServer::start().await;
+    for (kind, group, operation, id_key) in [
+        (CloudKind::Torrent, "torrents", "controltorrent", "torrent_id"),
+        (CloudKind::WebDownload, "webdl", "controlwebdownload", "webdl_id"),
+        (CloudKind::Usenet, "usenet", "controlusenetdownload", "usenet_id"),
+    ] {
+        Mock::given(method("GET")).and(path(format!("/v1/api/{group}/mylist"))).and(query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":[{"id":77,"name":group,"size":9,"progress":1,"download_finished":true,"download_present":true}]}))).expect(1).mount(&server).await;
+        Mock::given(method("POST")).and(path(format!("/v1/api/{group}/{operation}")))
+            .and(header("authorization", "Bearer secret"))
+            .and(wiremock::matchers::body_json(json!({(id_key):77,"operation":"delete","all":false})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":null}))).expect(1).mount(&server).await;
+        let api = client(Provider::TorBox, &server, "secret");
+        let list = api.cloud_list(kind).await.unwrap();
+        assert_eq!(list[0].id, "77");
+        assert_eq!(list[0].filename, group);
+        api.cloud_delete(kind, "77").await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn torbox_account_uses_actual_airlock_quota_and_keeps_bandwidth_separate() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET")).and(path("/v1/api/user/me"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":{"auth_id":"acct","plan":3,"email":"me@example.com","premium_expires_at":"2026-12-07T12:00:00Z","total_bytes_downloaded":9999999}}))).mount(&server).await;
+    Mock::given(method("GET")).and(path("/v1/api/user/stats"))
+        .and(query_param("general", "true")).and(query_param("bandwidth_grouping", "day"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":{"general":{"airlocked_downloads":300,"airlock_storage_limit":1000,"total_bytes_uploaded":123},"bandwidth":[{"bytes_downloaded":50},{"bytes_downloaded":60}]}}))).mount(&server).await;
+    let api = client(Provider::TorBox, &server, "secret");
+    assert_eq!(api.user().await.unwrap().kind, "TorBox · Standard");
+    let details = api.torbox_account().await.unwrap();
+    assert_eq!(details.plan, "Standard");
+    assert!(details.expires_at.is_some());
+    assert_eq!(details.airlock_used_bytes, Some(300));
+    assert_eq!(details.airlock_remaining_bytes, Some(700));
+    assert_eq!(details.bandwidth_30d_bytes, Some(110));
+    assert_eq!(details.downloaded_bytes, Some(9999999));
+    assert_eq!(details.uploaded_bytes, Some(123));
+}
+
+#[tokio::test]
+async fn torbox_missing_quota_is_unknown_and_stats_failure_does_not_hide_the_plan() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET")).and(path("/v1/api/user/me"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":{"auth_id":"acct","plan":2}}))).mount(&server).await;
+    Mock::given(method("GET")).and(path("/v1/api/user/stats"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":{"general":{}}}))).up_to_n_times(1).mount(&server).await;
+    let api = client(Provider::TorBox, &server, "secret");
+    let details = api.torbox_account().await.unwrap();
+    assert_eq!(details.plan, "Pro");
+    assert!(details.airlock_remaining_bytes.is_none());
+    assert!(details.airlock_limit_bytes.is_none());
+    assert!(details.bandwidth_30d_bytes.is_none());
+    Mock::given(method("GET")).and(path("/v1/api/user/stats"))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!({"success":false,"error":"ERROR","detail":"secret rejected"}))).mount(&server).await;
+    let failed_stats = api.torbox_account().await.unwrap();
+    assert_eq!(failed_stats.plan, "Pro");
+    assert!(!failed_stats.warning.unwrap().key.contains("secret"));
 }
 
 #[tokio::test]

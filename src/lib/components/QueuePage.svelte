@@ -14,29 +14,41 @@
   import { t, tm } from '../i18n.svelte';
   import { canRemove, canResume, canRetry, canStop, providerLabel, providerShort, type Job } from '../types';
   import VirtualList from './VirtualList.svelte';
+  import { untrack } from 'svelte';
+  import { emptySelection, reconcileSelection, selectItem, selectionKey, selectionMouseDown } from '../selection';
 
-  let selected = $state.raw(new Set<string>());
-  let anchor = $state<string | null>(null);
+  let selection = $state.raw(emptySelection());
+  const selected = $derived(selection.selected);
+  let listRef: { reveal: (index: number) => void } | undefined = $state();
 
   const jobs = $derived(app.jobs);
   const chosen = $derived(jobs.filter((job) => selected.has(job.id)));
   const activeNow = $derived(jobs.filter((job) => job.isActive).length);
   const failed = $derived(jobs.filter(canRetry).length);
+  const jobSignature = $derived(JSON.stringify(jobs.map((job) => job.id)));
+  const jobKeys = $derived<string[]>(JSON.parse(jobSignature));
+  $effect(() => {
+    const keys = jobKeys;
+    untrack(() => { selection = reconcileSelection(selection, keys); });
+  });
 
   const stateLabel = (job: Job) =>
     t(job.isStopping ? 'Đang dừng…' : ({ queued: 'Chờ xử lý', adding: 'Đang thêm', waiting: providerLabel(job.provider), downloading: 'Đang tải về', paused: 'Tạm dừng', stopped: 'Đã dừng', completed: 'Hoàn tất', failed: 'Có lỗi' } as const)[job.state]);
   const tone = (job: Job) => (job.state === 'completed' ? 'success' : job.state === 'failed' ? 'danger' : job.state === 'downloading' ? 'info' : '');
 
   function pick(job: Job, event: MouseEvent) {
-    const next = new Set(event.ctrlKey || event.metaKey || event.shiftKey ? selected : []);
-    if (event.shiftKey && anchor) {
-      const from = jobs.findIndex((j) => j.id === anchor);
-      const to = jobs.findIndex((j) => j.id === job.id);
-      for (const j of jobs.slice(Math.min(from, to), Math.max(from, to) + 1)) next.add(j.id);
-    } else if ((event.ctrlKey || event.metaKey) && next.has(job.id)) next.delete(job.id);
-    else next.add(job.id);
-    if (!event.shiftKey) anchor = job.id;
-    selected = next;
+    selection = selectItem(selection, jobKeys, job.id, { ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey });
+  }
+
+  function keydown(event: KeyboardEvent) {
+    const result = selectionKey(selection, jobKeys, event);
+    if (!result) return;
+    event.preventDefault();
+    selection = result.selection;
+    if (result.index !== undefined) {
+      listRef?.reveal(result.index);
+      (event.currentTarget as HTMLElement).focus();
+    }
   }
 
   const start = () => app.run(() => api.queueStart());
@@ -44,7 +56,7 @@
 
   async function remove(list: string[]) {
     await app.run(() => api.queueRemove(list));
-    selected = new Set([...selected].filter((id) => !list.includes(id)));
+    selection = reconcileSelection(selection, jobKeys);
   }
 
   async function clearAll() {
@@ -55,7 +67,7 @@
       danger: true
     });
     if (sure) await app.run(() => api.queueClear(false));
-    selected = new Set();
+    selection = emptySelection();
   }
 
   function openFolder() {
@@ -89,9 +101,9 @@
           <p class="caption">{t('Chọn file ở tab File trong torrent rồi thêm vào hàng đợi.')}</p>
         </div>
       {:else}
-        <VirtualList items={jobs} rowHeight={64} key={(job) => job.id} label={t('Hàng đợi tải')}>
+        <VirtualList bind:this={listRef} items={jobs} rowHeight={64} key={(job) => job.id} onkeydown={keydown} label={t('Hàng đợi tải')}>
           {#snippet row(job: Job)}
-            <div class="cols item row-glass" class:on={selected.has(job.id)} role="option" aria-selected={selected.has(job.id)} tabindex="-1" onclick={(e) => pick(job, e)} onkeydown={() => {}}>
+            <div class="cols item row-glass" class:on={selected.has(job.id)} role="option" aria-selected={selected.has(job.id)} tabindex="-1" onmousedown={selectionMouseDown} onclick={(e) => pick(job, e)} onkeydown={() => {}}>
               <div class="names">
                 <b class="ell" title={job.name}>{job.name}</b>
                 <span class="caption ell" title={tm(job.detail)}>{tm(job.detail)}</span>

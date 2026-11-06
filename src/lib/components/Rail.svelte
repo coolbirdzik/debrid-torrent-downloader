@@ -5,6 +5,8 @@
   import ArrowCircleUp from 'phosphor-svelte/lib/ArrowCircleUp';
   import Gear from 'phosphor-svelte/lib/Gear';
   import User from 'phosphor-svelte/lib/User';
+  import Clock from 'phosphor-svelte/lib/Clock';
+  import FilePlus from 'phosphor-svelte/lib/FilePlus';
   import { app, type Page } from '../app.svelte';
   import { t } from '../i18n.svelte';
   import { providerLabel } from '../types';
@@ -12,10 +14,11 @@
   const items: { page: Page; color: string; label: () => string }[] = [
     { page: 'library', color: 'blue', label: () => t('Thư viện') },
     { page: 'queue', color: 'green', label: () => t('Hàng đợi tải') },
-    { page: 'remote', color: 'purple', label: () => t('Torrent trên {0}', providerLabel(app.settings.provider)) }
+    { page: 'remote', color: 'purple', label: () => t('Quản lý cloud') }
   ];
 
   const accountLine = $derived(app.user ? `${app.user.username} · ${app.user.kind}` : app.hasToken ? t('Chưa kiểm tra token mới') : t('Chưa kết nối'));
+  const badgeCount = (count: number) => count > 99 ? '99+' : String(count);
 </script>
 
 <nav class="rail" aria-label="Navigation">
@@ -31,6 +34,16 @@
           {#if item.page === 'library'}<Books size={18} weight="duotone" />{:else if item.page === 'queue'}<DownloadSimple size={18} weight="duotone" />{:else}<CloudArrowDown size={18} weight="duotone" />{/if}
         </span>
         <span class="label">{item.label()}</span>
+        {#if item.page === 'library'}
+          <span class="library-badges">
+            {#if app.libraryBadges.pending > 0}
+              <span class="badge library-badge pending" role="img" aria-label={t('{0} torrent chờ đọc', app.libraryBadges.pending)} title={t('{0} torrent chờ đọc', app.libraryBadges.pending)}><Clock size={11} weight="bold" aria-hidden="true" />{badgeCount(app.libraryBadges.pending)}</span>
+            {/if}
+            {#if app.libraryBadges.newFiles > 0}
+              <span class="badge library-badge new-files" role="img" aria-label={t('{0} file mới chưa xem', app.libraryBadges.newFiles)} title={t('{0} file mới chưa xem', app.libraryBadges.newFiles)}><FilePlus size={11} weight="bold" aria-hidden="true" />{badgeCount(app.libraryBadges.newFiles)}</span>
+            {/if}
+          </span>
+        {/if}
         {#if item.page === 'queue' && app.activeCount > 0}<span class="badge">{app.activeCount}</span>{/if}
       </button>
     {/each}
@@ -69,7 +82,11 @@
   .nav.on { background: var(--chosen-bg); color: var(--chosen-ink); font-weight: 600; }
   .nav.on .ic { color: var(--chosen-icon); }
   .label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .badge { background: var(--cyan); color: var(--on-cyan); font-size: 11px; font-weight: 600; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; display: grid; place-content: center; }
+  .badge { background: var(--cyan); color: var(--on-cyan); font-size: 11px; font-weight: 600; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; display: grid; place-content: center; flex: none; }
+  .library-badges { display: flex; align-items: center; gap: 4px; flex: none; }
+  .library-badges:empty { display: none; }
+  .library-badge { display: inline-flex; align-items: center; justify-content: center; gap: 3px; font-variant-numeric: tabular-nums; }
+  .pending { background: var(--surface); color: var(--partial); box-shadow: inset 0 0 0 1px var(--stroke); }
   .update { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--info-soft); color: var(--info); font-size: 12px; font-weight: 600; text-align: left; }
   .update:hover { filter: brightness(0.97); }
   .account { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--surface); box-shadow: var(--lift); border-radius: 18px; text-align: left; width: 100%; transition: background 0.18s; }

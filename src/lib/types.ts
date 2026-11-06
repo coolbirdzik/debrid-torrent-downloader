@@ -117,9 +117,16 @@ export interface UpdateInfo {
   /** `null` when GitHub has no published release yet. */
   latest: string | null;
   available: boolean;
+  canInstall: boolean;
   pageUrl: string | null;
   downloadUrl: string | null;
   notes: string;
+}
+
+export interface UpdateProgress {
+  phase: 'downloading' | 'installing';
+  downloaded: number;
+  total: number | null;
 }
 
 export interface User {
@@ -135,12 +142,32 @@ export interface AccountInfo {
   user: User | null;
 }
 
+export type CloudKind = 'torrent' | 'webDownload' | 'usenet';
+export type CloudFilter = CloudKind | 'all';
+export const CLOUD_KINDS: CloudKind[] = ['torrent', 'webDownload', 'usenet'];
+export const cloudKindLabel = (kind: CloudKind) => ({ torrent: 'Torrent', webDownload: 'Web Downloads', usenet: 'Usenet' })[kind];
+
+export interface TorBoxAccount {
+  account: string;
+  email: string | null;
+  plan: string;
+  expiresAt: string | null;
+  airlockUsedBytes: number | null;
+  airlockLimitBytes: number | null;
+  airlockRemainingBytes: number | null;
+  bandwidth30dBytes: number | null;
+  downloadedBytes: number | null;
+  uploadedBytes: number | null;
+  warning: Msg | null;
+}
+
 export interface Snapshot {
   settings: Settings;
   library: Draft[];
   jobs: Job[];
   account: AccountInfo;
   accounts: AccountInfo[];
+  inspect?: { running: boolean; done: number; total: number };
   warning: Msg | null;
   dataFile: string;
 }

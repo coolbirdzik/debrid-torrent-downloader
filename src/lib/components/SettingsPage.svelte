@@ -6,10 +6,11 @@
   import FolderSimple from 'phosphor-svelte/lib/FolderSimple';
   import { api } from '../api';
   import { app } from '../app.svelte';
-  import { t } from '../i18n.svelte';
+  import { t, tm } from '../i18n.svelte';
   import { LANGUAGES } from '../languages';
   import { PROVIDERS, providerLabel, type Provider, type Settings } from '../types';
   import Select from './Select.svelte';
+  import TorBoxAccount from './TorBoxAccount.svelte';
 
   let token = $state('');
   let folder = $state(app.settings.outputDirectory);
@@ -76,6 +77,8 @@
         {#if app.settings.rememberLibraryProviders && savedChoice}<p class="caption">{t('Đang dùng: {0}', savedChoice)}</p>{/if}
       </div>
 
+      <TorBoxAccount />
+
       <div class="card block">
         <h2 class="section">{t('Thư mục tải xuống')}</h2>
         <div class="pair">
@@ -119,7 +122,7 @@
         <h2 class="section">{t('Cập nhật')}</h2>
         <div class="between">
           <span>{t('Phiên bản hiện tại: {0}', app.version || '—')}</span>
-          <button class="btn outline" disabled={app.checkingUpdate} onclick={() => app.checkUpdate()}>
+          <button class="btn outline" disabled={app.checkingUpdate || app.updating} onclick={() => app.checkUpdate()}>
             <span class="ic blue"><ArrowsClockwise size={16} weight="bold" /></span>{app.checkingUpdate ? t('Đang kiểm tra…') : t('Kiểm tra cập nhật')}
           </button>
         </div>
@@ -127,12 +130,26 @@
           <div class="found">
             <div class="between">
               <b>{t('Có phiên bản mới: {0}', app.update.latest ?? '')}</b>
-              <button class="btn primary" onclick={() => app.openUpdate()}><DownloadSimple size={16} weight="bold" />{t('Tải về từ GitHub')}</button>
+              <button class="btn primary" disabled={app.updating || app.checkingUpdate || !app.update.canInstall} onclick={() => app.installUpdate()}><DownloadSimple size={16} weight="bold" />{app.updating ? t('Đang cập nhật ứng dụng…') : t('Cập nhật và khởi động lại')}</button>
             </div>
+            <p class="caption">{t('Ứng dụng tự tải, cài đặt và khởi động lại. Hàng đợi được lưu trước khi cài.')}</p>
+            {#if !app.update.canInstall}<p class="caption">{t('Bản phát hành này chưa hỗ trợ cập nhật trong ứng dụng.')}</p>{/if}
+            {#if app.updateProgress}
+              <div role="status" aria-live="polite">
+                <p class="caption">{app.updateProgress.phase === 'installing' ? t('Đang cài đặt và khởi động lại…') : t('Đang tải bản cập nhật…')}</p>
+                {#if app.updateProgress.phase === 'downloading'}
+                  {#if app.updateProgress.total}
+                    <progress max={app.updateProgress.total} value={app.updateProgress.downloaded}></progress>
+                    <span class="caption">{Math.min(100, Math.floor(app.updateProgress.downloaded / app.updateProgress.total * 100))}%</span>
+                  {:else}<progress></progress>{/if}
+                {/if}
+              </div>
+            {/if}
+            {#if app.updateError}<p class="caption" role="alert">{tm(app.updateError)}</p>{/if}
             {#if app.update.notes}
               <div class="caption notes" aria-label={t('Ghi chú phát hành')}>{app.update.notes}</div>
             {/if}
-            {#if app.update.pageUrl && app.update.pageUrl !== app.update.downloadUrl}
+            {#if app.update.pageUrl}
               <button class="btn link" onclick={() => app.run(() => api.openRelease(app.update!.pageUrl!))}>{t('Xem trên GitHub')}</button>
             {/if}
           </div>

@@ -79,6 +79,10 @@ jobs:
       - name: UI logic tests
         run: pnpm test
 
+      - name: Portable updater replacement and rollback tests
+        if: runner.os == 'Windows'
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-portable-update.ps1
+
       - name: Every UI string has an English translation
         run: node scripts/check-i18n.mjs
 
@@ -134,16 +138,38 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build installers
-        run: pnpm tauri build ${{ matrix.args }}
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo 'Set the TAURI_SIGNING_PRIVATE_KEY repository secret before releasing.' >&2; exit 1; }
+            pnpm tauri build ${{ matrix.args }} --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          else
+            pnpm tauri build ${{ matrix.args }}
+          fi
 
       - name: Collect installers
         shell: bash
         run: |
           mkdir -p dist
           # Installers only: the bundle folder also holds intermediate build files.
-          find "${{ matrix.glob }}" -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \)             -not -path '*/wix/*' -exec cp {} dist/ \;
+          find "${{ matrix.glob }}" -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.app.tar.gz' -o -name '*.sig' \) -not -path '*/wix/*' -exec cp {} dist/ \;
           ls -la dist
           test -n "$(ls -A dist)"
+
+      - name: Sign Linux package updates
+        if: runner.os == 'Linux' && github.ref_type == 'tag'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          for asset in dist/*.deb dist/*.rpm; do
+            pnpm tauri signer sign --app-version "$version" "$asset"
+          done
 
       # Reuses the executable the installer build just produced, so nothing is compiled twice.
       - name: Build portable zip (Windows)
@@ -151,6 +177,17 @@ jobs:
         run: |
           node scripts/build-portable.mjs --skip-build
           Remove-Item dist/portable -Recurse -Force
+
+      - name: Sign portable executable (Windows releases)
+        if: runner.os == 'Windows' && github.ref_type == 'tag'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          Copy-Item -LiteralPath target/release/rdbatch-desktop.exe -Destination dist/DebridDock-portable-win-x64.exe
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          pnpm tauri signer sign --app-version $version dist/DebridDock-portable-win-x64.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload installers
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -189,6 +226,9 @@ jobs:
           pattern: DebridDock-desktop-*
           path: release
           merge-multiple: true
+
+      - name: Generate signed update manifest
+        run: node scripts/update-manifest.mjs release
 
       - name: Checksums
         working-directory: release

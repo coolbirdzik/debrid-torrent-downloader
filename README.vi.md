@@ -30,11 +30,11 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 đưa link vào trình quản lý tải. DebridDock làm trọn chuỗi đó trong một cửa sổ:
 
 - **Một giao diện cho mọi dịch vụ debrid.** Real-Debrid, TorBox và AllDebrid dùng chung thư viện, hàng đợi và cách
-  thao tác. Đổi dịch vụ trong Cài đặt; mỗi dịch vụ giữ token và torrent riêng.
+  thao tác. Kết nối từng dịch vụ trong Cài đặt rồi dùng cùng lúc; mỗi dịch vụ giữ token và tài khoản riêng.
 - **Thư viện ảo thay cho một đống link.** Torrent được đọc trên dịch vụ và hiện thành thư mục, file như trình quản lý
   file, trước khi có bất kỳ thứ gì ghi xuống ổ đĩa.
-- **Chỉ tải những gì bạn chọn.** Chọn từng video, cả thư mục hoặc toàn bộ phần còn lại; chỉ những file đó được chọn
-  trên dịch vụ và tải về.
+- **Chỉ tải những gì bạn chọn về máy.** Chọn từng video, cả thư mục hoặc toàn bộ phần còn lại. Dịch vụ có thể lấy cả
+  torrent lên cloud; hàng đợi trên máy chỉ tải những file bạn đã chọn.
 - **Hàng đợi tải cứ để đó mà chạy.** Thêm vào là tải ngay, tiếp tục được sau khi dừng hay app bị tắt, tự thử lại khi
   rớt mạng.
 
@@ -42,23 +42,50 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 
 ### Ứng dụng debrid all-in-one
 
-- Hỗ trợ **Real-Debrid, TorBox và AllDebrid**. Mỗi dịch vụ là một adapter riêng sau một giao diện chung, nên có thể
-  thêm dịch vụ khác.
+- Dùng **Real-Debrid, TorBox và AllDebrid cùng lúc**, mỗi dịch vụ giữ một token riêng.
 - Thêm **link magnet**, **URL `.torrent`** hoặc **file `.torrent` trên máy** (dán cả danh sách, hoặc kéo thả file vào
-  cửa sổ). Torrent trùng được phát hiện.
-- Xem và dọn **torrent trên tài khoản debrid**: liệt kê mọi torrent và xóa những cái không cần nữa, có bước xem lại
-  trước khi xóa.
+  cửa sổ). Khi kết nối nhiều dịch vụ, chọn **một, vài hoặc tất cả** cho mỗi lần import, hoặc nhớ lựa chọn để dùng lại.
+- Phát hiện torrent trùng theo từng dịch vụ. Khi cùng một file của torrent có trên nhiều dịch vụ, thao tác thêm vào
+  hàng đợi tránh tải trùng file và ưu tiên bản cloud đã tải được nhiều hơn.
 
 ### Thư viện torrent ảo
 
 - Duyệt mọi torrent dưới dạng **thư mục và file**, có lùi, tiến, lên một cấp (dùng được nút bên hông chuột, Alt+←/→
   và Backspace), breadcrumb và chế độ **Tất cả file** dạng phẳng.
-- **Xem dạng danh sách hoặc lưới**, sắp xếp theo tên hoặc ngày thêm, bấm tiêu đề cột để sắp xếp (tên, dung lượng,
-  trạng thái).
+- **Xem dạng danh sách hoặc lưới**, mặc định ngày thêm mới nhất lên đầu; có sắp xếp theo tên, ngày thêm và tiêu đề cột
+  (tên, nhà cung cấp, dung lượng, ngày, trạng thái). Bộ lọc **Nhà cung cấp** luôn có, kể cả khi thư viện trống.
 - **Tìm kiếm** trong thư mục và mọi thư mục con, bộ lọc **Chỉ video** hiện mọi video trong cây thư mục hiện tại.
+- **Thanh tiến độ import** hiện số đã xử lý và phần trăm của lượt đang chạy, kèm số đã đọc, còn chờ và lỗi trên tất
+  cả dịch vụ. Có thể dừng import, thử lại mục còn chờ và xem trạng thái chờ tài khoản hoặc chờ thử lại. Mục pending
+  được lưu qua lần khởi động lại và tự thử lại khi import không bị tạm dừng; bấm Thử lại để tiếp tục phần đã dừng.
+  Cột **Loại / Trạng thái** hiện phần trăm và thanh tiến độ riêng của từng torrent theo dữ liệu dịch vụ, cập nhật
+  cả lúc chờ metadata; khi chưa có số liệu, hiển thị trạng thái chờ. Chế độ lưới hiển thị tương tự.
+- Hai **badge riêng ở menu Thư viện**: số torrent chờ đọc metadata và số file mới chưa xem. Mở Thư viện sẽ xóa badge
+  chưa xem; badge pending vẫn còn đến khi có danh sách file. Cùng một file trên nhiều dịch vụ chỉ tính một lần trong
+  badge file mới.
 - Mỗi file cho biết **đã tải xong, tải một phần hay đã có trong hàng đợi**, và giữ dấu đó kể cả khi xóa hàng đợi
   hay mở lại app.
 - Bỏ file hoặc thư mục khỏi thư viện mà không đụng tới ổ đĩa hay dịch vụ, có hoàn tác (Ctrl+Z).
+- **Shift+click** hoặc **Shift+phím mũi tên** chọn theo khoảng ở Thư viện (danh sách/lưới), Hàng đợi và Quản lý cloud.
+  Ctrl/Cmd+click chọn từng mục; Shift+click checkbox chọn hoặc bỏ chọn cả khoảng. Ctrl/Cmd+A chọn tất cả mục trong
+  chế độ xem hiện tại, kể cả các dòng nằm ngoài vùng cuộn đang hiển thị.
+- **Xóa toàn bộ thư viện** xác nhận xóa mục của tất cả nhà cung cấp, kể cả mục đang chờ đọc, rồi đặt lại ô nhập và
+  bộ lọc. Giữ nguyên hàng đợi tải, file trên máy và dữ liệu cloud.
+
+### Quản lý cloud và tài khoản TorBox
+
+- **Quản lý cloud** có mục menu riêng. Xem torrent của cả ba dịch vụ và các mục **Web Downloads, Usenet đã có trên
+  TorBox**, lọc theo nhà cung cấp và loại dữ liệu.
+- **Ngày thêm mới nhất lên đầu** trên toàn danh sách, xuyên suốt nhà cung cấp và loại dữ liệu. Mỗi dòng hiện dịch vụ,
+  tài khoản, loại, ID, dung lượng, trạng thái và ngày thêm; phần đầu hiện số mục và tổng dung lượng.
+- **Xóa mục đã chọn** hoặc **Xóa tất cả cloud** trong bộ lọc nhà cung cấp/loại dữ liệu hiện tại. Cả hai đều cho xem lại
+  đúng danh sách và tài khoản trong modal xác nhận có danh sách cuộn. Lệnh xóa giữ đúng tài khoản dù đổi Cài đặt; mục lỗi vẫn hiện để xử
+  lý tiếp. Xóa tất cả bị vô hiệu khi đang tải danh sách hoặc một phần phạm vi đó chưa tải được.
+- Xóa cloud xóa mục và các file bên trong trên dịch vụ, đồng thời dừng và bỏ tác vụ tải liên quan khỏi hàng đợi.
+  File trên máy được giữ lại. Thao tác này tách riêng với xóa thư viện ảo.
+- **Bảng tài khoản TorBox** trong Cài đặt và Quản lý cloud hiện đúng gói Free / Essential / Standard / Pro, ngày hết
+  hạn, **AirLock đã dùng / giới hạn / còn lại**, **dữ liệu sử dụng 30 ngày** và nút làm mới. Nếu thiếu dữ liệu hạn mức,
+  bảng báo chưa có thông tin. Dung lượng AirLock và lưu lượng sử dụng được hiển thị riêng.
 
 ### Tải torrent từ debrid
 
@@ -77,22 +104,31 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
   Service), không bao giờ ghi vào file cài đặt dạng thường, không bao giờ hiện trong thông báo lỗi.
 - Bộ cài cho Windows, macOS và Linux, cùng **bản portable cho Windows** giữ toàn bộ dữ liệu cạnh file chạy.
 - Giao diện tiếng Việt, tiếng Anh, tiếng Trung giản thể, tiếng Thổ Nhĩ Kỳ, tiếng Tây Ban Nha, tiếng Đức, tiếng Pháp, tiếng Hàn, tiếng Nhật, tiếng Bồ Đào Nha (Brazil) và tiếng Nga; chế độ sáng và tối.
+- **Cập nhật trong ứng dụng** ở Cài đặt: hiện tiến độ tải, xác thực chữ ký, lưu và tạm dừng hàng đợi rồi cài đặt và
+  khởi động lại. Bản portable Windows giữ nguyên thư mục `data`; sau khi mở lại, bấm Resume để tiếp tục hàng đợi.
 
 ## Cách hoạt động
 
-1. **Kết nối dịch vụ.** Chọn Real-Debrid, TorBox hoặc AllDebrid trong Cài đặt và dán API token (app có nút mở trang
-   lấy token của từng dịch vụ).
+1. **Kết nối các dịch vụ.** Trong Cài đặt, dán và kiểm tra API token của từng dịch vụ muốn dùng. App có nút mở trang
+   lấy token; thông tin tài khoản TorBox hiện sau khi kết nối.
 2. **Thêm torrent.** Dán link magnet hoặc URL `.torrent`, hoặc thả file `.torrent` vào. DebridDock thêm chúng vào tài
-   khoản debrid và đọc danh sách file.
-3. **Duyệt và chọn.** Mở thư mục trong thư viện ảo, tìm kiếm, lọc video và chọn những gì cần.
-4. **Tải về.** Bấm **Thêm vào hàng đợi**. DebridDock chọn các file đó trên dịch vụ, chờ dịch vụ xử lý xong, lấy link
-   trực tiếp và tải về thư mục của bạn, có resume và tự thử lại.
+   khoản dịch vụ đã chọn và đọc danh sách file. Theo dõi tiến độ import, thử lại hoặc dừng khi cần.
+3. **Duyệt và chọn.** Mặc định mục mới thêm lên đầu. Lọc theo nhà cung cấp, mở thư mục, tìm kiếm hoặc lọc video rồi
+   chọn những file/thư mục cần tải.
+4. **Tải về.** Bấm **Thêm vào hàng đợi**, chọn nơi lưu và xác nhận. Các tác vụ mới bắt đầu ngay; DebridDock chờ cloud
+   chuẩn bị xong, lấy link trực tiếp và tải file đã chọn về máy, có resume và tự thử lại.
+5. **Quản lý cloud riêng.** Mở **Quản lý cloud** để xem hoặc xóa mục trên dịch vụ. Xóa Thư viện vẫn giữ các mục cloud
+   và hàng đợi hiện có.
 
 DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ tải qua HTTPS từ dịch vụ debrid.
 
 ## Ảnh chụp màn hình
 
 ![Hàng đợi tải của DebridDock: tải có resume, Retry tất cả và nút thao tác trên từng dòng](docs/images/queue-vi.png)
+
+![Tiến độ import Library: số đã xử lý, phần trăm và các mục còn chờ](docs/images/import-vi.png)
+
+![Quản lý cloud theo nhà cung cấp và loại dữ liệu, kèm gói TorBox và dung lượng AirLock](docs/images/cloud-vi.png)
 
 <details>
 <summary>Giao diện tối và bản tiếng Anh</summary>
@@ -103,7 +139,7 @@ DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ t�
 
 </details>
 
-Ảnh chụp từ app thật với dữ liệu mẫu (`scripts/seed-sample-data.py`), không dùng tài khoản hay tải thật.
+Ảnh chụp giao diện ứng dụng với dữ liệu mẫu, không dùng tài khoản thật hay thực hiện tải thật.
 
 ## Tải về và cài đặt
 
@@ -113,7 +149,17 @@ hoặc `.exe` cho Windows, `.dmg` cho macOS, `.deb`, `.rpm` hoặc `.AppImage` c
 trong thư mục `data` cạnh file chạy (cần có WebView2 runtime, Windows 11 có sẵn). Cũng có thể build từ mã nguồn bằng
 `pnpm build:portable` (xem [Build và test](#build-và-test)).
 
-Bản build **chưa được ký số**, nên lần đầu mở hệ điều hành sẽ cảnh báo:
+Bản Windows `-setup.exe` cho chọn thư mục cài đặt, kể cả ổ khác như `D:\Apps\DebridDock`, và chọn cài cho tài khoản
+hiện tại hoặc mọi người dùng. Thư mục được bảo vệ như `D:\Program Files\DebridDock` cần quyền quản trị; chọn cài
+cho mọi người dùng và chấp nhận yêu cầu quyền admin của Windows. Nếu setup cũ báo **Error opening file for writing**,
+hủy rồi chạy lại bằng **Run as administrator**, hoặc chọn thư mục tài khoản của bạn có quyền ghi. Đóng bản app đã
+cài đang chạy trước khi cài lại.
+
+Sau khi cài, dùng **Cài đặt → Cập nhật → Cập nhật và khởi động lại** khi có bản cập nhật đã ký tương thích.
+Với bản phát hành cũ chưa có gói cập nhật, vẫn có thể tải từ trang release.
+
+Bản build **chưa có chữ ký Authenticode Windows hay notarization macOS**, nên hệ điều hành có thể cảnh báo ở lần
+mở đầu tiên. Chữ ký bản cập nhật được dùng riêng để xác thực gói tải trong ứng dụng:
 
 - **Windows:** SmartScreen hiện "Windows protected your PC". Bấm *More info*, rồi *Run anyway*.
 - **macOS:** chuột phải vào app, chọn *Open*, hoặc chạy `xattr -dr com.apple.quarantine "/Applications/DebridDock.app"`.
@@ -134,20 +180,35 @@ Có. DebridDock miễn phí và mã nguồn mở (MIT). Bạn chỉ trả tiền
 Không. Dịch vụ debrid lấy torrent. DebridDock chỉ tải file đã xong qua HTTPS, nên không peer nào thấy IP của bạn.
 
 **Có tải được chỉ vài file trong torrent, ví dụ một tập phim, không?**
-Được. Thư viện ảo sinh ra để làm việc đó: mở torrent, chọn file hoặc thư mục cần lấy rồi thêm vào hàng đợi. Chỉ những
-file đó được chọn trên dịch vụ và tải về.
+Được. Mở torrent trong thư viện, chọn file hoặc thư mục cần lấy rồi thêm vào hàng đợi. Chỉ những file đó được tải về
+máy. TorBox và AllDebrid lấy torrent lên cloud mà không chọn riêng từng file; lựa chọn trong DebridDock quyết định
+phần tải về máy.
 
 **Rớt mạng hoặc tắt app giữa chừng thì sao?**
 File dở được giữ lại. Lỗi kết nối được tự thử lại, và sau khi mở lại app, **Bắt đầu / Resume** tải tiếp mọi file từ
 đúng byte đã dừng.
 
 **Dùng được nhiều tài khoản debrid không?**
-Bạn giữ được token cho từng dịch vụ và chuyển giữa Real-Debrid, TorBox, AllDebrid trong Cài đặt. Mỗi torrent trong
-hàng đợi nhớ tài khoản của nó và không bao giờ được tiếp tục bằng tài khoản khác.
+Có: mỗi dịch vụ giữ một token và có thể dùng Real-Debrid, TorBox, AllDebrid cùng lúc. Chọn dịch vụ khi import, lọc
+Thư viện theo nhà cung cấp và quản lý mục từ xa trong Quản lý cloud. Mỗi torrent trong hàng đợi nhớ nhà cung cấp,
+tài khoản gốc và không tiếp tục bằng tài khoản khác.
+
+**Xóa Thư viện khác gì xóa cloud?**
+**Xóa toàn bộ thư viện** bỏ mục ảo của tất cả nhà cung cấp, giữ hàng đợi, file trên máy và các mục cloud.
+**Xóa tất cả cloud** áp dụng bộ lọc hiện tại của Quản lý cloud, cho xem lại danh sách rồi xóa trên dịch vụ và
+dừng/bỏ tác vụ tải liên quan khỏi hàng đợi. Cả hai đều giữ file trên máy.
+
+**Hai badge ở menu Thư viện có ý nghĩa gì?**
+Đồng hồ đếm torrent đang chờ danh sách file. Badge file có dấu cộng đếm file mới chưa xem và tự hết khi mở Thư viện.
+Cả hai tính trên mọi dịch vụ, không phụ thuộc bộ lọc Thư viện hiện tại.
+
+**Dung lượng còn lại của TorBox là gì?**
+Đó là **dung lượng lưu trữ AirLock còn lại**, tính từ hạn mức và dung lượng đã dùng do TorBox trả về. Dữ liệu sử dụng
+30 ngày là lưu lượng, không phải dung lượng lưu trữ trống. Nếu API không trả hạn mức, bảng báo chưa có thông tin.
 
 **Token và dữ liệu được lưu ở đâu?**
-Token nằm trong keychain của hệ điều hành. Thư viện, hàng đợi và cài đặt nằm trong một file `data.json` ở thư mục dữ
-liệu của app (hoặc cạnh file chạy với bản portable).
+Token nằm trong keychain của hệ điều hành khi bật nhớ token. Thư viện, hàng đợi và cài đặt nằm trong file `data.json`
+ở thư mục dữ liệu của app, hoặc `data/data.json` cạnh file thực thi nếu dùng bản portable.
 
 Vui lòng chỉ tải nội dung bạn có quyền tải.
 
@@ -161,8 +222,8 @@ DebridDock gồm lõi và engine tải viết bằng Rust, vỏ Tauri 2 và giao
 | --- | --- |
 | `crates/core` | `rdbatch-core`: adapter cho từng dịch vụ, downloader có resume, engine hàng đợi, lưu trữ. Không phụ thuộc UI hay Tauri nên `cargo test` chạy ở đâu cũng được. |
 | `src-tauri` | `rdbatch-desktop`: trạng thái ứng dụng, lệnh IPC, sự kiện gộp, truy cập keychain. |
-| `src` | Giao diện Svelte. `src/lib/browser.ts` chứa logic duyệt thư viện dưới dạng hàm thuần, có test. |
-| `scripts` | `check-i18n.mjs` (mọi chuỗi UI đều có bản dịch tiếng Anh, mọi ngôn ngữ khớp khóa và placeholder), `seed-sample-data.py` (thư viện mẫu để chụp ảnh), `fake-realdebrid.py` (server giả để chạy end-to-end). |
+| `src` | Giao diện Svelte. `src/lib/browser.ts` xử lý duyệt Library; `src/lib/remote.ts` quản lý phạm vi cloud và xem lại trước khi xóa; `TorBoxAccount.svelte` hiển thị thông tin tài khoản. |
+| `scripts` | Kiểm tra bản dịch, dữ liệu mẫu/server giả, build portable, tạo manifest cập nhật đã ký và các bài test. |
 | `.github/workflows/build.yml` | Test trên cả ba hệ điều hành, build bộ cài và phát hành release. |
 
 ### Build và test
@@ -175,9 +236,13 @@ pnpm install
 pnpm tauri dev            # chạy app
 cargo test --workspace
 pnpm check && pnpm test && node scripts/check-i18n.mjs
+pnpm test:updater         # test logic UI cập nhật và manifest release
 pnpm tauri build          # bộ cài cho hệ điều hành hiện tại, trong target/release/bundle
 pnpm build:portable       # bản portable, trong dist/portable và dist/DebridDock-portable-win-x64.zip (Windows)
 ```
+
+Trên Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-portable-update.ps1` kiểm tra thay
+file portable và khôi phục khi lỗi bằng dữ liệu tạm.
 
 `RDBATCH_DATA_DIR=<thư mục>` gom toàn bộ dữ liệu (hàng đợi, thư viện, cài đặt) vào một thư mục: dùng portable, test,
 chụp ảnh. Bản portable có sẵn file `portable` cạnh file chạy, làm điều tương tự với thư mục `data` ngay bên cạnh.
@@ -199,16 +264,34 @@ Resume bằng `Range` + `If-Range`, tải lại từ đầu khi server bỏ qua 
 body bị cụt là đã xong, không bao giờ ghi đè file đã hoàn tất, giữ file dở khi dừng, từ chối path traversal và thư mục
 symlink, tự thử lại lỗi kết nối nhưng không bao giờ gửi lại upload hoặc xóa chưa rõ kết quả, không để token lọt vào
 bất kỳ thông báo lỗi nào (kể cả URL tải của TorBox), từ chối torrent thuộc tài khoản hoặc dịch vụ khác.
+Test cloud còn kiểm tra tách biệt nhà cung cấp/tài khoản/loại dữ liệu khi trùng ID, xem lại phạm vi xóa hàng loạt và
+trường hợp TorBox không trả hạn mức.
 
 ### Phát hành
 
+Trong **Cài đặt → Cập nhật**, bấm **Cập nhật và khởi động lại** để ứng dụng tự tải bản mới, xác thực chữ ký,
+tạm dừng và lưu hàng đợi, cài đặt rồi tự mở lại. Bản portable Windows thay đúng file thực thi đang chạy,
+giữ nguyên file `portable` và thư mục `data`. Sau khi mở lại, bấm Resume để tiếp tục hàng đợi.
+Các bản phát hành cũ chưa có `latest.json` vẫn có liên kết xem trên GitHub.
+
+Trước khi phát hành bản đầu tiên hỗ trợ cập nhật, thêm GitHub Actions repository secret
+`TAURI_SIGNING_PRIVATE_KEY` với nội dung khóa riêng tại `%USERPROFILE%\.tauri\debriddock-updater.key`
+trên máy thiết lập ban đầu. Khóa công khai tương ứng đã nằm trong `src-tauri/tauri.conf.json`.
+Nếu khóa có mật khẩu, thêm `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Sao lưu khóa riêng an toàn, không commit
+vào Git và giữ nguyên khóa khi phát hành các bản tiếp theo để người dùng cũ xác thực được cập nhật.
+
+Pipeline tạo các gói và chữ ký cập nhật cho Windows, macOS, Linux cùng `latest.json`; riêng portable Windows
+có file thực thi được ký riêng. Build theo tag sẽ dừng nếu thiếu khóa hoặc thiếu gói cập nhật.
+Chữ ký cập nhật này độc lập với Authenticode Windows và notarization macOS.
+
 `.github/workflows/build.yml` test và build bộ cài trên mỗi lần push lên `main` và mỗi pull request (lưu dạng
-artifact 14 ngày). Với tag `vX.Y.Z` khớp `version` trong `package.json` (app, bộ cài và kiểm tra cập nhật đều đọc từ đây), workflow còn phát hành GitHub release
-kèm checksum:
+artifact 14 ngày). Với tag `vX.Y.Z` khớp `version` trong `package.json` (app, bộ cài và kiểm tra cập nhật đều đọc từ
+đây), workflow còn phát hành GitHub release kèm checksum. Thay `X.Y.Z` bên dưới bằng phiên bản đó sau khi cập nhật
+các file phiên bản:
 
 ```sh
-git tag -a v0.3.0 -m "Release v0.3.0"
-git push origin v0.3.0
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
 ```
 
 ### Lịch sử

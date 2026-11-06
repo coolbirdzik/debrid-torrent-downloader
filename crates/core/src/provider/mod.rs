@@ -11,7 +11,7 @@ pub use realdebrid::RealDebrid;
 pub use torbox::TorBox;
 
 use crate::error::Result;
-use crate::models::{Provider, RemoteTorrent, TorrentInfo, Unrestricted, User};
+use crate::models::{CloudKind, Provider, RemoteTorrent, TorBoxAccount, TorrentInfo, Unrestricted, User};
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Duration;
@@ -67,6 +67,17 @@ pub trait Debrid: Send + Sync {
     async fn select_files(&self, id: &str, file_ids: &[i32]) -> Result<()>;
     async fn unrestrict(&self, link: &str) -> Result<Unrestricted>;
     async fn delete(&self, id: &str) -> Result<()>;
+    async fn cloud_list(&self, kind: CloudKind) -> Result<Vec<RemoteTorrent>> {
+        if kind == CloudKind::Torrent { self.list().await }
+        else { Err(crate::error::Error::invalid("Unsupported cloud download type.")) }
+    }
+    async fn cloud_delete(&self, kind: CloudKind, id: &str) -> Result<()> {
+        if kind == CloudKind::Torrent { self.delete(id).await }
+        else { Err(crate::error::Error::invalid("Unsupported cloud download type.")) }
+    }
+    async fn torbox_account(&self) -> Result<TorBoxAccount> {
+        Err(crate::error::Error::invalid("TorBox account information is unavailable for this provider."))
+    }
 }
 
 pub fn create(provider: Provider, http: reqwest::Client, token: &str, base_url: Option<&str>, timing: Timing) -> Arc<dyn Debrid> {

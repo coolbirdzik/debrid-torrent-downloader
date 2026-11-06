@@ -7,7 +7,7 @@
 use chrono::Utc;
 use rdbatch_core::engine::{Allocator, Engine, Queue, Session};
 use rdbatch_core::error::{Error, Result};
-use rdbatch_core::models::{CloudState, Draft, Job, JobState, Msg, Persisted, Provider, RemoteRef, RemoteTorrent, Settings, User};
+use rdbatch_core::models::{CloudKind, CloudState, Draft, Job, JobState, Msg, Persisted, Provider, RemoteRef, RemoteTorrent, Settings, TorBoxAccount, User};
 use rdbatch_core::provider::{self, Debrid, Timing};
 use rdbatch_core::store::Store;
 use rdbatch_core::{parser, search};
@@ -68,6 +68,7 @@ pub struct Snapshot {
     pub account: AccountDto,
     /// Every service, connected or not, in a fixed order.
     pub accounts: Vec<AccountDto>,
+    pub inspect: InspectStatus,
     pub warning: Option<Msg>,
     pub data_file: String,
 }
@@ -81,7 +82,7 @@ pub struct Marks {
     pub partial_file_ids: Vec<i32>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectStatus {
     pub running: bool,
@@ -172,6 +173,7 @@ pub struct App {
     api_http: reqwest::Client,
     transfer_http: reqwest::Client,
     inspect_running: AtomicBool,
+    inspect_status: Mutex<InspectStatus>,
     inspect_cancel: Mutex<CancellationToken>,
     cloud_running: AtomicBool,
     timing: Timing,
@@ -237,6 +239,7 @@ impl App {
             api_http,
             transfer_http,
             inspect_running: AtomicBool::new(false),
+            inspect_status: Mutex::new(InspectStatus::default()),
             inspect_cancel: Mutex::new(CancellationToken::new()),
             cloud_running: AtomicBool::new(false),
             timing: test_timing(),
@@ -299,6 +302,13 @@ impl App {
         if let Err(error) = self.store.save(&self.persisted()) {
             self.status(Msg::new("Không lưu được hàng đợi: {0}", &[&error]));
         }
+    }
+
+    /// Updating can terminate the process without a window-close event. Abort if persistence fails.
+    pub async fn prepare_update(&self) -> std::result::Result<(), Msg> {
+        self.queue_pause().await;
+        self.flush_jobs();
+        self.store.save(&self.persisted()).map_err(|error| Msg::new("Không lưu được hàng đợi: {0}", &[&error]))
     }
 
     /// Runs forever: coalesced job events, completion marks, and debounced saves.
@@ -412,6 +422,7 @@ impl App {
             settings,
             library,
             jobs: self.queue.snapshot(),
+            inspect: self.inspect_status.lock().unwrap().clone(),
             warning: self.warning.lock().unwrap().clone(),
             data_file: self.store.path().display().to_string(),
         }
@@ -618,6 +629,7 @@ impl App {
     pub fn library_reset(&self) {
         self.inspect_cancel.lock().unwrap().cancel();
         self.data.lock().unwrap().library.clear();
+        self.report_inspect(false, 0, 0);
         self.mark_dirty();
         self.save_now();
     }
@@ -645,11 +657,24 @@ impl App {
         if self.data.lock().unwrap().settings.library_import_paused || self.inspect_running.swap(true, Ordering::SeqCst) {
             return;
         }
+        let total = self.pending_drafts().len();
+        if total == 0 {
+            self.inspect_running.store(false, Ordering::SeqCst);
+            return;
+        }
+        self.report_inspect(true, 0, total);
         tauri::async_runtime::spawn(async move {
             self.run_inspection().await;
+            let status = self.inspect_status.lock().unwrap().clone();
+            self.report_inspect(false, status.done, status.total);
             self.inspect_running.store(false, Ordering::SeqCst);
-            self.emit("inspect", InspectStatus { running: false, done: 0, total: 0 });
         });
+    }
+
+    fn report_inspect(&self, running: bool, done: usize, total: usize) {
+        let status = InspectStatus { running, done, total };
+        *self.inspect_status.lock().unwrap() = status.clone();
+        self.emit("inspect", status);
     }
 
     /// Unread torrents of every service that has a token (read before the data lock: `token_for` takes it too).
@@ -690,6 +715,7 @@ impl App {
             }
             let total = pending.len();
             let mut done = 0;
+            self.report_inspect(true, done, total);
             for provider in ALL_PROVIDERS {
                 let keys: Vec<String> = pending.iter().filter(|(p, _)| *p == provider).map(|(_, k)| k.clone()).collect();
                 if keys.is_empty() {
@@ -705,20 +731,23 @@ impl App {
                             if cancel.is_cancelled() {
                                 return;
                             }
-                            self.emit("inspect", InspectStatus { running: true, done, total });
-                            done += 1;
                             if !self.inspect_one(&engine, provider, &key, &account.user.username, &cancel).await {
                                 return;
                             }
+                            if cancel.is_cancelled() { return; }
+                            done += 1;
+                            self.report_inspect(true, done, total);
                         }
                     }
                     Err(error) => {
                         // Back off like a failed read, so one bad token never stalls the other services.
+                        if cancel.is_cancelled() { return; }
                         let message = error.friendly();
                         for key in &keys {
                             self.with_draft(provider, key, |d| back_off(d, message.clone()));
                         }
                         done += keys.len();
+                        self.report_inspect(true, done, total);
                     }
                 }
             }
@@ -728,7 +757,12 @@ impl App {
 
     /// Add one torrent to its service (once) and wait for its file list. Returns false when cancelled.
     async fn inspect_one(&self, engine: &Engine, provider: Provider, key: &str, username: &str, cancel: &CancellationToken) -> bool {
-        let existing = self.with_draft(provider, key, |d| (d.source.clone(), d.torrent_id.clone())).unwrap_or_default();
+        let existing = self.with_draft(provider, key, |d| {
+            d.inspection_error = None;
+            d.next_inspection_at = None;
+            d.cloud = None;
+            (d.source.clone(), d.torrent_id.clone())
+        }).unwrap_or_default();
         let outcome = async {
             let torrent_id = match existing.1 {
                 Some(id) => id,
@@ -751,7 +785,23 @@ impl App {
                     id
                 }
             };
-            engine.inspect(&torrent_id, cancel).await
+            engine.inspect_with_progress(&torrent_id, cancel, |info| {
+                if cancel.is_cancelled() { return; }
+                let cloud = CloudState { status: info.status.clone(), progress: info.progress, speed: info.speed, seeders: info.seeders };
+                let changed = {
+                    let mut data = self.data.lock().unwrap();
+                    // A reset or a new import can replace this source while its request is in flight.
+                    let Some(draft) = data.library.iter_mut().find(|d| d.provider == provider && same_key(&d.source_key, key) && d.torrent_id.as_deref() == Some(torrent_id.as_str())) else { return; };
+                    if draft.cloud.as_ref() == Some(&cloud) { false } else {
+                        draft.cloud = Some(cloud.clone());
+                        true
+                    }
+                };
+                if changed {
+                    self.notifier.progress_dirty.store(true, Ordering::SeqCst);
+                    self.emit("cloud", vec![CloudUpdate { provider, source_key: key.to_string(), cloud: Some(cloud) }]);
+                }
+            }).await
         }
         .await;
         match outcome {
@@ -1059,18 +1109,22 @@ impl App {
         self.queue_remove(ids).await
     }
 
-    // ---- remote torrents (the service chosen in Settings) ------------------------------------------------------
+    // ---- remote torrents (explicit service, independent of Settings) -------------------------------------------
 
-    pub async fn remote_list(&self) -> Result<RemoteList> {
-        let (account, api) = self.verified(self.provider()).await?;
-        let torrents = api.list().await?;
+    pub async fn torbox_account(&self) -> Result<TorBoxAccount> {
+        let (_, api) = self.verified(Provider::TorBox).await?;
+        api.torbox_account().await
+    }
+
+    pub async fn remote_list(&self, provider: Provider, kind: CloudKind) -> Result<RemoteList> {
+        let (account, api) = self.verified(provider).await?;
+        let torrents = api.cloud_list(kind).await?;
         Ok(RemoteList { account: account.user.username, torrents })
     }
 
     /// Delete exact IDs on the service. The account must still be the one the list was loaded for, and an ID known to
     /// belong to another account is never deleted. Ambiguous failures are reported, never replayed.
-    pub async fn remote_delete(&self, ids: Vec<String>, list_account: String) -> Result<Vec<DeleteOutcome>> {
-        let provider = self.provider();
+    pub async fn remote_delete(&self, provider: Provider, kind: CloudKind, ids: Vec<String>, list_account: String) -> Result<Vec<DeleteOutcome>> {
         let (account, api) = self.verified(provider).await?;
         if !account.user.username.eq_ignore_ascii_case(&list_account) {
             return Err(Error::operation("Token hiện tại thuộc tài khoản {0}, không phải {1}. Tải lại danh sách trước khi xóa.", &[&account.user.username, &list_account]));
@@ -1080,21 +1134,21 @@ impl App {
         for id in ids {
             let foreign = {
                 let data = self.data.lock().unwrap();
-                data.remote_refs.iter().any(|r| r.provider == provider && r.id == id && r.account.as_deref().map(|a| !a.eq_ignore_ascii_case(&account.user.username)).unwrap_or(false))
+                kind == CloudKind::Torrent && data.remote_refs.iter().any(|r| r.provider == provider && r.id == id && r.account.as_deref().map(|a| !a.eq_ignore_ascii_case(&account.user.username)).unwrap_or(false))
             };
             if foreign {
                 outcomes.push(DeleteOutcome { id, ok: false, message: Some(Msg::plain("Torrent này thuộc tài khoản khác.")) });
                 continue;
             }
             // Only tasks linked to this exact ID are stopped, and their writers are awaited before the DELETE.
-            let linked: Vec<String> = self.queue.snapshot().into_iter().filter(|j| j.provider == provider && j.torrent_id.as_deref() == Some(id.as_str())).map(|j| j.id).collect();
+            let linked: Vec<String> = self.queue.snapshot().into_iter().filter(|j| kind == CloudKind::Torrent && j.provider == provider && j.torrent_id.as_deref() == Some(id.as_str()) && j.remote_account.as_deref().map(|a| a.eq_ignore_ascii_case(&account.user.username)).unwrap_or(true)).map(|j| j.id).collect();
             for job_id in &linked {
                 self.queue.mutate(job_id, |j| j.is_removing = true);
                 if let Some(session) = &session {
                     session.stop(job_id).await;
                 }
             }
-            match api.delete(&id).await {
+            match api.cloud_delete(kind, &id).await {
                 Ok(()) => {
                     self.queue.remove(&linked);
                     if !linked.is_empty() {
@@ -1102,10 +1156,11 @@ impl App {
                     }
                     let cleared: Vec<Draft> = {
                         let mut data = self.data.lock().unwrap();
-                        data.remote_refs.retain(|r| !(r.provider == provider && r.id == id));
-                        data.library.iter_mut().filter(|d| d.provider == provider && d.torrent_id.as_deref() == Some(id.as_str())).map(|d| {
+                        data.remote_refs.retain(|r| !(kind == CloudKind::Torrent && r.provider == provider && r.id == id && r.account.as_deref().map(|a| a.eq_ignore_ascii_case(&account.user.username)).unwrap_or(true)));
+                        data.library.iter_mut().filter(|d| kind == CloudKind::Torrent && d.provider == provider && d.torrent_id.as_deref() == Some(id.as_str()) && d.remote_account.as_deref().map(|a| a.eq_ignore_ascii_case(&account.user.username)).unwrap_or(true)).map(|d| {
                             d.torrent_id = None;
                             d.remote_account = None;
+                            d.cloud = None;
                             d.clone()
                         }).collect()
                     };

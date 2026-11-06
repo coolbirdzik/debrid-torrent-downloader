@@ -234,17 +234,36 @@ async fn removing_a_queued_job_prevents_network_work_and_a_retry_runs_in_the_sam
 }
 
 #[tokio::test]
-async fn inspection_waits_for_metadata_without_selecting_or_downloading() {
+async fn inspection_reports_live_progress_while_waiting_for_metadata_without_selecting_or_downloading() {
     let f = fixture(None).await;
     Mock::given(method("GET")).and(path("/torrents/info/TI")).respond_with(ResponseTemplate::new(200).set_body_json(json!({
-        "id":"TI","filename":"x","status":"magnet_conversion","progress":0,"bytes":0,"files":[],"links":[]}))).up_to_n_times(2).with_priority(1).mount(&f.server).await;
+        "id":"TI","filename":"x","status":"magnet_conversion","progress":37,"bytes":0,"files":[],"links":[]}))).up_to_n_times(2).with_priority(1).mount(&f.server).await;
     Mock::given(method("GET")).and(path("/torrents/info/TI")).respond_with(ResponseTemplate::new(200).set_body_json(json!({
         "id":"TI","filename":"Ready","status":"waiting_files_selection","progress":0,"bytes":3,
         "files":[{"id":1,"path":"/a.bin","bytes":3,"selected":0}],"links":[]}))).with_priority(5).mount(&f.server).await;
     Mock::given(method("POST")).and(path("/torrents/selectFiles/TI")).respond_with(ResponseTemplate::new(204)).expect(0).mount(&f.server).await;
     Mock::given(method("POST")).and(path("/unrestrict/link")).respond_with(ResponseTemplate::new(200)).expect(0).mount(&f.server).await;
-    let info = f.engine.inspect("TI", &tokio_util::sync::CancellationToken::new()).await.unwrap();
+    let snapshots = std::sync::Mutex::new(Vec::new());
+    let info = f.engine.inspect_with_progress("TI", &tokio_util::sync::CancellationToken::new(), |info| {
+        snapshots.lock().unwrap().push((info.status.clone(), info.progress, info.files.len()));
+    }).await.unwrap();
     assert_eq!((info.filename.as_str(), info.files.len()), ("Ready", 1));
+    assert_eq!(*snapshots.lock().unwrap(), vec![("magnet_conversion".into(), 37.0, 0), ("magnet_conversion".into(), 37.0, 0), ("waiting_files_selection".into(), 0.0, 1)]);
+}
+
+#[tokio::test]
+async fn cancelling_inspection_stops_live_progress_callbacks() {
+    let f = fixture(None).await;
+    Mock::given(method("GET")).and(path("/torrents/info/CANCEL")).respond_with(ResponseTemplate::new(200).set_body_json(json!({
+        "id":"CANCEL","filename":"x","status":"magnet_conversion","progress":12,"bytes":0,"files":[],"links":[]}))).expect(1).mount(&f.server).await;
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let calls = AtomicUsize::new(0);
+    let outcome = f.engine.inspect_with_progress("CANCEL", &cancel, |_| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        cancel.cancel();
+    }).await;
+    assert!(matches!(outcome, Err(rdbatch_core::error::Error::Cancelled)));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

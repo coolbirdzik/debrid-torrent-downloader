@@ -194,6 +194,32 @@ pub struct RemoteTorrent {
     pub seeders: Option<i64>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CloudKind {
+    #[default]
+    Torrent,
+    WebDownload,
+    Usenet,
+}
+
+/// TorBox's quota values are supplied by user/stats, never inferred from lifetime traffic or a plan price.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TorBoxAccount {
+    pub account: String,
+    pub email: Option<String>,
+    pub plan: String,
+    pub expires_at: Option<DateTime<FixedOffset>>,
+    pub airlock_used_bytes: Option<u64>,
+    pub airlock_limit_bytes: Option<u64>,
+    pub airlock_remaining_bytes: Option<u64>,
+    pub bandwidth_30d_bytes: Option<u64>,
+    pub downloaded_bytes: Option<u64>,
+    pub uploaded_bytes: Option<u64>,
+    pub warning: Option<Msg>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Unrestricted {
     pub filename: String,
