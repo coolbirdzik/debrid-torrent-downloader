@@ -7,6 +7,7 @@
   import { api, toMsg } from '../api';
   import { app } from '../app.svelte';
   import { formatBytes } from '../browser';
+  import { languageTag } from '../languages';
   import { t, tm } from '../i18n.svelte';
   import { providerLabel, type Msg, type RemoteTorrent } from '../types';
   import VirtualList from './VirtualList.svelte';
@@ -22,8 +23,8 @@
   let failures = $state<Record<string, Msg>>({});
   let token = 0;
 
-  const queuedIds = $derived(new Set(app.jobsHere.map((job) => job.torrentId).filter((id): id is string => !!id)));
   const provider = $derived(app.settings.provider);
+  const queuedIds = $derived(new Set(app.jobs.filter((job) => job.provider === provider).map((job) => job.torrentId).filter((id): id is string => !!id)));
 
   async function load() {
     const mine = ++token;
@@ -119,7 +120,7 @@
               </div>
               <span>{formatBytes(torrent.bytes)}</span>
               <span><span class="pill {tone(torrent.status)}" title={torrent.status}>{statusText(torrent)}</span></span>
-              <span class="caption">{torrent.added ? new Date(torrent.added).toLocaleString(app.settings.language === 'vi' ? 'vi-VN' : 'en-US', { dateStyle: 'short', timeStyle: 'short' }) : '—'}</span>
+              <span class="caption">{torrent.added ? new Date(torrent.added).toLocaleString(languageTag(app.settings.language), { dateStyle: 'short', timeStyle: 'short' }) : '—'}</span>
             </div>
           {/snippet}
         </VirtualList>

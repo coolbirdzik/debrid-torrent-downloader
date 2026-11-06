@@ -1,5 +1,7 @@
 // Mirrors the Rust models (camelCase over IPC), except `User`, which keeps snake_case from the core crate.
 
+import type { Language } from './languages';
+
 export type Provider = 'realDebrid' | 'torBox' | 'allDebrid';
 export const PROVIDERS: { id: Provider; label: string }[] = [
   { id: 'realDebrid', label: 'Real-Debrid' },
@@ -7,6 +9,8 @@ export const PROVIDERS: { id: Provider; label: string }[] = [
   { id: 'allDebrid', label: 'AllDebrid' }
 ];
 export const providerLabel = (provider: Provider) => PROVIDERS.find((p) => p.id === provider)?.label ?? provider;
+/** Two-letter tag for tight spots (grid tiles, queue rows). */
+export const providerShort = (provider: Provider) => ({ realDebrid: 'RD', torBox: 'TB', allDebrid: 'AD' })[provider] ?? provider;
 
 /** A message the UI translates: `key` is the Vietnamese source text. */
 export interface Msg {
@@ -35,6 +39,8 @@ export interface Job {
   remoteAccount: string | null;
   selectedFileIds: number[] | null;
   outputDirectory: string | null;
+  /** Folder chosen when the job was queued; `null` means the Settings folder. */
+  targetDirectory: string | null;
   flattenFiles: boolean | null;
   files: JobFile[];
   name: string;
@@ -71,11 +77,26 @@ export interface Draft {
   inspectionAttempts: number;
   nextInspectionAt: string | null;
   inspectionError: Msg | null;
+  cloud: CloudState | null;
+}
+
+/** How far a service has fetched a torrent into its own storage. */
+export interface CloudState {
+  status: string;
+  progress: number;
+  speed: number | null;
+  seeders: number | null;
+}
+
+export interface CloudUpdate {
+  provider: Provider;
+  sourceKey: string;
+  cloud: CloudState | null;
 }
 
 export interface Settings {
   provider: Provider;
-  language: 'en' | 'vi';
+  language: Language;
   appearance: 'system' | 'light' | 'dark';
   browserView: 'list' | 'grid';
   browserSort: 'name' | 'added-desc' | 'added-asc';
@@ -85,6 +106,10 @@ export interface Settings {
   rememberToken: boolean;
   libraryImportPaused: boolean;
   checkUpdates: boolean;
+  /** Services the last Library import used. */
+  libraryProviders: Provider[];
+  /** Reuse `libraryProviders` without asking. */
+  rememberLibraryProviders: boolean;
 }
 
 export interface UpdateInfo {
@@ -104,11 +129,18 @@ export interface User {
   allows_downloads: boolean;
 }
 
+export interface AccountInfo {
+  provider: Provider;
+  hasToken: boolean;
+  user: User | null;
+}
+
 export interface Snapshot {
   settings: Settings;
   library: Draft[];
   jobs: Job[];
-  account: { provider: Provider; hasToken: boolean; user: User | null };
+  account: AccountInfo;
+  accounts: AccountInfo[];
   warning: Msg | null;
   dataFile: string;
 }

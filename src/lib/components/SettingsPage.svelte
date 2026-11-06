@@ -7,7 +7,8 @@
   import { api } from '../api';
   import { app } from '../app.svelte';
   import { t } from '../i18n.svelte';
-  import { PROVIDERS, type Provider, type Settings } from '../types';
+  import { LANGUAGES } from '../languages';
+  import { PROVIDERS, providerLabel, type Provider, type Settings } from '../types';
   import Select from './Select.svelte';
 
   let token = $state('');
@@ -15,6 +16,9 @@
   $effect(() => { folder = app.settings.outputDirectory; });
 
   const status = $derived(app.user ? `${app.user.username} · ${app.user.kind}` : app.hasToken ? t('Chưa kiểm tra token mới') : t('Chưa kết nối'));
+  const accountLine = (account: (typeof app.accounts)[number]) =>
+    account.user ? `${account.user.username} · ${account.user.kind}` : account.hasToken ? t('Chưa kiểm tra token mới') : t('Chưa kết nối');
+  const savedChoice = $derived(app.settings.libraryProviders.map(providerLabel).join(', '));
 
   async function commitToken() {
     if (token.trim() === '' && app.hasToken) return;
@@ -59,6 +63,17 @@
           <button class="btn link" onclick={() => api.openTokenPage(app.settings.provider)}>{t('Lấy API token')}</button>
         </div>
         <p class="caption">{status}</p>
+        <div class="accounts" aria-label={t('Tài khoản')}>
+          {#each app.accounts as account (account.provider)}
+            <button class="account" class:on={account.provider === app.settings.provider} onclick={() => app.switchProvider(account.provider)}>
+              <b>{providerLabel(account.provider)}</b><small>{accountLine(account)}</small>
+            </button>
+          {/each}
+        </div>
+        <label class="check" title={t('Khi có token của nhiều dịch vụ, hỏi thêm torrent vào dịch vụ nào (một, vài hoặc tất cả).')}>
+          <input type="checkbox" checked={!app.settings.rememberLibraryProviders} onchange={(e) => app.setSettings({ rememberLibraryProviders: !e.currentTarget.checked })} />{t('Hỏi chọn dịch vụ mỗi khi thêm vào thư viện')}
+        </label>
+        {#if app.settings.rememberLibraryProviders && savedChoice}<p class="caption">{t('Đang dùng: {0}', savedChoice)}</p>{/if}
       </div>
 
       <div class="card block">
@@ -94,7 +109,7 @@
             <Select
               label={t('Ngôn ngữ')}
               value={app.settings.language}
-              options={[{ value: 'vi', label: 'Tiếng Việt' }, { value: 'en', label: 'English' }]}
+              options={LANGUAGES.map((language) => ({ value: language.code, label: language.label }))}
               onchange={(v: Settings['language']) => app.setSettings({ language: v })}
             />
           </div>
@@ -141,6 +156,11 @@
   .pair { display: flex; gap: 8px; }
   .between { display: flex; justify-content: space-between; align-items: center; }
   .check { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .accounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .account { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 9px 12px; border-radius: 14px; background: var(--subtle); text-align: left; transition: background 0.15s; }
+  .account:hover { background: var(--hover); }
+  .account.on { background: var(--selected); }
+  .account small { max-width: 100%; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .found { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--info-soft); }
   .notes { white-space: pre-wrap; max-height: 160px; overflow-y: auto; user-select: text; }

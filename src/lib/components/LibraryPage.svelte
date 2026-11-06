@@ -4,6 +4,8 @@
   import ArrowRight from 'phosphor-svelte/lib/ArrowRight';
   import ArrowUp from 'phosphor-svelte/lib/ArrowUp';
   import ArrowCounterClockwise from 'phosphor-svelte/lib/ArrowCounterClockwise';
+  import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
+  import Link from 'phosphor-svelte/lib/Link';
   import ArrowsClockwise from 'phosphor-svelte/lib/ArrowsClockwise';
   import CheckSquare from 'phosphor-svelte/lib/CheckSquare';
   import ClipboardText from 'phosphor-svelte/lib/ClipboardText';
@@ -32,23 +34,63 @@
   import SortAscending from 'phosphor-svelte/lib/SortAscending';
   import SortDescending from 'phosphor-svelte/lib/SortDescending';
   import { app } from '../app.svelte';
-  import { breadcrumbs, formatBytes, isStatusDone, isStatusPartial, type Entry, type HeaderSort } from '../browser';
-  import type { Settings } from '../types';
-  import { confirmAction } from '../confirm.svelte';
+  import CloudArrowDown from 'phosphor-svelte/lib/CloudArrowDown';
+  import { breadcrumbs, draftId, formatBytes, isStatusDone, isStatusPartial, magnetOf, type Entry, type HeaderSort, type SourceFilter } from '../browser';
+  import { providerLabel, providerShort, type Settings } from '../types';
+  import Select from './Select.svelte';
+  import { confirmAction, dialog } from '../confirm.svelte';
+  import { destinationDialog } from '../destination.svelte';
+  import { languageTag } from '../languages';
   import { t } from '../i18n.svelte';
-  import { library } from '../library.svelte';
+  import { countSources, library } from '../library.svelte';
   import { api } from '../api';
   import VirtualList from './VirtualList.svelte';
 
-  const colors: Record<string, string> = { folder: 'amber', video: 'purple', audio: 'pink', image: 'green', archive: 'orange', document: 'blue', other: '' };
   const crumbs = $derived(breadcrumbs(library.location, library.drafts));
   const grid = $derived(app.settings.browserView === 'grid');
   const sources = $derived(countSources(library.input));
   let listRef: { reveal: (index: number) => void } | undefined = $state();
+  const sourceOptions = $derived<{ value: SourceFilter; label: string }[]>([
+    { value: 'all', label: t('Tất cả nguồn') },
+    ...library.sources.map((id) => ({ value: id as SourceFilter, label: providerLabel(id) }))
+  ]);
 
-  function countSources(text: string): number {
-    const found = text.match(/magnet:\?[^\s]+|https?:\/\/[^\s"]+|[A-Za-z]:\\[^\r\n"]*\.torrent|\/[^\r\n"]*\.torrent/gi) ?? [];
-    return new Set(found.map((value) => value.toLowerCase())).size;
+  interface CloudView {
+    label: string;
+    progress: number | null;
+    tone: 'busy' | 'warn';
+  }
+
+  /**
+   * The torrent's trip to the service's cloud while it is still under way (or broke). A finished copy, and a
+   * Real-Debrid torrent that waits for a file selection, leave the local status in place.
+   */
+  function cloudView(entry: Entry): CloudView | null {
+    if (entry.pending) return null;
+    const job = library.jobCloud.get(draftId(entry.draft));
+    if (job !== undefined) return { label: t('Dịch vụ đang tải {0}%', job.toFixed(0)), progress: job, tone: 'busy' };
+    const cloud = app.cloudOf(entry.draft);
+    if (!cloud) return null;
+    switch (cloud.status) {
+      case 'downloaded':
+      case 'waiting_files_selection':
+        return null;
+      case 'missing':
+        return { label: t('Không còn trên dịch vụ'), progress: null, tone: 'warn' };
+      case 'magnet_error':
+      case 'error':
+      case 'virus':
+      case 'dead':
+        return { label: t('Lỗi trên dịch vụ'), progress: null, tone: 'warn' };
+      case 'magnet_conversion':
+        return { label: t('Đang lấy metadata'), progress: null, tone: 'busy' };
+      case 'queued':
+        return { label: t('Đang xếp hàng trên dịch vụ'), progress: cloud.progress, tone: 'busy' };
+      default: {
+        const speed = cloud.speed ? ` · ${formatBytes(cloud.speed)}/s` : '';
+        return { label: t('Dịch vụ đang tải {0}%', cloud.progress.toFixed(0)) + speed, progress: cloud.progress, tone: 'busy' };
+      }
+    }
   }
 
   function mark(entry: Entry): string {
@@ -62,7 +104,7 @@
   }
 
   const sizeLabel = (entry: Entry) => (entry.kind === 'folder' ? t('{0} file', entry.fileCount) : formatBytes(entry.size));
-  const dateLabel = (entry: Entry) => (entry.addedAt ? new Date(entry.addedAt).toLocaleString(app.settings.language === 'vi' ? 'vi-VN' : 'en-US', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+  const dateLabel = (entry: Entry) => (entry.addedAt ? new Date(entry.addedAt).toLocaleString(languageTag(app.settings.language), { dateStyle: 'short', timeStyle: 'short' }) : '—');
 
   async function paste() {
     try {
@@ -122,7 +164,7 @@
     { value: 'added-asc', label: t('Ngày thêm: cũ nhất'), short: t('Cũ nhất') }
   ]);
   const currentSort = $derived(sorts.find((s) => s.value === app.settings.browserSort) ?? sorts[0]);
-  const columnLabels = $derived({ name: t('Tên file'), size: t('Dung lượng'), status: t('Loại / Trạng thái') });
+  const columnLabels = $derived({ name: t('Tên file'), source: t('Nguồn'), size: t('Dung lượng'), added: t('Ngày thêm'), status: t('Loại / Trạng thái') });
   const sortShort = $derived(library.header ? columnLabels[library.header.column] : currentSort.short);
   let sortOpen = $state(false);
   let sortBox: HTMLDivElement | undefined = $state();
@@ -135,6 +177,44 @@
 
   function closeSortOutside(event: PointerEvent) {
     if (sortOpen && sortBox && !sortBox.contains(event.target as Node)) sortOpen = false;
+    if (menu && !menuBox?.contains(event.target as Node)) menu = null;
+  }
+
+  // Right-click menu. Like a file explorer: right-clicking a row outside the selection selects just that row first.
+  let menu: { x: number; y: number; entry: Entry } | null = $state(null);
+  let menuBox: HTMLDivElement | undefined = $state();
+  const menuMagnets = $derived(menu ? [...new Set(library.selectedEntries.map((e) => magnetOf(e.draft)).filter((m): m is string => m !== null))] : []);
+
+  function openMenu(entry: Entry, event: MouseEvent) {
+    event.preventDefault();
+    sortOpen = false;
+    if (!library.selected.has(entry.key)) library.select(entry, { ctrl: false, shift: false });
+    menu = { x: event.clientX, y: event.clientY, entry };
+  }
+
+  // Keep the menu inside the window once its size is known.
+  $effect(() => {
+    if (!menu || !menuBox) return;
+    const box = menuBox.getBoundingClientRect();
+    menuBox.style.left = `${Math.max(8, Math.min(menu.x, window.innerWidth - box.width - 8))}px`;
+    menuBox.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - box.height - 8))}px`;
+  });
+
+  async function copyMagnets() {
+    const links = menuMagnets;
+    menu = null;
+    if (links.length === 0) return;
+    try {
+      await navigator.clipboard.writeText(links.join('\n'));
+      app.toast({ key: 'Đã sao chép {0} magnet link.', args: [String(links.length)] }, 'success');
+    } catch {
+      app.toast({ key: 'Không sao chép được vào clipboard.', args: [] }, 'error');
+    }
+  }
+
+  function menuAction(action: () => unknown) {
+    menu = null;
+    void action();
   }
 
   /** Header click cycles ascending → descending → off. */
@@ -143,8 +223,16 @@
     library.header = now?.column !== column ? { column, direction: 'asc' } : now.direction === 'asc' ? { column, direction: 'desc' } : null;
   }
 
+  const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+
   function browserKeys(event: KeyboardEvent) {
-    if (event.key === 'Escape' && sortOpen) { sortOpen = false; return; }
+    if (event.key === 'Escape' && (sortOpen || menu)) { sortOpen = false; menu = null; return; }
+    // Shift+D: choose where to save, then queue the selection (same as the "Thêm vào hàng đợi" button).
+    if (event.code === 'KeyD' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat && !typing(event.target)) {
+      event.preventDefault();
+      if (library.canQueue && !destinationDialog.open && !dialog.open) { menu = null; void library.queueSelected(); }
+      return;
+    }
     if (event.key !== 'BrowserBack' && event.key !== 'BrowserForward') return;
     event.preventDefault();
     if (event.key === 'BrowserBack') library.goBack();
@@ -158,7 +246,7 @@
   const gridTitle = (entry: Entry) => `${entry.name}\n${entry.location}`;
 </script>
 
-<svelte:window onmousedown={mouseNav} onmouseup={mouseNav} onkeydown={browserKeys} onpointerdown={closeSortOutside} />
+<svelte:window onmousedown={mouseNav} onmouseup={mouseNav} onkeydown={browserKeys} onpointerdown={closeSortOutside} onwheel={() => (menu = null)} onblur={() => (menu = null)} onresize={() => (menu = null)} />
 
 {#snippet headerCell(column: NonNullable<HeaderSort>['column'], label: string)}
   {@const active = library.header?.column === column}
@@ -185,7 +273,7 @@
       <p class="caption">{t('Thư viện: {0} torrent · {1} đã đọc · {2} chờ đọc · {3} thư mục con', library.drafts.length, library.readyCount, library.pendingCount, library.subfolders)}</p>
     </div>
     <div class="actions">
-      {#if !app.hasToken}
+      {#if app.usableProviders.length === 0}
         <button class="btn" onclick={() => (app.page = 'settings')}><span class="ic blue"><User size={16} weight="duotone" /></span>{t('Kết nối tài khoản')}</button>
       {/if}
       {#if library.pendingCount > 0}
@@ -267,49 +355,68 @@
       <button class="btn outline toggle" class:on={library.videosOnly} aria-pressed={library.videosOnly} onclick={() => library.setVideosOnly(!library.videosOnly)} title={t('Hiện trực tiếp video trong thư mục hiện tại và mọi thư mục con.')}>
         <span class="ic purple"><FilmSlate size={16} weight={library.videosOnly ? 'fill' : 'duotone'} /></span>{t('Chỉ video')}
       </button>
+      {#if library.sources.length > 1}
+        <Select width="168px" label={t('Lọc theo nguồn')} value={library.source} options={sourceOptions} onchange={(v: SourceFilter) => library.setSource(v)} />
+      {/if}
       <button class="btn icon" onclick={() => library.toggleAll()} disabled={library.entries.length === 0} title="{t('Chọn / bỏ chọn kết quả (Ctrl+A)')}" aria-label={t('Chọn / bỏ chọn kết quả')}><span class="ic teal"><CheckSquare size={17} weight="duotone" /></span></button>
     </div>
 
     {#if !grid}
-      <div class="cols head-row"><span></span>{@render headerCell('name', columnLabels.name)}{@render headerCell('size', columnLabels.size)}<span>{t('Ngày thêm')}</span>{@render headerCell('status', columnLabels.status)}</div>
+      <div class="cols head-row"><span></span>{@render headerCell('name', columnLabels.name)}{@render headerCell('source', columnLabels.source)}{@render headerCell('size', columnLabels.size)}{@render headerCell('added', columnLabels.added)}{@render headerCell('status', columnLabels.status)}</div>
     {/if}
 
     <div class="body">
       {#if library.entries.length === 0}
         <p class="empty caption">
-          {#if library.drafts.length === 0 && app.library.filter((d) => d.provider === app.settings.provider).length === 0}{t('Dán link torrent ở trên để duyệt thư mục và chọn video.')}
+          {#if library.drafts.length === 0 && app.library.length === 0}{t('Dán link torrent ở trên để duyệt thư mục và chọn video.')}
           {:else}{t('Không tìm thấy file. Thử từ khóa khác hoặc bỏ lọc.')}{/if}
         </p>
       {:else if grid}
-        <VirtualList bind:this={listRef} items={library.entries} rowHeight={134} tileWidth={160} key={(e) => e.key} onkeydown={keydown} label={t('Lưới file trong torrent')}>
+        <VirtualList bind:this={listRef} items={library.entries} rowHeight={148} tileWidth={160} key={(e) => e.key} onkeydown={keydown} label={t('Lưới file trong torrent')}>
           {#snippet row(entry: Entry)}
+            {@const cloud = cloudView(entry)}
             <div class="tile" class:on={library.selected.has(entry.key)} role="option" aria-selected={library.selected.has(entry.key)} tabindex="-1" title={gridTitle(entry)}
-              onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} onkeydown={() => {}}>
+              onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
               <div class="tile-top">
-                <span class="chip {colors[entry.videoKind]} ic {colors[entry.videoKind]}" style="width:38px;height:38px">{@render kindIcon(entry, 20)}</span>
+                <span class="chip kind-{entry.videoKind}" style="width:38px;height:38px">{@render kindIcon(entry, 20)}</span>
+                <span class="tag" title={providerLabel(entry.draft.provider)}>{providerShort(entry.draft.provider)}</span>
               </div>
               <div class="tile-name"><b>{entry.name}</b><span class="m {isStatusDone(entry) ? 'done' : isStatusPartial(entry) ? 'partial' : ''}">{mark(entry)}</span></div>
               <span class="caption">{sizeLabel(entry)}</span>
-              <span class="caption tiny-text">{statusLabel(entry)}</span>
+              {#if cloud}
+                <span class="caption tiny-text cloud {cloud.tone}" title={cloud.label}>{cloud.label}</span>
+                {#if cloud.progress !== null}<span class="bar mini"><span style:width="{cloud.progress}%"></span></span>{/if}
+              {:else}
+                <span class="caption tiny-text">{statusLabel(entry)}</span>
+              {/if}
             </div>
           {/snippet}
         </VirtualList>
       {:else}
         <VirtualList bind:this={listRef} items={library.entries} rowHeight={52} key={(e) => e.key} onkeydown={keydown} label={t('Danh sách file trong torrent')}>
           {#snippet row(entry: Entry)}
+            {@const cloud = cloudView(entry)}
             <div class="cols item row-glass" class:on={library.selected.has(entry.key)} role="option" aria-selected={library.selected.has(entry.key)} tabindex="-1"
-              onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} onkeydown={() => {}}>
+              onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
               <input type="checkbox" checked={library.selected.has(entry.key)} onclick={(e) => { e.stopPropagation(); library.toggle(entry, e.shiftKey); }} aria-label={entry.location} />
               <div class="name">
-                <span class="chip {colors[entry.videoKind]} ic {colors[entry.videoKind]}" style="width:34px;height:34px">{@render kindIcon(entry, 18)}</span>
+                <span class="chip kind-{entry.videoKind}" style="width:34px;height:34px">{@render kindIcon(entry, 18)}</span>
                 <div class="names">
                   <b class="ell">{entry.name}<span class="m {isStatusDone(entry) ? 'done' : isStatusPartial(entry) ? 'partial' : ''}" title={statusLabel(entry)}>{mark(entry)}</span></b>
                   <span class="caption ell loc">{entry.location}</span>
                 </div>
               </div>
+              <span class="source"><span class="tag">{providerLabel(entry.draft.provider)}</span></span>
               <span>{sizeLabel(entry)}</span>
               <span class="caption">{dateLabel(entry)}</span>
-              <span class="caption ell" title={statusLabel(entry)}>{statusLabel(entry)}</span>
+              {#if cloud}
+                <span class="status-cell" title={cloud.label}>
+                  <span class="caption ell cloud {cloud.tone}"><CloudArrowDown size={13} weight="bold" />{cloud.label}</span>
+                  {#if cloud.progress !== null}<span class="bar mini"><span style:width="{cloud.progress}%"></span></span>{/if}
+                </span>
+              {:else}
+                <span class="caption ell" title={statusLabel(entry)}>{statusLabel(entry)}</span>
+              {/if}
             </div>
           {/snippet}
         </VirtualList>
@@ -331,10 +438,21 @@
         <button class="btn outline" disabled={library.remaining === 0} onclick={() => library.queueRemaining()} title={t('Thêm mọi file còn lại trong toàn bộ thư viện vào queue, kể cả ngoài bộ lọc hiện tại; bỏ qua file đã có trong queue.')}>
           <span class="ic blue"><DownloadSimple size={16} weight="duotone" /></span>{t('Thêm tất cả còn lại ({0})', library.remaining)}
         </button>
-        <button class="btn primary" disabled={!library.canQueue} onclick={() => library.queueSelected()}><Plus size={16} weight="bold" />{t('Thêm vào hàng đợi')}</button>
+        <button class="btn primary" disabled={!library.canQueue} onclick={() => library.queueSelected()} title={t('Chọn nơi lưu rồi thêm vào hàng đợi (Shift+D)')}><Plus size={16} weight="bold" />{t('Thêm vào hàng đợi')}</button>
       </div>
     </footer>
   </div>
+
+  {#if menu}
+    <div class="menu card menu-glass ctx" bind:this={menuBox} role="menu" tabindex="-1" aria-label={t('Menu chuột phải')} style:left="{menu.x}px" style:top="{menu.y}px" oncontextmenu={(e) => e.preventDefault()}>
+      {#if menu.entry.kind === 'folder'}
+        <button class="menu-item" role="menuitem" onclick={() => { const target = menu!.entry; menuAction(() => library.open(target)); }}><span class="ic amber"><FolderOpen size={16} weight="duotone" /></span><span class="grow">{t('Mở')}</span></button>
+      {/if}
+      <button class="menu-item" role="menuitem" disabled={!library.canQueue} onclick={() => menuAction(() => library.queueSelected())}><span class="ic blue"><DownloadSimple size={16} weight="duotone" /></span><span class="grow">{t('Thêm vào hàng đợi')}</span></button>
+      <button class="menu-item" role="menuitem" disabled={menuMagnets.length === 0} onclick={copyMagnets}><span class="ic purple"><Link size={16} weight="duotone" /></span><span class="grow">{t('Sao chép magnet link')}</span></button>
+      <button class="menu-item" role="menuitem" onclick={() => menuAction(() => library.removeSelected())}><span class="ic red"><Trash size={16} weight="duotone" /></span><span class="grow">{t('Bỏ khỏi thư viện')}</span></button>
+    </div>
+  {/if}
 </section>
 
 <style>
@@ -365,6 +483,8 @@
   .menu-item:hover { background: var(--hover); }
   .menu-item[aria-checked='true'] { background: var(--selected); }
   .grow { flex: 1; }
+  .menu-item:disabled { opacity: 0.45; pointer-events: none; }
+  .ctx { position: fixed; right: auto; z-index: 60; min-width: 220px; }
   /* Segmented control: options on a soft track. */
   .seg { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--subtle); }
   .seg .btn.icon { min-height: 28px; width: 32px; }
@@ -376,7 +496,7 @@
   .search { position: relative; flex: 1; }
   .search .ic { position: absolute; left: 13px; top: 10px; }
   .search input { padding-left: 36px; border-radius: 999px; }
-  .cols { display: grid; grid-template-columns: 46px minmax(200px, 1fr) 116px 136px 190px; align-items: center; padding: 0 16px 0 0; }
+  .cols { display: grid; grid-template-columns: 46px minmax(200px, 1fr) 108px 104px 132px 190px; align-items: center; padding: 0 16px 0 0; }
   .head-row { height: 34px; margin: 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; }
   .head-row span:first-child { grid-column: 1; }
   .head-row span:nth-child(2) { padding-left: 0; }
@@ -390,12 +510,24 @@
   .m { margin-left: 8px; font-weight: 600; color: var(--muted); }
   .m.done { color: var(--success); } .m.partial { color: var(--partial); }
   .empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 24px; }
-  .tile { position: relative; width: 160px; height: 134px; padding: 12px; border-radius: 20px; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s, box-shadow 0.15s; }
+  .tile { position: relative; width: 160px; height: 148px; padding: 12px; border-radius: 20px; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s, box-shadow 0.15s; }
   .tile:hover { background: var(--hover); }
   .tile.on { background: var(--selected); }
+  .tile > * { flex: none; }
   .tile-top { display: flex; justify-content: space-between; }
-  .tile-name { display: flex; justify-content: space-between; gap: 4px; font-size: 12px; max-height: 32px; overflow: hidden; }
+  /* Two lines of name, never squeezed out by the rows below it. */
+  .tile-name { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; font-size: 12px; line-height: 16px; height: 32px; overflow: hidden; }
+  .tile-name b { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .tiny-text { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Source: a quiet tag, so the file-type colors stay the loudest thing in a row. */
+  .tag { display: inline-block; max-width: 100%; padding: 2px 8px; border-radius: 999px; background: var(--subtle); color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .source { min-width: 0; }
+  .tile-top .tag { align-self: flex-start; }
+  .status-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding-right: 8px; }
+  .cloud { display: inline-flex; align-items: center; gap: 5px; }
+  .cloud.busy { color: var(--accent); }
+  .cloud.warn { color: var(--danger); }
+  .bar.mini { height: 4px; }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
   .sum { display: flex; flex-direction: column; min-width: 0; }
 </style>

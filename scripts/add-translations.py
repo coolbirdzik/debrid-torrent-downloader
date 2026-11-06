@@ -1,7 +1,7 @@
-"""One-off helper: append English translations for strings introduced by the Tauri UI to src/lib/en.json."""
+"""One-off helper: append English translations for strings introduced by the Tauri UI to src/lib/locales/en.json."""
 import json
 
-path = "src/lib/en.json"
+path = "src/lib/locales/en.json"
 catalog = json.load(open(path, encoding="utf-8"))
 catalog.update({
     "Đã kết nối: {0}": "Connected: {0}",

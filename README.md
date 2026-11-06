@@ -77,7 +77,7 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 - Your API token is stored in the **operating system keychain** (Windows Credential Manager, macOS Keychain, Linux
   Secret Service), never in a plain settings file, and never shown in error messages.
 - Windows, macOS and Linux installers, and a **portable Windows build** that keeps all data next to the app.
-- English and Vietnamese interface, light and dark appearance.
+- Interface in English, Vietnamese, Simplified Chinese, Turkish, Spanish, German, French, Korean, Japanese, Brazilian Portuguese and Russian; light and dark appearance.
 
 ## How it works
 
@@ -110,8 +110,10 @@ involved.
 ## Download and install
 
 Get the installer for your system from the [Releases](https://github.com/coolbirdzik/realdebrid/releases) page:
-`.msi` or `.exe` for Windows, `.dmg` for macOS, `.deb`, `.rpm` or `.AppImage` for Linux. A portable Windows build
-can be made from source with `pnpm build:portable` (see [Build and test](#build-and-test)).
+`.msi` or `.exe` for Windows, `.dmg` for macOS, `.deb`, `.rpm` or `.AppImage` for Linux. For Windows there is also
+`DebridDock-portable-win-x64.zip`: unzip it anywhere and run `DebridDock.exe`; the queue, library and settings stay in
+a `data` folder next to it (the WebView2 runtime, included with Windows 11, must be installed). It can also be built
+from source with `pnpm build:portable` (see [Build and test](#build-and-test)).
 
 Builds are **not code-signed yet**, so the system warns on first launch:
 
@@ -163,8 +165,8 @@ DebridDock is a Rust core and download engine, a Tauri 2 shell and a Svelte 5 UI
 | `crates/core` | `rdbatch-core`: provider adapters, resumable downloader, queue engine, persistence. No UI or Tauri dependency, so `cargo test` runs anywhere. |
 | `src-tauri` | `rdbatch-desktop`: application state, IPC commands, coalesced events, keychain access. |
 | `src` | Svelte UI. `src/lib/browser.ts` holds the Library browser logic as pure, tested functions. |
-| `scripts` | `check-i18n.mjs` (every UI string has an English translation), `seed-sample-data.py` (sample library for screenshots), `fake-realdebrid.py` (fake server for end-to-end runs). |
-| `.github/workflows/build.yml` | Tests on all three systems, builds installers and drafts releases. |
+| `scripts` | `check-i18n.mjs` (every UI string has an English translation, and every locale matches its keys and placeholders), `seed-sample-data.py` (sample library for screenshots), `fake-realdebrid.py` (fake server for end-to-end runs). |
+| `.github/workflows/build.yml` | Tests on all three systems, builds installers and publishes releases. |
 
 ### Build and test
 
@@ -206,7 +208,7 @@ provider.
 
 `.github/workflows/build.yml` tests on all three systems and builds installers on every push to `main` and pull
 request (uploaded as workflow artifacts for 14 days). For a tag named `vX.Y.Z` that matches the `version` in
-`src-tauri/tauri.conf.json` it also drafts a GitHub release with checksums:
+`package.json` (the app, the installers and the update check all read it) it also publishes a GitHub release with checksums:
 
 ```sh
 git tag -a v0.3.0 -m "Release v0.3.0"

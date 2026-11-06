@@ -11,7 +11,7 @@
   import RemotePage from '$lib/components/RemotePage.svelte';
   import SettingsPage from '$lib/components/SettingsPage.svelte';
 
-  const filesDone = $derived(app.jobsHere.reduce((sum, job) => sum + job.files.filter((file) => file.completed).length, 0));
+  const filesDone = $derived(app.jobs.reduce((sum, job) => sum + job.files.filter((file) => file.completed).length, 0));
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
@@ -44,7 +44,7 @@
     </main>
     <footer class="status">
       <span class="ell" title={tm(app.status)}>{tm(app.status)}</span>
-      <span class="right">{t('Hàng đợi: {0}/{1} torrent hoàn tất · {2} file đã tải', app.completedCount, app.jobsHere.length, filesDone)}</span>
+      <span class="right">{t('Hàng đợi: {0}/{1} torrent hoàn tất · {2} file đã tải', app.completedCount, app.jobs.length, filesDone)}</span>
     </footer>
   </div>
   <Overlays />

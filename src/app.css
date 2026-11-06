@@ -50,6 +50,14 @@
   --icon-teal: #8a90a0;
   --icon-gray: #8a90a0;
   --icon-red: #d6383f;
+  /* File-type colors: the one place icons are colored, so folders and media stand out in the library. */
+  --kind-folder: #e0a100;
+  --kind-video: #ea6a0a;
+  --kind-audio: #d6338a;
+  --kind-image: #16a34a;
+  --kind-archive: #7c4ddb;
+  --kind-document: #2563eb;
+  --kind-other: #8a90a0;
   --backdrop: none;
   --sheen: none;
   --glint: none;
@@ -105,6 +113,13 @@
   --icon-teal: #737887;
   --icon-gray: #737887;
   --icon-red: #ff5c63;
+  --kind-folder: #f5c542;
+  --kind-video: #ff8a3d;
+  --kind-audio: #f06aa8;
+  --kind-image: #3ccf78;
+  --kind-archive: #a283ff;
+  --kind-document: #5b8cff;
+  --kind-other: #737887;
   --backdrop: none;
   --sheen: none;
   --glint: none;
@@ -161,6 +176,13 @@
     --icon-teal: #737887;
     --icon-gray: #737887;
     --icon-red: #ff5c63;
+    --kind-folder: #f5c542;
+    --kind-video: #ff8a3d;
+    --kind-audio: #f06aa8;
+    --kind-image: #3ccf78;
+    --kind-archive: #a283ff;
+    --kind-document: #5b8cff;
+    --kind-other: #737887;
     --backdrop: none;
     --sheen: none;
     --glint: none;
@@ -232,6 +254,9 @@ input[type='checkbox']:checked::after { content: ''; width: 9px; height: 5px; bo
 .ic.blue { color: var(--icon-blue); } .ic.green { color: var(--icon-green); } .ic.orange { color: var(--icon-orange); }
 .ic.red { color: var(--icon-red); } .ic.purple { color: var(--icon-purple); } .ic.pink { color: var(--icon-pink); }
 .ic.amber { color: var(--icon-amber); } .ic.teal { color: var(--icon-teal); }
+.kind-folder { color: var(--kind-folder); } .kind-video { color: var(--kind-video); } .kind-audio { color: var(--kind-audio); }
+.kind-image { color: var(--kind-image); } .kind-archive { color: var(--kind-archive); } .kind-document { color: var(--kind-document); }
+.kind-other { color: var(--kind-other); }
 /* Icon chips: a soft tile in the icon's own (gray) tone. */
 .chip { display: grid; place-content: center; border-radius: 30%; position: relative; flex: none; }
 .chip::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0.13; }

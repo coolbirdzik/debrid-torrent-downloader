@@ -1,10 +1,12 @@
 // Pure logic for the Library browser: which rows to show for a location, their completion marks, sorting, and the file
 // sets behind queue/remove actions. Kept free of UI so it can be unit-tested and stays fast on 30,000-file libraries.
 
-import type { Draft, Job, LibraryPatch, Provider, TorrentFile } from './types';
+import { providerLabel, type Draft, type Job, type LibraryPatch, type Provider, type TorrentFile } from './types';
 
 export type SortMode = 'name' | 'added-desc' | 'added-asc';
-export type HeaderSort = { column: 'name' | 'size' | 'status'; direction: 'asc' | 'desc' } | null;
+export type HeaderSort = { column: 'name' | 'source' | 'size' | 'added' | 'status'; direction: 'asc' | 'desc' } | null;
+/** Which service's torrents the Library shows. */
+export type SourceFilter = Provider | 'all';
 
 export interface Location {
   /** `draftId` of the open torrent, or null for the list of all torrents. */
@@ -82,14 +84,53 @@ export function visibleFiles(draft: Draft): TorrentFile[] {
   return draft.files.filter((file) => !excluded.has(file.id));
 }
 
-/** Torrents shown at Home: current provider, not hidden, and either still being read or holding visible files. */
-export function activeDrafts(library: Draft[], provider: Provider): Draft[] {
-  return library.filter((d) => d.provider === provider && !d.isHidden && (d.files.length === 0 || visibleFiles(d).length > 0));
+/** Torrents shown at Home: from the chosen service(s), not hidden, and either still being read or holding visible files. */
+export function activeDrafts(library: Draft[], source: SourceFilter = 'all'): Draft[] {
+  return library.filter((d) => (source === 'all' || d.provider === source) && !d.isHidden && (d.files.length === 0 || visibleFiles(d).length > 0));
 }
 
-export type QueuedLookup = (draft: Draft, fileId: number) => boolean;
+const identityCache = new WeakMap<TorrentFile[], Map<TorrentFile, string>>();
 
-export function queuedLookup(jobs: Job[]): QueuedLookup {
+/**
+ * The same file of the same torrent on another service. File IDs differ per service, and so may the folder a path
+ * starts with, so the file name and size identify it; names that repeat inside the torrent (`S01/01.mkv`,
+ * `S02/01.mkv`) also take their parent folder.
+ */
+export function fileIdentity(draft: Draft, file: TorrentFile): string {
+  let names = identityCache.get(draft.files);
+  if (!names) {
+    const plain = (f: TorrentFile) => `${baseName(f.path).toLowerCase()}|${f.bytes}`;
+    const counts = new Map<string, number>();
+    for (const f of draft.files) counts.set(plain(f), (counts.get(plain(f)) ?? 0) + 1);
+    names = new Map();
+    for (const f of draft.files) {
+      const parts = normalize(f.path).split('/').filter(Boolean);
+      const parent = parts.length > 1 ? parts[parts.length - 2].toLowerCase() : '';
+      names.set(f, (counts.get(plain(f)) ?? 0) > 1 ? `${plain(f)}|${parent}` : plain(f));
+    }
+    identityCache.set(draft.files, names);
+  }
+  const name = names.get(file) ?? `${baseName(file.path).toLowerCase()}|${file.bytes}`;
+  return `${draft.sourceKey.toLowerCase()}|${name}`;
+}
+
+/** Source keys that the Library holds on more than one service. */
+function sharedSources(library: Draft[]): Set<string> {
+  const seen = new Map<string, Provider>();
+  const shared = new Set<string>();
+  for (const draft of library) {
+    const key = draft.sourceKey.toLowerCase();
+    const first = seen.get(key);
+    if (first === undefined) seen.set(key, draft.provider);
+    else if (first !== draft.provider) shared.add(key);
+  }
+  return shared;
+}
+
+/** `file` lets a lookup see the same file queued from another service. */
+export type QueuedLookup = (draft: Draft, fileId: number, file?: TorrentFile) => boolean;
+
+export function queuedLookup(jobs: Job[], library: Draft[] = []): QueuedLookup {
   const map = new Map<string, 'all' | Set<number>>();
   for (const job of jobs) {
     const id = draftId(job);
@@ -100,10 +141,41 @@ export function queuedLookup(jobs: Job[]): QueuedLookup {
       map.set(id, set);
     }
   }
-  return (draft, fileId) => {
+  // Only torrents held on several services need the slower match by name and size.
+  const shared = sharedSources(library);
+  const identities = new Set<string>();
+  if (shared.size) {
+    const byId = new Map(library.map((d) => [draftId(d), d]));
+    for (const job of jobs) {
+      const draft = shared.has(job.sourceKey.toLowerCase()) ? byId.get(draftId(job)) : undefined;
+      if (!draft) continue;
+      const wanted = job.selectedFileIds === null ? null : new Set(job.selectedFileIds);
+      for (const file of draft.files) if (!wanted || wanted.has(file.id)) identities.add(fileIdentity(draft, file));
+    }
+  }
+  return (draft, fileId, file) => {
     const entry = map.get(draftId(draft));
-    return entry === 'all' || (entry?.has(fileId) ?? false);
+    if (entry === 'all' || entry?.has(fileId)) return true;
+    return file !== undefined && identities.size > 0 && shared.has(draft.sourceKey.toLowerCase()) && identities.has(fileIdentity(draft, file));
   };
+}
+
+/** Higher means a better service to download a torrent from (for example: already complete in its cloud). */
+export type Rank = (draft: Draft) => number;
+
+/**
+ * When the same file is offered by several services, keep only the best-ranked one (the first on a tie), so a
+ * torrent added to every service is still downloaded once.
+ */
+function oneServicePerFile(candidates: { draft: Draft; file: TorrentFile }[], rank?: Rank): (draft: Draft, file: TorrentFile) => boolean {
+  const best = new Map<string, { provider: Provider; score: number }>();
+  for (const { draft, file } of candidates) {
+    const id = fileIdentity(draft, file);
+    const score = rank?.(draft) ?? 0;
+    const current = best.get(id);
+    if (!current || score > current.score) best.set(id, { provider: draft.provider, score });
+  }
+  return (draft, file) => best.get(fileIdentity(draft, file))?.provider === draft.provider;
 }
 
 function prefixOf(folder: string): string {
@@ -173,9 +245,9 @@ export function isStatusPartial(entry: Entry) {
   return !isStatusDone(entry) && (entry.downloaded > 0 || entry.partial > 0);
 }
 
-export function buildEntries(library: Draft[], provider: Provider, jobs: Job[], query: BrowserQuery): Entry[] {
-  const isQueued = queuedLookup(jobs);
-  const drafts = activeDrafts(library, provider);
+export function buildEntries(library: Draft[], source: SourceFilter, jobs: Job[], query: BrowserQuery): Entry[] {
+  const isQueued = queuedLookup(jobs, library);
+  const drafts = activeDrafts(library, source);
   const { location } = query;
   const open = location.draft ? drafts.find((d) => draftId(d) === location.draft) ?? null : null;
   const recursive = location.flat || query.videosOnly || query.search.trim() !== '';
@@ -185,7 +257,7 @@ export function buildEntries(library: Draft[], provider: Provider, jobs: Job[], 
     return {
       key: `file:${draftId(draft)}:${file.id}`, kind: 'file', draft, file, folderPath: '', name: baseName(file.path), location: `${draft.name} / ${displayPath(draft, file)}`,
       size: file.bytes, fileCount: 1, addedAt: draft.addedAt ? Date.parse(draft.addedAt) : 0, total: 1, downloaded: isDone ? 1 : 0, partial: !isDone && partial.has(file.id) ? 1 : 0,
-      queued: isQueued(draft, file.id), pending: false, videoKind: kindOf(file.path)
+      queued: isQueued(draft, file.id, file), pending: false, videoKind: kindOf(file.path)
     };
   };
   const folderEntry = (draft: Draft, path: string, name: string, stats: Aggregate | undefined, pending: boolean): Entry => ({
@@ -235,26 +307,36 @@ export function buildEntries(library: Draft[], provider: Provider, jobs: Job[], 
 
 export function sortEntries(entries: Entry[], drafts: Draft[], query: Pick<BrowserQuery, 'sort' | 'header'>): Entry[] {
   const position = new Map(drafts.map((d, index) => [draftId(d), index]));
-  const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: false });
+  const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+  // Insertion order breaks ties between torrents added in the same instant (or without a date): later entries are newer.
+  const added = (left: Entry, right: Entry) => left.addedAt - right.addedAt || (position.get(draftId(left.draft)) ?? 0) - (position.get(draftId(right.draft)) ?? 0);
+  // The chosen order is the primary key: nothing (not even download status) may reorder rows ahead of it. Folders stay
+  // above files, as in a file explorer.
   return entries.sort((left, right) => {
-    const done = Number(isStatusDone(left)) - Number(isStatusDone(right));
-    if (done) return done;
-    const partial = Number(isStatusPartial(left)) - Number(isStatusPartial(right));
-    if (partial) return partial;
     const folders = Number(right.kind === 'folder') - Number(left.kind === 'folder');
     if (folders) return folders;
     if (query.header) {
       const { column, direction } = query.header;
       const value =
-        column === 'size' ? (left.kind === 'folder' ? left.total - right.total : left.size - right.size) : column === 'status' ? collator.compare(statusText(left), statusText(right)) : collator.compare(left.name, right.name);
+        column === 'size' ? (left.kind === 'folder' ? left.total - right.total : left.size - right.size)
+        : column === 'added' ? added(left, right)
+        : column === 'status' ? collator.compare(statusText(left), statusText(right))
+        : column === 'source' ? collator.compare(providerLabel(left.draft.provider), providerLabel(right.draft.provider))
+        : collator.compare(left.name, right.name);
       if (value) return direction === 'desc' ? -value : value;
     } else if (query.sort !== 'name') {
-      let date = left.addedAt - right.addedAt;
-      if (!date) date = (position.get(draftId(left.draft)) ?? 0) - (position.get(draftId(right.draft)) ?? 0);
+      const date = added(left, right);
       if (date) return query.sort === 'added-desc' ? -date : date;
     }
     return collator.compare(left.name, right.name) || collator.compare(left.location, right.location);
   });
+}
+
+/** A magnet link for a torrent: the original one when it was added as a magnet (keeps its trackers), else rebuilt from its hash. */
+export function magnetOf(draft: Draft): string | null {
+  if (/^magnet:/i.test(draft.source)) return draft.source;
+  const hash = /^btih:([0-9a-z]+)$/i.exec(draft.sourceKey)?.[1];
+  return hash ? `magnet:?xt=urn:btih:${hash}&dn=${encodeURIComponent(draft.name)}` : null;
 }
 
 export const statusText = (entry: Entry) => (isStatusDone(entry) ? 'done' : isStatusPartial(entry) ? 'partial' : entry.queued ? 'queued' : 'new');
@@ -271,11 +353,14 @@ export interface QueueRequest {
   fileIds: number[];
 }
 
-export function queueRequests(entries: Entry[], isQueued: QueuedLookup): QueueRequest[] {
+export function queueRequests(entries: Entry[], isQueued: QueuedLookup, rank?: Rank): QueueRequest[] {
+  const candidates: { draft: Draft; file: TorrentFile }[] = [];
+  for (const entry of entries) for (const file of filesOf(entry)) if (!isQueued(entry.draft, file.id, file)) candidates.push({ draft: entry.draft, file });
+  const chosen = oneServicePerFile(candidates, rank);
   const groups = new Map<string, QueueRequest>();
   for (const entry of entries) {
     for (const file of filesOf(entry)) {
-      if (isQueued(entry.draft, file.id)) continue;
+      if (isQueued(entry.draft, file.id, file) || !chosen(entry.draft, file)) continue;
       const id = draftId(entry.draft);
       const group = groups.get(id) ?? { provider: entry.draft.provider, sourceKey: entry.draft.sourceKey, fileIds: [] };
       if (!group.fileIds.includes(file.id)) group.fileIds.push(file.id);
@@ -285,17 +370,20 @@ export function queueRequests(entries: Entry[], isQueued: QueuedLookup): QueueRe
   return [...groups.values()];
 }
 
-export function remainingRequests(library: Draft[], provider: Provider, jobs: Job[]): QueueRequest[] {
-  const isQueued = queuedLookup(jobs);
+export function remainingRequests(library: Draft[], source: SourceFilter, jobs: Job[], rank?: Rank): QueueRequest[] {
+  const isQueued = queuedLookup(jobs, library);
+  const drafts = activeDrafts(library, source);
+  const candidates = drafts.flatMap((draft) => visibleFiles(draft).filter((file) => !isQueued(draft, file.id, file)).map((file) => ({ draft, file })));
+  const chosen = oneServicePerFile(candidates, rank);
   const out: QueueRequest[] = [];
-  for (const draft of activeDrafts(library, provider)) {
-    const ids = visibleFiles(draft).filter((file) => !isQueued(draft, file.id)).map((file) => file.id);
+  for (const draft of drafts) {
+    const ids = visibleFiles(draft).filter((file) => !isQueued(draft, file.id, file) && chosen(draft, file)).map((file) => file.id);
     if (ids.length) out.push({ provider: draft.provider, sourceKey: draft.sourceKey, fileIds: ids });
   }
   return out;
 }
 
-export const remainingCount = (library: Draft[], provider: Provider, jobs: Job[]) => remainingRequests(library, provider, jobs).reduce((sum, r) => sum + r.fileIds.length, 0);
+export const remainingCount = (library: Draft[], source: SourceFilter, jobs: Job[]) => remainingRequests(library, source, jobs).reduce((sum, r) => sum + r.fileIds.length, 0);
 
 /** Patches that hide the given entries from the library, plus the patches that restore the previous state. */
 export function removalPatches(entries: Entry[]): { apply: LibraryPatch[]; undo: LibraryPatch[] } {

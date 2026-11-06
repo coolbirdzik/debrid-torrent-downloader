@@ -12,13 +12,13 @@
   import { formatBytes } from '../browser';
   import { confirmAction } from '../confirm.svelte';
   import { t, tm } from '../i18n.svelte';
-  import { canRemove, canResume, canRetry, canStop, providerLabel, type Job } from '../types';
+  import { canRemove, canResume, canRetry, canStop, providerLabel, providerShort, type Job } from '../types';
   import VirtualList from './VirtualList.svelte';
 
   let selected = $state.raw(new Set<string>());
   let anchor = $state<string | null>(null);
 
-  const jobs = $derived(app.jobsHere);
+  const jobs = $derived(app.jobs);
   const chosen = $derived(jobs.filter((job) => selected.has(job.id)));
   const activeNow = $derived(jobs.filter((job) => job.isActive).length);
   const failed = $derived(jobs.filter(canRetry).length);
@@ -59,7 +59,7 @@
   }
 
   function openFolder() {
-    const dir = chosen[0]?.outputDirectory ?? app.settings.outputDirectory;
+    const dir = chosen[0]?.outputDirectory ?? chosen[0]?.targetDirectory ?? app.settings.outputDirectory;
     if (dir) void app.run(() => api.openFolder(dir));
   }
 </script>
@@ -80,7 +80,7 @@
   </header>
 
   <div class="card table">
-    <div class="cols head-row"><span>{t('Torrent / File')}</span><span>{t('Dung lượng')}</span><span>{providerLabel(app.settings.provider)}</span><span>{t('Tải về máy')}</span><span>{t('Trạng thái')}</span><span>{t('Thao tác')}</span></div>
+    <div class="cols head-row"><span>{t('Torrent / File')}</span><span>{t('Dung lượng')}</span><span>{t('Dịch vụ tải')}</span><span>{t('Tải về máy')}</span><span>{t('Trạng thái')}</span><span>{t('Thao tác')}</span></div>
     <div class="body">
       {#if jobs.length === 0}
         <div class="empty">
@@ -97,7 +97,7 @@
                 <span class="caption ell" title={tm(job.detail)}>{tm(job.detail)}</span>
               </div>
               <span>{formatBytes(job.totalBytes)}</span>
-              <div class="prog"><span>{job.remoteProgress.toFixed(0)}%</span><div class="bar"><span style:width="{job.remoteProgress}%"></span></div></div>
+              <div class="prog" title={providerLabel(job.provider)}><span>{providerShort(job.provider)} · {job.remoteProgress.toFixed(0)}%</span><div class="bar"><span style:width="{job.remoteProgress}%"></span></div></div>
               <div class="prog"><span>{job.localProgress.toFixed(0)}%</span><div class="bar"><span style:width="{job.localProgress}%"></span></div></div>
               <span><span class="pill {tone(job)}">{stateLabel(job)}</span></span>
               <div class="row-actions">

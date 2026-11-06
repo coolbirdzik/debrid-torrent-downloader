@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import type { AddResult, DeleteOutcome, Draft, Job, LibraryPatch, Marks, Msg, Provider, RemoteTorrent, Settings, Snapshot, UpdateInfo, User } from './types';
+import type { AccountInfo, AddResult, CloudUpdate, DeleteOutcome, Draft, Job, LibraryPatch, Marks, Msg, Provider, RemoteTorrent, Settings, Snapshot, UpdateInfo, User } from './types';
 
 /** The backend rejects with `{ key, args }`; anything else (a runtime failure) becomes a plain message. */
 export function toMsg(error: unknown): Msg {
@@ -21,12 +21,12 @@ export const api = {
   updateSettings: (patch: Partial<Settings>) => call<Settings>('update_settings', { patch }),
   saveToken: (token: string) => call<Msg | null>('save_token', { token }),
   connect: () => call<User>('connect'),
-  libraryAdd: (text: string) => call<AddResult>('library_add', { text }),
+  libraryAdd: (text: string, providers: Provider[]) => call<AddResult>('library_add', { text, providers }),
   libraryUpdate: (patches: LibraryPatch[]) => call<void>('library_update', { patches }),
   libraryReset: () => call<void>('library_reset'),
   libraryCancelInspect: () => call<void>('library_cancel_inspect'),
   libraryRetry: () => call<void>('library_retry'),
-  queueAdd: (items: { provider: Provider; sourceKey: string; fileIds: number[] }[]) => call<string[]>('queue_add', { items }),
+  queueAdd: (items: { provider: Provider; sourceKey: string; fileIds: number[]; outputDirectory?: string }[]) => call<string[]>('queue_add', { items }),
   queueStart: (ids?: string[]) => call<void>('queue_start', { ids: ids ?? null }),
   queuePause: () => call<void>('queue_pause'),
   queueStop: (ids?: string[]) => call<void>('queue_stop', { ids: ids ?? null }),
@@ -47,7 +47,8 @@ export interface Events {
   marks: Marks[];
   inspect: { running: boolean; done: number; total: number };
   status: Msg;
-  account: User;
+  account: AccountInfo;
+  cloud: CloudUpdate[];
 }
 
 export async function on<K extends keyof Events>(event: K, handler: (payload: Events[K]) => void): Promise<UnlistenFn> {

@@ -1,15 +1,18 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { api, on, toMsg } from './api';
 import { setLanguage } from './i18n.svelte';
-import type { Draft, Job, Marks, Msg, Provider, Settings, Snapshot, UpdateInfo, User } from './types';
-import { canRetry, canResume } from './types';
+import type { AccountInfo, CloudState, Draft, Job, Marks, Msg, Provider, Settings, Snapshot, UpdateInfo, User } from './types';
+import { canRetry, canResume, PROVIDERS } from './types';
 
 export type Page = 'library' | 'queue' | 'remote' | 'settings';
 
 const defaults: Settings = {
-  provider: 'realDebrid', language: 'en', appearance: 'system', browserView: 'list', browserSort: 'name',
-  outputDirectory: '', flattenFiles: true, concurrency: 3, rememberToken: true, libraryImportPaused: false, checkUpdates: true
+  provider: 'realDebrid', language: 'en', appearance: 'system', browserView: 'list', browserSort: 'added-desc',
+  outputDirectory: '', flattenFiles: true, concurrency: 3, rememberToken: true, libraryImportPaused: false, checkUpdates: true,
+  libraryProviders: [], rememberLibraryProviders: false
 };
+
+const cloudKey = (draft: { provider: Provider; sourceKey: string }) => `${draft.provider}|${draft.sourceKey.toLowerCase()}`;
 
 export interface Toast {
   id: number;
@@ -24,6 +27,10 @@ class AppState {
   // Large and replaced wholesale on every update, so keep them out of Svelte's deep proxies.
   library = $state.raw<Draft[]>([]);
   jobs = $state.raw<Job[]>([]);
+  /** Cloud progress per Library torrent (key: `provider|sourcekey`), kept apart so it never rebuilds the rows. */
+  cloud = $state.raw<Map<string, CloudState>>(new Map());
+  /** Every service; `hasToken`/`user` below mirror the one chosen in Settings. */
+  accounts = $state<AccountInfo[]>(PROVIDERS.map((p) => ({ provider: p.id, hasToken: false, user: null })));
   hasToken = $state(false);
   user = $state<User | null>(null);
   warning = $state<Msg | null>(null);
@@ -36,12 +43,13 @@ class AppState {
   update = $state<UpdateInfo | null>(null);
   checkingUpdate = $state(false);
 
-  jobsHere = $derived(this.jobs.filter((job) => job.provider === this.settings.provider));
-  activeCount = $derived(this.jobsHere.filter((job) => job.state !== 'completed').length);
-  completedCount = $derived(this.jobsHere.filter((job) => job.state === 'completed').length);
-  retryable = $derived(this.jobsHere.filter(canRetry).length);
-  anyActive = $derived(this.jobsHere.some((job) => job.isActive));
-  anyResumable = $derived(this.jobsHere.some(canResume));
+  /** Services with a token: the ones the Library and the queue can use. */
+  usableProviders = $derived(this.accounts.filter((a) => a.hasToken).map((a) => a.provider));
+  activeCount = $derived(this.jobs.filter((job) => job.state !== 'completed').length);
+  completedCount = $derived(this.jobs.filter((job) => job.state === 'completed').length);
+  retryable = $derived(this.jobs.filter(canRetry).length);
+  anyActive = $derived(this.jobs.some((job) => job.isActive));
+  anyResumable = $derived(this.jobs.some(canResume));
 
   private toastId = 0;
 
@@ -65,7 +73,15 @@ class AppState {
       on('marks', (marks) => this.applyMarks(marks)),
       on('inspect', (state) => (this.inspect = state)),
       on('status', (message) => (this.status = message)),
-      on('account', (user) => { this.user = user; this.hasToken = true; })
+      on('account', (account) => this.setAccount(account)),
+      on('cloud', (updates) => {
+        const next = new Map(this.cloud);
+        for (const update of updates) {
+          if (update.cloud) next.set(cloudKey(update), update.cloud);
+          else next.delete(cloudKey(update));
+        }
+        this.cloud = next;
+      })
     ]);
   }
 
@@ -73,6 +89,8 @@ class AppState {
     this.settings = snapshot.settings;
     this.library = snapshot.library;
     this.jobs = snapshot.jobs;
+    this.cloud = new Map(snapshot.library.filter((d) => d.cloud).map((d) => [cloudKey(d), d.cloud!]));
+    this.accounts = snapshot.accounts;
     this.hasToken = snapshot.account.hasToken;
     this.user = snapshot.account.user;
     this.warning = snapshot.warning;
@@ -81,7 +99,26 @@ class AppState {
     applyAppearance(snapshot.settings.appearance);
   }
 
+  private setAccount(account: AccountInfo) {
+    this.accounts = this.accounts.map((a) => (a.provider === account.provider ? account : a));
+    if (account.provider === this.settings.provider) {
+      this.user = account.user;
+      this.hasToken = account.hasToken;
+    }
+  }
+
+  cloudOf(draft: Draft): CloudState | undefined {
+    return this.cloud.get(cloudKey(draft));
+  }
+
   private upsertDraft(draft: Draft) {
+    const key = cloudKey(draft);
+    if ((draft.cloud ?? undefined) !== this.cloud.get(key)) {
+      const next = new Map(this.cloud);
+      if (draft.cloud) next.set(key, draft.cloud);
+      else next.delete(key);
+      this.cloud = next;
+    }
     const same = (d: Draft) => d.provider === draft.provider && d.sourceKey.toLowerCase() === draft.sourceKey.toLowerCase();
     const index = this.library.findIndex(same);
     if (index < 0) this.library = [...this.library, draft];
@@ -126,9 +163,9 @@ class AppState {
     const saved = await this.run(() => api.updateSettings(patch));
     if (saved) this.settings = saved;
     if (patch.provider) {
-      this.user = null;
-      const snapshot = await api.bootstrap();
-      this.hasToken = snapshot.account.hasToken;
+      const account = this.accounts.find((a) => a.provider === patch.provider);
+      this.user = account?.user ?? null;
+      this.hasToken = account?.hasToken ?? false;
     }
   }
 
@@ -144,8 +181,7 @@ class AppState {
 
   async saveToken(token: string) {
     const warning = await this.run(() => api.saveToken(token));
-    this.hasToken = token.trim().length > 0;
-    this.user = null;
+    this.setAccount({ provider: this.settings.provider, hasToken: token.trim().length > 0, user: null });
     if (warning) this.toast(warning, 'error');
   }
 

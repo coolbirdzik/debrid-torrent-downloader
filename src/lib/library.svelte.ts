@@ -1,8 +1,16 @@
 import { untrack } from 'svelte';
 import { api } from './api';
 import { app } from './app.svelte';
-import { activeDrafts, buildEntries, queueRequests, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location } from './browser';
-import type { LibraryPatch } from './types';
+import { askDestination } from './destination.svelte';
+import { activeDrafts, buildEntries, draftId, queueRequests, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
+import { chooseProviders } from './providers.svelte';
+import { PROVIDERS, type LibraryPatch, type Provider } from './types';
+
+/** Distinct magnets, links and .torrent paths in the add box. */
+export function countSources(text: string): number {
+  const found = text.match(/magnet:\?[^\s]+|https?:\/\/[^\s"]+|[A-Za-z]:\\[^\r\n"]*\.torrent|\/[^\r\n"]*\.torrent/gi) ?? [];
+  return new Set(found.map((value) => value.toLowerCase())).size;
+}
 
 const HOME: Location = { draft: null, path: '', flat: false };
 
@@ -18,6 +26,8 @@ class LibraryState {
   anchor = $state<string | null>(null);
   undoStack = $state.raw<LibraryPatch[][]>([]);
   input = $state('');
+  /** Which service's torrents are shown. */
+  source = $state<SourceFilter>('all');
 
   // Only membership of the queue matters to the rows, not progress: a string signature keeps the (large) row list from
   // being rebuilt on every progress event.
@@ -26,17 +36,36 @@ class LibraryState {
   entries = $derived.by<Entry[]>(() => {
     this.queueSignature;
     const jobs = untrack(() => app.jobs);
-    return buildEntries(app.library, app.settings.provider, jobs, {
+    return buildEntries(app.library, this.source, jobs, {
       location: this.location, search: this.search, videosOnly: this.videosOnly, sort: app.settings.browserSort, header: this.header
     });
   });
 
   selectedEntries = $derived(this.entries.filter((entry) => this.selected.has(entry.key)));
-  drafts = $derived(activeDrafts(app.library, app.settings.provider));
+  drafts = $derived(activeDrafts(app.library, this.source));
+  /** Services that have torrents in the Library, in the fixed order: the source filter offers only these. */
+  sources = $derived(PROVIDERS.map((p) => p.id).filter((id) => app.library.some((d) => d.provider === id && !d.isHidden)));
   remaining = $derived.by(() => {
     this.queueSignature;
-    return remainingCount(app.library, app.settings.provider, untrack(() => app.jobs));
+    return remainingCount(app.library, this.source, untrack(() => app.jobs));
   });
+  /** Remote progress of queued torrents still being fetched by their service, per Library torrent. */
+  jobCloud = $derived.by(() => {
+    const map = new Map<string, number>();
+    for (const job of app.jobs) {
+      if (job.state !== 'adding' && job.state !== 'waiting') continue;
+      const id = draftId(job);
+      map.set(id, Math.max(map.get(id) ?? 0, job.remoteProgress));
+    }
+    return map;
+  });
+
+  /** Prefer the service whose cloud copy is furthest along when the same file is on several services. */
+  private rank: Rank = (draft) => {
+    const cloud = app.cloudOf(draft);
+    if (!cloud) return draft.torrentId ? 0 : -1;
+    return cloud.status === 'downloaded' ? 1000 : cloud.progress;
+  };
   canQueue = $derived(this.selectedEntries.some((entry) => !entry.queued && (entry.kind === 'file' || entry.fileCount > 0)));
   selectedBytes = $derived(this.selectedEntries.reduce((sum, entry) => sum + entry.size, 0));
   pendingCount = $derived(this.drafts.filter((d) => d.files.length === 0).length);
@@ -62,6 +91,13 @@ class LibraryState {
       clearTimeout(this.timer);
       this.search = this.rawSearch;
     }
+  }
+
+  setSource(value: SourceFilter) {
+    this.source = value;
+    this.clearSelection();
+    const open = this.location.draft;
+    if (open && value !== 'all' && !open.startsWith(`${value}|`)) this.navigate({ ...HOME });
   }
 
   setVideosOnly(value: boolean) {
@@ -182,24 +218,34 @@ class LibraryState {
 
   async queueSelected() {
     this.flush();
-    const lookup = queuedLookup(untrack(() => app.jobs));
-    const requests = queueRequests(this.selectedEntries, lookup);
+    const lookup = queuedLookup(untrack(() => app.jobs), app.library);
+    const requests = queueRequests(this.selectedEntries, lookup, this.rank);
     if (requests.length === 0) return;
+    const directory = await this.askDirectory(requests);
+    if (directory === null) return;
     this.clearSelection();
-    await this.queueAndStart(requests);
+    await this.queueAndStart(requests, directory);
   }
 
   async queueRemaining() {
     this.flush();
-    const requests = remainingRequests(app.library, app.settings.provider, untrack(() => app.jobs));
+    const requests = remainingRequests(app.library, this.source, untrack(() => app.jobs), this.rank);
     if (requests.length === 0) return;
+    const directory = await this.askDirectory(requests);
+    if (directory === null) return;
     this.clearSelection();
-    await this.queueAndStart(requests);
+    await this.queueAndStart(requests, directory);
+  }
+
+  /** Where to save: the Settings folder is offered first. `null` means the user cancelled. */
+  private askDirectory(requests: Parameters<typeof api.queueAdd>[0]): Promise<string | null> {
+    const files = requests.reduce((sum, request) => sum + request.fileIds.length, 0);
+    return askDestination({ files, directory: app.settings.outputDirectory });
   }
 
   /** New queue rows start downloading right away; other queued, paused or stopped rows are left alone. */
-  private async queueAndStart(requests: Parameters<typeof api.queueAdd>[0]) {
-    const created = await app.run(() => api.queueAdd(requests));
+  private async queueAndStart(requests: Parameters<typeof api.queueAdd>[0], directory: string) {
+    const created = await app.run(() => api.queueAdd(requests.map((request) => ({ ...request, outputDirectory: directory }))));
     if (!created?.length) return;
     let started = true;
     await app.run(async () => {
@@ -224,7 +270,16 @@ class LibraryState {
   async add() {
     const text = this.input;
     if (!text.trim()) return;
-    const result = await app.run(() => api.libraryAdd(text));
+    const { settings } = app;
+    const choice = await chooseProviders({
+      count: countSources(text), usable: app.usableProviders, fallback: settings.provider, saved: settings.libraryProviders, remember: settings.rememberLibraryProviders
+    });
+    if (!choice) return;
+    const same = (a: Provider[], b: Provider[]) => a.length === b.length && a.every((p) => b.includes(p));
+    if (!same(choice.providers, settings.libraryProviders) || choice.remember !== settings.rememberLibraryProviders) {
+      void app.setSettings({ libraryProviders: choice.providers, rememberLibraryProviders: choice.remember });
+    }
+    const result = await app.run(() => api.libraryAdd(text, choice.providers));
     if (!result) return;
     this.input = '';
     if (result.errors.length) app.toast(result.errors[0], 'error');

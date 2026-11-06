@@ -1,6 +1,7 @@
 // Builds a portable copy of the app: the bare executable (no installer) plus a `portable` marker file, so the app
 // keeps its queue, library and settings in a `data` folder next to the executable. Run with `pnpm build:portable`.
 // Output: dist/portable/ and, on Windows, dist/DebridDock-portable-win-x64.zip.
+// `--skip-build` reuses target/release from an earlier `tauri build` (CI does this to avoid compiling twice).
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -13,7 +14,7 @@ const run = (command, args) => {
 	if (result.status !== 0) process.exit(result.status ?? 1);
 };
 
-run('pnpm', ['tauri', 'build', '--no-bundle']);
+if (!process.argv.includes('--skip-build')) run('pnpm', ['tauri', 'build', '--no-bundle']);
 
 const binary = join(root, 'target', 'release', windows ? 'rdbatch-desktop.exe' : 'rdbatch-desktop');
 if (!existsSync(binary)) {

@@ -70,15 +70,13 @@ impl Store {
 fn normalize(data: &mut Persisted) {
     let settings = &mut data.settings;
     settings.concurrency = settings.concurrency.clamp(1, 5);
-    if settings.language != "vi" {
-        settings.language = "en".into();
-    }
+    settings.language = crate::models::normalize_language(&settings.language);
     if !matches!(settings.appearance.as_str(), "light" | "dark") {
         settings.appearance = "system".into();
     }
     settings.browser_view = if settings.browser_view == "grid" { "grid".into() } else { "list".into() };
-    if !matches!(settings.browser_sort.as_str(), "added-desc" | "added-asc") {
-        settings.browser_sort = "name".into();
+    if !matches!(settings.browser_sort.as_str(), "name" | "added-desc" | "added-asc") {
+        settings.browser_sort = "added-desc".into();
     }
     for job in &mut data.jobs {
         job.is_active = false;
@@ -136,10 +134,18 @@ mod tests {
     fn defaults_apply_to_a_minimal_file() {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::new(dir.path());
-        std::fs::write(store.path(), br#"{"settings":{"concurrency":99,"language":"fr"}}"#).unwrap();
+        std::fs::write(store.path(), br#"{"settings":{"concurrency":99,"language":"xx"}}"#).unwrap();
         let loaded = store.load();
         assert_eq!(loaded.data.settings.concurrency, 5);
         assert_eq!(loaded.data.settings.language, "en");
         assert!(loaded.data.settings.flatten_files, "flat layout stays the default");
+    }
+
+    #[test]
+    fn supported_languages_survive_a_reload() {
+        for code in crate::models::SUPPORTED_LANGUAGES {
+            assert_eq!(crate::models::normalize_language(code), code);
+        }
+        assert_eq!(crate::models::normalize_language("xx"), "en");
     }
 }

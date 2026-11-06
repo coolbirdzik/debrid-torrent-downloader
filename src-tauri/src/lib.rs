@@ -44,8 +44,8 @@ async fn connect(app: Shared<'_>) -> Cmd<User> {
 }
 
 #[tauri::command]
-fn library_add(app: Shared, text: String) -> AddResult {
-    app.inner().library_add(&text)
+fn library_add(app: Shared, text: String, providers: Vec<rdbatch_core::models::Provider>) -> AddResult {
+    app.inner().library_add(&text, providers)
 }
 
 #[tauri::command]
@@ -69,8 +69,8 @@ fn library_retry(app: Shared) {
 }
 
 #[tauri::command]
-fn queue_add(app: Shared, items: Vec<QueueItem>) -> Vec<String> {
-    app.queue_add(items)
+fn queue_add(app: Shared, items: Vec<QueueItem>) -> Cmd<Vec<String>> {
+    Ok(app.queue_add(items)?)
 }
 
 #[tauri::command]
@@ -127,7 +127,7 @@ fn open_token_page(handle: tauri::AppHandle, provider: rdbatch_core::models::Pro
 
 #[tauri::command]
 async fn check_update(handle: tauri::AppHandle) -> Cmd<update::UpdateInfo> {
-    // The version in tauri.conf.json is the one release tags are checked against.
+    // tauri.conf.json points at package.json, the single version that release tags are checked against.
     let current = handle.package_info().version.to_string();
     update::check(&current).await.map_err(ApiError)
 }

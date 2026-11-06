@@ -100,6 +100,20 @@ async fn selected_file_ids_download_only_the_requested_files() {
 }
 
 #[tokio::test]
+async fn a_folder_chosen_for_a_job_replaces_the_session_folder() {
+    let f = fixture(Some("me")).await;
+    mount_torrent(&f, "T1", &[(1, "/Show/a.bin", b"alpha")], &[1]).await;
+    let session_dir = tempfile::tempdir().unwrap();
+    let chosen = tempfile::tempdir().unwrap();
+    let mut picked = job("T1", Some(vec![1]));
+    picked.target_directory = Some(chosen.path().to_string_lossy().to_string());
+    let done = run(&f, session_dir.path(), vec![picked]).await;
+    assert_eq!(done[0].state, JobState::Completed, "{:?}", done[0].detail);
+    assert_eq!(std::fs::read(chosen.path().join("a.bin")).unwrap(), b"alpha");
+    assert!(!session_dir.path().join("a.bin").exists(), "the Settings folder must stay untouched");
+}
+
+#[tokio::test]
 async fn combined_links_are_rejected_for_a_selection() {
     let f = fixture(None).await;
     // Two files are selected on the account but the provider returns a single combined link.

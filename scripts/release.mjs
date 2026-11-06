@@ -2,8 +2,8 @@
 //
 //   node scripts/release.mjs <X.Y.Z | patch | minor | major> [--dry-run] [--no-push] [--skip-checks] [--yes]
 //
-// Pushing the tag starts the "Build and release" workflow, which builds the installers and drafts a GitHub
-// release. The draft still has to be published by hand before the in-app update check can see it.
+// Pushing the tag starts the "Build and release" workflow, which tests, builds the installers and
+// publishes the GitHub release; the in-app update check sees it as soon as that finishes.
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -40,7 +40,6 @@ function runVisible(command, commandArgs) {
 // Files that carry the version. Each edit replaces only the version text, so line endings are preserved.
 const targets = [
   { file: 'package.json', pattern: /("version":\s*")([^"]+)(")/ },
-  { file: 'src-tauri/tauri.conf.json', pattern: /("version":\s*")([^"]+)(")/ },
   { file: 'src-tauri/Cargo.toml', pattern: /(^version\s*=\s*")([^"]+)(")/m },
   { file: 'crates/core/Cargo.toml', pattern: /(^version\s*=\s*")([^"]+)(")/m },
   // Cargo.lock lists the workspace crates too; `cargo check --locked` in CI fails if it is stale.
@@ -49,9 +48,10 @@ const targets = [
 ];
 
 const semver = /^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$/;
-const current = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8')).version;
+// package.json is the source of truth: tauri.conf.json points at it, and the Cargo manifests are kept in step.
+const current = JSON.parse(readFileSync('package.json', 'utf8')).version;
 const parts = semver.exec(current);
-if (!parts) fail(`Current version "${current}" in tauri.conf.json is not MAJOR.MINOR.PATCH.`);
+if (!parts) fail(`Current version "${current}" in package.json is not MAJOR.MINOR.PATCH.`);
 const [major, minor, patch] = parts.slice(1, 4).map(Number);
 
 let next;
@@ -68,7 +68,7 @@ const prerelease = next.includes('-');
 for (const { file, pattern } of targets) {
   const match = pattern.exec(readFileSync(file, 'utf8'));
   if (!match) fail(`Could not find the version in ${file}.`);
-  if (match[2] !== current) fail(`${file} is at ${match[2]} but tauri.conf.json is at ${current}. Make them agree first.`);
+  if (match[2] !== current) fail(`${file} is at ${match[2]} but package.json is at ${current}. Make them agree first.`);
 }
 
 const compare = (a, b) => {
@@ -129,8 +129,8 @@ say(`\n✔ Committed and tagged ${tag}.`);
 
 if (push) {
   run('git', ['push', '--atomic', 'origin', 'main', tag]);
-  say(`✔ Pushed main and ${tag}. The "Build and release" workflow is now drafting the release.`);
-  say('  Publish the draft on GitHub (Releases) when the build is green.');
+  say(`✔ Pushed main and ${tag}. The "Build and release" workflow is now building the release.`);
+  say('  It is published automatically when every job is green (Actions tab shows progress).');
 } else {
   say(`  Push when ready:  git push --atomic origin main ${tag}`);
 }

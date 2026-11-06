@@ -228,12 +228,18 @@ impl Engine {
 
     pub fn session(self: &Arc<Self>, root: PathBuf, concurrency: usize, flatten: bool) -> Arc<Session> {
         let jobs = self.queue.snapshot();
+        self.shared_session(root, flatten, Arc::new(Allocator::new(&jobs)), Arc::new(Semaphore::new(concurrency.clamp(1, 5))))
+    }
+
+    /// A session that shares file-name reservations and download slots with sessions of other providers, so two
+    /// services never write the same file and the concurrency setting stays a total.
+    pub fn shared_session(self: &Arc<Self>, root: PathBuf, flatten: bool, allocator: Arc<Allocator>, slots: Arc<Semaphore>) -> Arc<Session> {
         Arc::new(Session {
             engine: self.clone(),
             root,
             flatten,
-            allocator: Allocator::new(&jobs),
-            slots: Arc::new(Semaphore::new(concurrency.clamp(1, 5))),
+            allocator,
+            slots,
             active: Mutex::new(HashMap::new()),
             idle: watch::channel(true).0,
         })
@@ -276,6 +282,9 @@ impl Engine {
 
     async fn process(&self, id: &str, root: &Path, flatten: bool, allocator: &Allocator, ct: &CancellationToken) -> Result<()> {
         let job = self.queue.get(id).ok_or(Error::Cancelled)?;
+        // A folder chosen when the job was queued replaces the session-wide download folder for this job.
+        let target = job.target_directory.as_deref().map(str::trim).filter(|dir| !dir.is_empty()).map(PathBuf::from);
+        let root = target.as_deref().unwrap_or(root);
         let label = self.api.provider().label();
         if job.provider != self.api.provider() {
             return Err(Error::operation("Chọn dịch vụ {0} để tiếp tục torrent này.", &[&job.provider.label()]));
@@ -615,7 +624,7 @@ pub struct Session {
     engine: Arc<Engine>,
     root: PathBuf,
     flatten: bool,
-    allocator: Allocator,
+    allocator: Arc<Allocator>,
     slots: Arc<Semaphore>,
     active: Mutex<HashMap<String, Arc<Execution>>>,
     idle: watch::Sender<bool>,
@@ -634,6 +643,11 @@ pub async fn wait_done(mut done: watch::Receiver<bool>) {
 }
 
 impl Session {
+    /// The name reservations and download slots, for a session of another service that runs alongside this one.
+    pub fn shared(&self) -> (Arc<Allocator>, Arc<Semaphore>) {
+        (self.allocator.clone(), self.slots.clone())
+    }
+
     pub fn active_count(&self) -> usize {
         self.active.lock().unwrap().len()
     }

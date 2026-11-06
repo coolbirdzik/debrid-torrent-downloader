@@ -72,14 +72,14 @@ pub async fn check(current: &str) -> Result<UpdateInfo, Msg> {
         return Err(Msg::new("GitHub trả về lỗi {0}.", &[&status.as_u16()]));
     }
     let body = response.text().await.map_err(|_| Msg::plain("Không kết nối được GitHub. Kiểm tra mạng rồi thử lại."))?;
-    evaluate(&body, current, std::env::consts::OS, std::env::consts::ARCH)
+    evaluate(&body, current, std::env::consts::OS, std::env::consts::ARCH, is_portable())
 }
 
 fn none_published(current: &str) -> UpdateInfo {
     UpdateInfo { current: current.to_string(), latest: None, available: false, page_url: None, download_url: None, notes: String::new() }
 }
 
-fn evaluate(json: &str, current: &str, os: &str, arch: &str) -> Result<UpdateInfo, Msg> {
+fn evaluate(json: &str, current: &str, os: &str, arch: &str, portable: bool) -> Result<UpdateInfo, Msg> {
     let release: Release = serde_json::from_str(json).map_err(|_| Msg::plain("GitHub trả về dữ liệu không đọc được."))?;
     if release.draft || release.prerelease {
         return Ok(none_published(current));
@@ -90,7 +90,7 @@ fn evaluate(json: &str, current: &str, os: &str, arch: &str) -> Result<UpdateInf
         _ => false,
     };
     let page_url = Some(release.html_url.clone()).filter(|url| is_trusted_url(url));
-    let download_url = pick_asset(&release.assets, os, arch).filter(|url| is_trusted_url(url)).or_else(|| page_url.clone());
+    let download_url = pick_asset(&release.assets, os, arch, portable).filter(|url| is_trusted_url(url)).or_else(|| page_url.clone());
     Ok(UpdateInfo {
         current: current.to_string(),
         latest: Some(latest),
@@ -101,8 +101,23 @@ fn evaluate(json: &str, current: &str, os: &str, arch: &str) -> Result<UpdateInf
     })
 }
 
-/// The installer for this platform, best format first. Checksum files and other platforms' packages never match.
-fn pick_asset(assets: &[Asset], os: &str, arch: &str) -> Option<String> {
+/// The portable build is a folder with a `portable` marker file next to the executable (same rule as the data folder
+/// in lib.rs). Those users get the portable zip, since an installer would not replace what they run.
+fn is_portable() -> bool {
+    std::env::current_exe().ok().and_then(|exe| exe.parent().map(|folder| folder.join("portable").is_file())).unwrap_or(false)
+}
+
+/// The download for this platform, best format first. Checksum files and other platforms' packages never match.
+fn pick_asset(assets: &[Asset], os: &str, arch: &str, portable: bool) -> Option<String> {
+    if portable && os == "windows" {
+        let zip = assets.iter().find(|a| {
+            let name = a.name.to_lowercase();
+            name.contains("portable") && name.ends_with(".zip")
+        });
+        if let Some(asset) = zip {
+            return Some(asset.browser_download_url.clone());
+        }
+    }
     let formats: &[&str] = match os {
         "windows" => &["-setup.exe", ".msi"],
         "macos" => &[".dmg"],
@@ -217,6 +232,7 @@ mod tests {
             {"name": "DebridDock_0.4.0_universal.dmg", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock_0.4.0_universal.dmg"},
             {"name": "DebridDock_0.4.0_amd64.deb", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock_0.4.0_amd64.deb"},
             {"name": "DebridDock_0.4.0_amd64.AppImage", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock_0.4.0_amd64.AppImage"},
+            {"name": "DebridDock-portable-win-x64.zip", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock-portable-win-x64.zip"},
             {"name": "SHA256SUMS.txt", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/SHA256SUMS.txt"}
         ]
     }"#;
@@ -227,41 +243,60 @@ mod tests {
 
     #[test]
     fn newer_release_picks_the_platform_installer() {
-        let windows = evaluate(RELEASE, "0.3.0", "windows", "x86_64").unwrap();
+        let windows = evaluate(RELEASE, "0.3.0", "windows", "x86_64", false).unwrap();
         assert!(windows.available);
         assert_eq!(windows.latest.as_deref(), Some("0.4.0"));
         assert_eq!(file(&windows.download_url), "DebridDock_0.4.0_x64-setup.exe");
         assert_eq!(windows.notes, "- Faster imports");
-        assert_eq!(file(&evaluate(RELEASE, "0.3.0", "macos", "aarch64").unwrap().download_url), "DebridDock_0.4.0_universal.dmg");
-        assert_eq!(file(&evaluate(RELEASE, "0.3.0", "linux", "x86_64").unwrap().download_url), "DebridDock_0.4.0_amd64.AppImage");
+        assert_eq!(file(&evaluate(RELEASE, "0.3.0", "macos", "aarch64", false).unwrap().download_url), "DebridDock_0.4.0_universal.dmg");
+        assert_eq!(file(&evaluate(RELEASE, "0.3.0", "linux", "x86_64", false).unwrap().download_url), "DebridDock_0.4.0_amd64.AppImage");
+    }
+
+    #[test]
+    fn portable_windows_gets_the_zip_and_everyone_else_the_installer() {
+        let portable = evaluate(RELEASE, "0.3.0", "windows", "x86_64", true).unwrap();
+        assert_eq!(file(&portable.download_url), "DebridDock-portable-win-x64.zip");
+        // Never offered to installed copies, nor to other systems.
+        assert_eq!(file(&evaluate(RELEASE, "0.3.0", "windows", "x86_64", false).unwrap().download_url), "DebridDock_0.4.0_x64-setup.exe");
+        assert_eq!(file(&evaluate(RELEASE, "0.3.0", "linux", "x86_64", true).unwrap().download_url), "DebridDock_0.4.0_amd64.AppImage");
+        // A release without a portable zip falls back to the installer.
+        let without = RELEASE.replace("DebridDock-portable-win-x64.zip", "notes.txt");
+        assert_eq!(file(&evaluate(&without, "0.3.0", "windows", "x86_64", true).unwrap().download_url), "DebridDock_0.4.0_x64-setup.exe");
+    }
+
+    #[test]
+    fn the_app_version_is_the_one_in_package_json() {
+        let package: serde_json::Value = serde_json::from_str(include_str!("../../package.json")).unwrap();
+        let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
+        assert_eq!(context.package_info().version.to_string(), package["version"].as_str().unwrap());
     }
 
     #[test]
     fn falls_back_to_the_release_page_without_a_matching_asset() {
         // aarch64 Linux has no arm64 package in this release, and an amd64 one must not be offered.
-        let info = evaluate(RELEASE, "0.3.0", "linux", "aarch64").unwrap();
+        let info = evaluate(RELEASE, "0.3.0", "linux", "aarch64", false).unwrap();
         assert_eq!(info.download_url, info.page_url);
         assert!(info.page_url.unwrap().ends_with("/releases/tag/v0.4.0"));
     }
 
     #[test]
     fn same_or_older_release_is_not_an_update() {
-        assert!(!evaluate(RELEASE, "0.4.0", "windows", "x86_64").unwrap().available);
-        assert!(!evaluate(RELEASE, "0.5.0", "windows", "x86_64").unwrap().available);
-        assert!(evaluate(RELEASE, "0.4.0-beta.1", "windows", "x86_64").unwrap().available);
+        assert!(!evaluate(RELEASE, "0.4.0", "windows", "x86_64", false).unwrap().available);
+        assert!(!evaluate(RELEASE, "0.5.0", "windows", "x86_64", false).unwrap().available);
+        assert!(evaluate(RELEASE, "0.4.0-beta.1", "windows", "x86_64", false).unwrap().available);
     }
 
     #[test]
     fn drafts_prereleases_and_foreign_links_are_ignored() {
         let draft = RELEASE.replace("\"draft\": false", "\"draft\": true");
-        assert_eq!(evaluate(&draft, "0.3.0", "windows", "x86_64").unwrap().latest, None);
+        assert_eq!(evaluate(&draft, "0.3.0", "windows", "x86_64", false).unwrap().latest, None);
         let pre = RELEASE.replace("\"prerelease\": false", "\"prerelease\": true");
-        assert!(!evaluate(&pre, "0.3.0", "windows", "x86_64").unwrap().available);
+        assert!(!evaluate(&pre, "0.3.0", "windows", "x86_64", false).unwrap().available);
         let foreign = RELEASE.replace("https://github.com/coolbirdzik/", "https://evil.example/");
-        let info = evaluate(&foreign, "0.3.0", "windows", "x86_64").unwrap();
+        let info = evaluate(&foreign, "0.3.0", "windows", "x86_64", false).unwrap();
         assert!(info.available);
         assert_eq!((info.page_url, info.download_url), (None, None));
-        assert!(evaluate("{}", "0.3.0", "windows", "x86_64").is_err());
+        assert!(evaluate("{}", "0.3.0", "windows", "x86_64", false).is_err());
     }
 
     #[test]

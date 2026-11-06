@@ -5,9 +5,9 @@
 //! an immediate flush (a freshly created remote torrent ID).
 
 use chrono::Utc;
-use rdbatch_core::engine::{Engine, Queue, Session};
+use rdbatch_core::engine::{Allocator, Engine, Queue, Session};
 use rdbatch_core::error::{Error, Result};
-use rdbatch_core::models::{Draft, Job, JobState, Msg, Persisted, Provider, RemoteRef, RemoteTorrent, Settings, User};
+use rdbatch_core::models::{CloudState, Draft, Job, JobState, Msg, Persisted, Provider, RemoteRef, RemoteTorrent, Settings, User};
 use rdbatch_core::provider::{self, Debrid, Timing};
 use rdbatch_core::store::Store;
 use rdbatch_core::{parser, search};
@@ -18,9 +18,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
+use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
 const SERVICE: &str = "dev.rdbatch.desktop";
+const ALL_PROVIDERS: [Provider; 3] = [Provider::RealDebrid, Provider::TorBox, Provider::AllDebrid];
 
 #[derive(Default)]
 struct Data {
@@ -41,11 +43,12 @@ struct Notifier {
     persist: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
 }
 
+/// A verified account and its client. The client is reused so every caller shares one rate limiter per service.
 #[derive(Clone)]
 struct Account {
-    provider: Provider,
     token: String,
     user: User,
+    api: Arc<dyn Debrid>,
 }
 
 #[derive(Serialize, Clone)]
@@ -63,6 +66,8 @@ pub struct Snapshot {
     pub library: Vec<Draft>,
     pub jobs: Vec<Job>,
     pub account: AccountDto,
+    /// Every service, connected or not, in a fixed order.
+    pub accounts: Vec<AccountDto>,
     pub warning: Option<Msg>,
     pub data_file: String,
 }
@@ -82,6 +87,15 @@ pub struct InspectStatus {
     pub running: bool,
     pub done: usize,
     pub total: usize,
+}
+
+/// A change in how far a service has fetched a Library torrent.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudUpdate {
+    pub provider: Provider,
+    pub source_key: String,
+    pub cloud: Option<CloudState>,
 }
 
 #[derive(Serialize)]
@@ -105,6 +119,8 @@ pub struct SettingsPatch {
     pub concurrency: Option<u32>,
     pub remember_token: Option<bool>,
     pub check_updates: Option<bool>,
+    pub library_providers: Option<Vec<Provider>>,
+    pub remember_library_providers: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -122,6 +138,9 @@ pub struct QueueItem {
     pub provider: Provider,
     pub source_key: String,
     pub file_ids: Vec<i32>,
+    /// Download folder chosen for this queue entry; `None` uses the Settings folder.
+    #[serde(default)]
+    pub output_directory: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -146,13 +165,15 @@ pub struct App {
     queue: Arc<Queue>,
     notifier: Arc<Notifier>,
     tokens: Mutex<HashMap<Provider, String>>,
-    account: Mutex<Option<Account>>,
-    session: tokio::sync::Mutex<Option<Arc<Session>>>,
+    accounts: Mutex<HashMap<Provider, Account>>,
+    /// One download session per service; they share file-name reservations and download slots.
+    sessions: tokio::sync::Mutex<HashMap<Provider, Arc<Session>>>,
     warning: Mutex<Option<Msg>>,
     api_http: reqwest::Client,
     transfer_http: reqwest::Client,
     inspect_running: AtomicBool,
     inspect_cancel: Mutex<CancellationToken>,
+    cloud_running: AtomicBool,
     timing: Timing,
 }
 
@@ -210,13 +231,14 @@ impl App {
             queue,
             notifier: notifier.clone(),
             tokens: Mutex::new(HashMap::new()),
-            account: Mutex::new(None),
-            session: tokio::sync::Mutex::new(None),
+            accounts: Mutex::new(HashMap::new()),
+            sessions: tokio::sync::Mutex::new(HashMap::new()),
             warning: Mutex::new(loaded.warning),
             api_http,
             transfer_http,
             inspect_running: AtomicBool::new(false),
             inspect_cancel: Mutex::new(CancellationToken::new()),
+            cloud_running: AtomicBool::new(false),
             timing: test_timing(),
         });
         let weak = Arc::downgrade(&app);
@@ -300,6 +322,7 @@ impl App {
             }
             if tick % 60 == 0 {
                 self.clone().start_inspection();
+                self.clone().start_cloud_refresh();
             }
         }
     }
@@ -381,10 +404,11 @@ impl App {
             let data = self.data.lock().unwrap();
             (data.settings.clone(), data.library.clone())
         };
-        let provider = settings.provider;
-        let user = self.account.lock().unwrap().as_ref().filter(|a| a.provider == provider).map(|a| a.user.clone());
+        let accounts: Vec<AccountDto> = ALL_PROVIDERS.iter().map(|p| self.account_dto(*p)).collect();
+        let account = accounts.iter().find(|a| a.provider == settings.provider).cloned().unwrap_or_else(|| self.account_dto(settings.provider));
         Snapshot {
-            account: AccountDto { provider, has_token: self.token_for(provider).is_some(), user },
+            account,
+            accounts,
             settings,
             library,
             jobs: self.queue.snapshot(),
@@ -394,27 +418,34 @@ impl App {
     }
 
     pub fn update_settings(&self, patch: SettingsPatch) -> Settings {
-        let (settings, provider_changed, forget_tokens) = {
+        let (settings, forget_tokens) = {
             let mut data = self.data.lock().unwrap();
             let s = &mut data.settings;
-            let before = (s.provider, s.remember_token);
+            let remembered = s.remember_token;
             if let Some(v) = patch.provider { s.provider = v }
-            if let Some(v) = patch.language { s.language = if v == "vi" { "vi".into() } else { "en".into() } }
+            if let Some(v) = patch.language { s.language = rdbatch_core::models::normalize_language(&v) }
             if let Some(v) = patch.appearance { s.appearance = if matches!(v.as_str(), "light" | "dark") { v } else { "system".into() } }
             if let Some(v) = patch.browser_view { s.browser_view = if v == "grid" { "grid".into() } else { "list".into() } }
-            if let Some(v) = patch.browser_sort { s.browser_sort = if matches!(v.as_str(), "added-desc" | "added-asc") { v } else { "name".into() } }
+            if let Some(v) = patch.browser_sort { s.browser_sort = if matches!(v.as_str(), "name" | "added-desc" | "added-asc") { v } else { "added-desc".into() } }
             if let Some(v) = patch.output_directory { s.output_directory = v.trim().to_string() }
             if let Some(v) = patch.flatten_files { s.flatten_files = v }
             if let Some(v) = patch.concurrency { s.concurrency = v.clamp(1, 5) }
             if let Some(v) = patch.remember_token { s.remember_token = v }
             if let Some(v) = patch.check_updates { s.check_updates = v }
-            (s.clone(), before.0 != s.provider, before.1 && !s.remember_token)
+            if let Some(list) = patch.library_providers {
+                let mut unique = Vec::new();
+                for provider in list {
+                    if !unique.contains(&provider) {
+                        unique.push(provider);
+                    }
+                }
+                s.library_providers = unique;
+            }
+            if let Some(v) = patch.remember_library_providers { s.remember_library_providers = v }
+            (s.clone(), remembered && !s.remember_token)
         };
-        if provider_changed {
-            *self.account.lock().unwrap() = None;
-        }
         if forget_tokens {
-            for provider in [Provider::RealDebrid, Provider::TorBox, Provider::AllDebrid] {
+            for provider in ALL_PROVIDERS {
                 if let Some(e) = entry(provider) {
                     let _ = e.delete_credential();
                 }
@@ -435,8 +466,9 @@ impl App {
     }
 
     fn token_for(&self, provider: Provider) -> Option<String> {
+        // The debug hook stands for one account only, so a test run never sees three services on one fake server.
         if let Some(token) = test_token() {
-            return Some(token);
+            return (provider == self.provider()).then_some(token);
         }
         if let Some(token) = self.tokens.lock().unwrap().get(&provider) {
             return Some(token.clone());
@@ -450,12 +482,23 @@ impl App {
         Some(token)
     }
 
+    fn account_dto(&self, provider: Provider) -> AccountDto {
+        let has_token = self.token_for(provider).is_some();
+        let user = if has_token { self.accounts.lock().unwrap().get(&provider).map(|a| a.user.clone()) } else { None };
+        AccountDto { provider, has_token, user }
+    }
+
+    /// Services with a token, in the fixed order.
+    fn providers_with_tokens(&self) -> Vec<Provider> {
+        ALL_PROVIDERS.into_iter().filter(|p| self.token_for(*p).is_some()).collect()
+    }
+
     /// Store the token for the current provider. A keychain failure is reported but never loses the token for this
     /// session.
     pub fn save_token(&self, token: &str) -> Option<Msg> {
         let provider = self.provider();
         let token = token.trim().to_string();
-        *self.account.lock().unwrap() = None;
+        self.accounts.lock().unwrap().remove(&provider);
         if token.is_empty() {
             self.tokens.lock().unwrap().remove(&provider);
             if let Some(e) = entry(provider) {
@@ -477,51 +520,71 @@ impl App {
         provider::create(provider, self.api_http.clone(), token, test_api_base().as_deref(), self.timing)
     }
 
-    /// Verify the stored token and remember the account it belongs to.
-    pub async fn connect(&self) -> Result<User> {
-        let provider = self.provider();
-        let token = self.token_for(provider).ok_or_else(|| Error::Operation(Msg::plain("Dán API token của dịch vụ đã chọn trước khi tải.")))?;
-        let user = self.client(provider, &token).user().await?;
-        *self.account.lock().unwrap() = Some(Account { provider, token, user: user.clone() });
-        // Starting the queue or loading remote torrents verifies the token too; tell the UI which account is connected.
-        self.emit("account", user.clone());
-        Ok(user)
+    fn missing_token(provider: Provider) -> Error {
+        Error::operation("Dán API token của {0} trong Cài đặt trước khi dùng dịch vụ này.", &[&provider.label()])
     }
 
-    async fn verified(&self) -> Result<(Account, Arc<dyn Debrid>)> {
-        let provider = self.provider();
-        let token = self.token_for(provider).ok_or_else(|| Error::Operation(Msg::plain("Dán API token của dịch vụ đã chọn trước khi tải.")))?;
-        let cached = self.account.lock().unwrap().clone().filter(|a| a.provider == provider && a.token == token);
+    /// Verify the stored token of the service shown in Settings.
+    pub async fn connect(&self) -> Result<User> {
+        Ok(self.connect_provider(self.provider()).await?.user)
+    }
+
+    /// Verify a service's token and remember the account it belongs to.
+    async fn connect_provider(&self, provider: Provider) -> Result<Account> {
+        let token = self.token_for(provider).ok_or_else(|| Self::missing_token(provider))?;
+        let api = self.client(provider, &token);
+        let user = api.user().await?;
+        let account = Account { token, user: user.clone(), api };
+        self.accounts.lock().unwrap().insert(provider, account.clone());
+        // Starting the queue or reading torrents verifies tokens too; tell the UI which account is connected.
+        self.emit("account", AccountDto { provider, has_token: true, user: Some(user) });
+        Ok(account)
+    }
+
+    async fn verified(&self, provider: Provider) -> Result<(Account, Arc<dyn Debrid>)> {
+        let token = self.token_for(provider).ok_or_else(|| Self::missing_token(provider))?;
+        let cached = self.accounts.lock().unwrap().get(&provider).cloned().filter(|a| a.token == token);
         let account = match cached {
             Some(account) => account,
-            None => {
-                self.connect().await?;
-                self.account.lock().unwrap().clone().expect("connected")
-            }
+            None => self.connect_provider(provider).await?,
         };
-        let client = self.client(provider, &account.token);
-        Ok((account, client))
+        let api = account.api.clone();
+        Ok((account, api))
     }
 
     // ---- library -----------------------------------------------------------------------------------------------
 
-    pub fn library_add(self: &Arc<Self>, text: &str) -> AddResult {
+    /// Add every source to each chosen service. A torrent counts as a duplicate only when every chosen service
+    /// already has it.
+    pub fn library_add(self: &Arc<Self>, text: &str, providers: Vec<Provider>) -> AddResult {
         let parsed = parser::parse(text);
-        let provider = self.provider();
+        let mut chosen: Vec<Provider> = Vec::new();
+        for provider in providers {
+            if !chosen.contains(&provider) {
+                chosen.push(provider);
+            }
+        }
+        if chosen.is_empty() {
+            chosen.push(self.provider());
+        }
         let (mut added, mut duplicates) = (0, 0);
         let mut fresh: Vec<Draft> = Vec::new();
         {
             let mut data = self.data.lock().unwrap();
             data.settings.library_import_paused = false;
+            let now = Utc::now();
             for source in parsed.sources {
-                if data.library.iter().any(|d| d.provider == provider && same_key(&d.source_key, &source.key)) {
-                    duplicates += 1;
-                    continue;
+                let mut known = true;
+                for &provider in &chosen {
+                    if data.library.iter().any(|d| d.provider == provider && same_key(&d.source_key, &source.key)) {
+                        continue;
+                    }
+                    known = false;
+                    let draft = Draft { added_at: Some(now), provider, source: source.source.clone(), source_key: source.key.clone(), name: source.name.clone(), ..Default::default() };
+                    data.library.push(draft.clone());
+                    fresh.push(draft);
                 }
-                let draft = Draft { added_at: Some(Utc::now()), provider, source: source.source, source_key: source.key, name: source.name, ..Default::default() };
-                data.library.push(draft.clone());
-                fresh.push(draft);
-                added += 1;
+                if known { duplicates += 1 } else { added += 1 }
             }
         }
         for draft in fresh {
@@ -589,12 +652,14 @@ impl App {
         });
     }
 
+    /// Unread torrents of every service that has a token (read before the data lock: `token_for` takes it too).
     fn pending_drafts(&self) -> Vec<(Provider, String)> {
+        let usable = self.providers_with_tokens();
         let data = self.data.lock().unwrap();
         let now = Utc::now();
         data.library
             .iter()
-            .filter(|d| d.provider == data.settings.provider && d.files.is_empty() && !d.is_hidden && d.next_inspection_at.map(|t| t <= now).unwrap_or(true))
+            .filter(|d| usable.contains(&d.provider) && d.files.is_empty() && !d.is_hidden && d.next_inspection_at.map(|t| t <= now).unwrap_or(true))
             .map(|d| (d.provider, d.source_key.clone()))
             .collect()
     }
@@ -623,69 +688,37 @@ impl App {
             if pending.is_empty() || cancel.is_cancelled() {
                 return;
             }
-            let (account, api) = match self.verified().await {
-                Ok(pair) => pair,
-                Err(error) => {
-                    for (provider, key) in &pending {
-                        self.with_draft(*provider, key, |d| d.inspection_error = Some(error.friendly()));
-                    }
-                    return;
-                }
-            };
-            let engine = Engine::new(api, self.transfer_http.clone(), Some(account.user.username.clone()), self.queue.clone(), self.timing);
             let total = pending.len();
-            for (done, (provider, key)) in pending.into_iter().enumerate() {
+            let mut done = 0;
+            for provider in ALL_PROVIDERS {
+                let keys: Vec<String> = pending.iter().filter(|(p, _)| *p == provider).map(|(_, k)| k.clone()).collect();
+                if keys.is_empty() {
+                    continue;
+                }
                 if cancel.is_cancelled() {
                     return;
                 }
-                self.emit("inspect", InspectStatus { running: true, done, total });
-                let existing = self.with_draft(provider, &key, |d| (d.source.clone(), d.torrent_id.clone())).unwrap_or_default();
-                let outcome = async {
-                    let torrent_id = match existing.1 {
-                        Some(id) => id,
-                        None => {
-                            let id = engine.add_source(&existing.0).await?;
-                            let name = self.with_draft(provider, &key, |d| {
-                                d.torrent_id = Some(id.clone());
-                                d.remote_account = Some(account.user.username.clone());
-                                d.name.clone()
-                            });
-                            self.data.lock().unwrap().remote_refs.push(RemoteRef {
-                                provider,
-                                id: id.clone(),
-                                source_key: key.clone(),
-                                name: name.unwrap_or_default(),
-                                account: Some(account.user.username.clone()),
-                            });
-                            // Persist the remote ID before any further request; retries reuse it.
-                            self.save_now();
-                            id
-                        }
-                    };
-                    engine.inspect(&torrent_id, &cancel).await
-                }
-                .await;
-                match outcome {
-                    Ok(info) => {
-                        self.with_draft(provider, &key, |d| {
-                            if !info.filename.trim().is_empty() {
-                                d.name = info.filename.clone();
+                match self.verified(provider).await {
+                    Ok((account, api)) => {
+                        let engine = Engine::new(api, self.transfer_http.clone(), Some(account.user.username.clone()), self.queue.clone(), self.timing);
+                        for key in keys {
+                            if cancel.is_cancelled() {
+                                return;
                             }
-                            d.files = info.files.clone();
-                            d.inspection_error = None;
-                            d.inspection_attempts = 0;
-                            d.next_inspection_at = None;
-                        });
-                        self.notifier.marks_stale.store(true, Ordering::SeqCst);
+                            self.emit("inspect", InspectStatus { running: true, done, total });
+                            done += 1;
+                            if !self.inspect_one(&engine, provider, &key, &account.user.username, &cancel).await {
+                                return;
+                            }
+                        }
                     }
-                    Err(Error::Cancelled) => return,
                     Err(error) => {
-                        self.with_draft(provider, &key, |d| {
-                            d.inspection_attempts += 1;
-                            d.inspection_error = Some(error.friendly());
-                            let wait = 30u64 * 2u64.pow(d.inspection_attempts.min(4));
-                            d.next_inspection_at = Some(Utc::now() + chrono::Duration::seconds(wait as i64));
-                        });
+                        // Back off like a failed read, so one bad token never stalls the other services.
+                        let message = error.friendly();
+                        for key in &keys {
+                            self.with_draft(provider, key, |d| back_off(d, message.clone()));
+                        }
+                        done += keys.len();
                     }
                 }
             }
@@ -693,16 +726,139 @@ impl App {
         }
     }
 
+    /// Add one torrent to its service (once) and wait for its file list. Returns false when cancelled.
+    async fn inspect_one(&self, engine: &Engine, provider: Provider, key: &str, username: &str, cancel: &CancellationToken) -> bool {
+        let existing = self.with_draft(provider, key, |d| (d.source.clone(), d.torrent_id.clone())).unwrap_or_default();
+        let outcome = async {
+            let torrent_id = match existing.1 {
+                Some(id) => id,
+                None => {
+                    let id = engine.add_source(&existing.0).await?;
+                    let name = self.with_draft(provider, key, |d| {
+                        d.torrent_id = Some(id.clone());
+                        d.remote_account = Some(username.to_string());
+                        d.name.clone()
+                    });
+                    self.data.lock().unwrap().remote_refs.push(RemoteRef {
+                        provider,
+                        id: id.clone(),
+                        source_key: key.to_string(),
+                        name: name.unwrap_or_default(),
+                        account: Some(username.to_string()),
+                    });
+                    // Persist the remote ID before any further request; retries reuse it.
+                    self.save_now();
+                    id
+                }
+            };
+            engine.inspect(&torrent_id, cancel).await
+        }
+        .await;
+        match outcome {
+            Ok(info) => {
+                self.with_draft(provider, key, |d| {
+                    if !info.filename.trim().is_empty() {
+                        d.name = info.filename.clone();
+                    }
+                    d.files = info.files.clone();
+                    d.inspection_error = None;
+                    d.inspection_attempts = 0;
+                    d.next_inspection_at = None;
+                    d.cloud = Some(CloudState { status: info.status.clone(), progress: info.progress, speed: info.speed, seeders: info.seeders });
+                });
+                self.notifier.marks_stale.store(true, Ordering::SeqCst);
+            }
+            Err(Error::Cancelled) => return false,
+            Err(error) => {
+                self.with_draft(provider, key, |d| back_off(d, error.friendly()));
+            }
+        }
+        true
+    }
+
+    // ---- cloud progress ----------------------------------------------------------------------------------------
+
+    pub fn start_cloud_refresh(self: Arc<Self>) {
+        if self.cloud_running.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        tauri::async_runtime::spawn(async move {
+            self.refresh_cloud().await;
+            self.cloud_running.store(false, Ordering::SeqCst);
+        });
+    }
+
+    /// A read torrent whose service copy may still change.
+    fn needs_cloud(draft: &Draft) -> bool {
+        !draft.is_hidden && draft.torrent_id.is_some() && !draft.files.is_empty() && draft.cloud.as_ref().map(|c| !c.is_settled()).unwrap_or(true)
+    }
+
+    /// One list request per service that still has torrents on their way to the cloud. Changes travel on their own
+    /// `cloud` event, so progress never rebuilds the Library rows.
+    async fn refresh_cloud(&self) {
+        let usable = self.providers_with_tokens();
+        let wanted: Vec<Provider> = {
+            let data = self.data.lock().unwrap();
+            usable.into_iter().filter(|p| data.library.iter().any(|d| d.provider == *p && Self::needs_cloud(d))).collect()
+        };
+        for provider in wanted {
+            let Ok((_, api)) = self.verified(provider).await else { continue };
+            let Ok(list) = api.list().await else { continue };
+            let by_id: HashMap<&str, &RemoteTorrent> = list.iter().map(|t| (t.id.as_str(), t)).collect();
+            let (updates, forgotten) = {
+                let mut data = self.data.lock().unwrap();
+                let (mut updates, mut forgotten) = (Vec::new(), Vec::new());
+                for draft in data.library.iter_mut().filter(|d| d.provider == provider && Self::needs_cloud(d)) {
+                    let id = draft.torrent_id.clone().unwrap_or_default();
+                    let next = match by_id.get(id.as_str()) {
+                        Some(t) => CloudState { status: t.status.clone(), progress: t.progress, speed: t.speed, seeders: t.seeders },
+                        None => CloudState { status: "missing".into(), ..Default::default() },
+                    };
+                    if next.status == "missing" {
+                        // Deleted on the service: the next queue adds the torrent again instead of using a dead ID.
+                        draft.torrent_id = None;
+                        draft.remote_account = None;
+                        draft.cloud = Some(next);
+                        forgotten.push(draft.clone());
+                    } else if draft.cloud.as_ref() != Some(&next) {
+                        draft.cloud = Some(next.clone());
+                        updates.push(CloudUpdate { provider, source_key: draft.source_key.clone(), cloud: Some(next) });
+                    }
+                }
+                (updates, forgotten)
+            };
+            if !forgotten.is_empty() {
+                self.mark_dirty();
+                for draft in forgotten {
+                    self.emit("draft", draft);
+                }
+            }
+            if !updates.is_empty() {
+                self.notifier.progress_dirty.store(true, Ordering::SeqCst);
+                self.emit("cloud", updates);
+            }
+        }
+    }
+
     // ---- queue -------------------------------------------------------------------------------------------------
 
     /// Returns the IDs of the new jobs, so the UI can start exactly those.
-    pub fn queue_add(&self, items: Vec<QueueItem>) -> Vec<String> {
+    pub fn queue_add(&self, items: Vec<QueueItem>) -> Result<Vec<String>> {
+        // Validate every folder first so a bad path adds nothing, instead of failing later when the job starts.
+        let mut targets = Vec::with_capacity(items.len());
+        for item in &items {
+            let dir = item.output_directory.as_deref().map(str::trim).filter(|dir| !dir.is_empty());
+            if dir.is_some_and(|dir| !std::path::Path::new(dir).is_absolute()) {
+                return Err(Error::Operation(Msg::plain("Chọn một đường dẫn lưu đầy đủ.")));
+            }
+            targets.push(dir.map(str::to_string));
+        }
         let mut created = Vec::new();
         let mut touched = Vec::new();
         {
             let mut data = self.data.lock().unwrap();
             let jobs = self.queue.snapshot();
-            for item in items {
+            for (item, target) in items.into_iter().zip(targets) {
                 let Some(draft) = data.library.iter_mut().find(|d| d.provider == item.provider && same_key(&d.source_key, &item.source_key)) else { continue };
                 let queued = |id: i32| jobs.iter().any(|j| j.provider == draft.provider && same_key(&j.source_key, &draft.source_key) && j.selected_file_ids.as_ref().map(|s| s.contains(&id)).unwrap_or(true));
                 let mut seen = HashSet::new();
@@ -714,14 +870,17 @@ impl App {
                 job.torrent_id = draft.torrent_id.clone();
                 job.remote_account = if draft.torrent_id.is_none() { None } else { draft.remote_account.clone() };
                 job.selected_file_ids = Some(files.iter().map(|f| f.id).collect());
+                job.target_directory = target.clone();
                 job.total_bytes = files.iter().map(|f| f.bytes).sum();
                 let names = files.iter().map(|f| f.path.replace('\\', "/").rsplit('/').next().unwrap_or("").to_string()).collect::<Vec<_>>().join(", ");
                 job.detail = Msg::new("Đã chọn {0} file · {1}", &[&files.len(), &names]);
                 created.push(job.id.clone());
                 self.queue.push(job);
-                // A later selection needs its own remote torrent; an active selection cannot be changed.
+                // A later selection needs its own remote torrent; an active selection cannot be changed. The job now
+                // owns the remote torrent, so its own progress is what the Library shows from here on.
                 draft.torrent_id = None;
                 draft.remote_account = None;
+                draft.cloud = None;
                 touched.push(draft.clone());
             }
         }
@@ -729,7 +888,7 @@ impl App {
             self.emit("draft", draft);
         }
         self.mark_dirty();
-        created
+        Ok(created)
     }
 
     fn output_root(&self) -> Result<(PathBuf, usize, bool)> {
@@ -748,32 +907,53 @@ impl App {
         Ok((path, concurrency, flatten))
     }
 
+    /// Start jobs of every service. A service that cannot start (no token, no download rights) does not hold back the
+    /// others; its error is reported, and returned only when nothing could start.
     pub async fn queue_start(self: &Arc<Self>, ids: Option<Vec<String>>) -> Result<()> {
-        let provider = self.provider();
         let jobs: Vec<Job> = self
             .queue
             .snapshot()
             .into_iter()
-            .filter(|j| j.provider == provider && ids.as_ref().map(|ids| ids.contains(&j.id)).unwrap_or(j.can_resume()) && (j.can_resume() || j.can_retry()))
+            .filter(|j| ids.as_ref().map(|ids| ids.contains(&j.id)).unwrap_or(j.can_resume()) && (j.can_resume() || j.can_retry()))
             .collect();
         if jobs.is_empty() {
             self.status(Msg::plain("Thêm torrent hoặc bấm Retry ở dòng bị lỗi."));
             return Ok(());
         }
-        let session = self.ensure_session().await?;
-        let mut waits = Vec::new();
-        for job in &jobs {
-            if let Some(done) = session.enqueue(&job.id) {
-                waits.push(done);
+        let mut started: Vec<Arc<Session>> = Vec::new();
+        let mut failure: Option<Error> = None;
+        for provider in ALL_PROVIDERS {
+            let mine: Vec<&Job> = jobs.iter().filter(|j| j.provider == provider).collect();
+            if mine.is_empty() {
+                continue;
             }
+            match self.ensure_session(provider).await {
+                Ok(session) => {
+                    for job in mine {
+                        session.enqueue(&job.id);
+                    }
+                    started.push(session);
+                }
+                Err(error) => {
+                    failure.get_or_insert(error);
+                }
+            }
+        }
+        if started.is_empty() {
+            return Err(failure.unwrap_or(Error::Cancelled));
         }
         self.mark_dirty();
         // Show the rows as started right away instead of on the next 250 ms tick.
         self.flush_jobs();
-        self.status(Msg::plain("Đang xử lý · Retry, Resume, Stop và Xóa có thể thao tác riêng từng torrent."));
+        match &failure {
+            Some(error) => self.status(error.friendly()),
+            None => self.status(Msg::plain("Đang xử lý · Retry, Resume, Stop và Xóa có thể thao tác riêng từng torrent.")),
+        }
         let app = self.clone();
         tauri::async_runtime::spawn(async move {
-            session.when_idle().await;
+            for session in started {
+                session.when_idle().await;
+            }
             let jobs = app.queue.snapshot();
             let count = |state| jobs.iter().filter(|j| j.state == state).count();
             app.save_now();
@@ -785,41 +965,57 @@ impl App {
         Ok(())
     }
 
-    async fn ensure_session(&self) -> Result<Arc<Session>> {
-        if let Some(session) = self.session.lock().await.as_ref().filter(|s| s.active_count() > 0) {
+    async fn ensure_session(&self, provider: Provider) -> Result<Arc<Session>> {
+        if let Some(session) = self.sessions.lock().await.get(&provider).filter(|s| s.active_count() > 0) {
             return Ok(session.clone());
         }
         // The disk probe and the account check (a network call on the first start) run without holding the session
         // lock, so Stop, Pause and Remove never wait behind them.
         let (root, concurrency, flatten) = self.output_root()?;
-        let (account, api) = self.verified().await?;
+        let (account, api) = self.verified(provider).await?;
         if !account.user.can_download() {
-            return Err(Error::operation("Cần tài khoản có quyền tải torrent trên {0}.", &[&account.provider.label()]));
+            return Err(Error::operation("Cần tài khoản có quyền tải torrent trên {0}.", &[&provider.label()]));
         }
-        let mut guard = self.session.lock().await;
+        let mut guard = self.sessions.lock().await;
         // Another Start may have created a session meanwhile; join it instead of running two.
-        if let Some(session) = guard.as_ref().filter(|s| s.active_count() > 0) {
+        if let Some(session) = guard.get(&provider).filter(|s| s.active_count() > 0) {
             return Ok(session.clone());
         }
+        // Sessions running at the same time share file names and download slots. Once every one is idle, the next
+        // starts fresh, so a changed concurrency setting applies.
+        let (allocator, slots) = match guard.values().find(|s| s.active_count() > 0) {
+            Some(busy) => busy.shared(),
+            None => (Arc::new(Allocator::new(&self.queue.snapshot())), Arc::new(Semaphore::new(concurrency.clamp(1, 5)))),
+        };
         let engine = Engine::new(api, self.transfer_http.clone(), Some(account.user.username.clone()), self.queue.clone(), self.timing);
-        let session = engine.session(root, concurrency, flatten);
-        *guard = Some(session.clone());
+        let session = engine.shared_session(root, flatten, allocator, slots);
+        guard.insert(provider, session.clone());
         Ok(session)
     }
 
+    async fn all_sessions(&self) -> Vec<Arc<Session>> {
+        self.sessions.lock().await.values().cloned().collect()
+    }
+
+    async fn session_for(&self, provider: Provider) -> Option<Arc<Session>> {
+        self.sessions.lock().await.get(&provider).cloned()
+    }
+
     pub async fn queue_pause(&self) {
-        if let Some(session) = self.session.lock().await.clone() {
-            self.status(Msg::plain("Đang tạm dừng và lưu tiến trình…"));
+        let sessions = self.all_sessions().await;
+        if sessions.is_empty() {
+            return;
+        }
+        self.status(Msg::plain("Đang tạm dừng và lưu tiến trình…"));
+        for session in sessions {
             session.pause_all().await;
         }
     }
 
     pub async fn queue_stop(&self, ids: Option<Vec<String>>) {
-        let session = self.session.lock().await.clone();
-        let provider = self.provider();
-        let targets: Vec<Job> = self.queue.snapshot().into_iter().filter(|j| j.provider == provider && j.can_stop() && ids.as_ref().map(|ids| ids.contains(&j.id)).unwrap_or(true)).collect();
+        let targets: Vec<Job> = self.queue.snapshot().into_iter().filter(|j| j.can_stop() && ids.as_ref().map(|ids| ids.contains(&j.id)).unwrap_or(true)).collect();
         for job in targets {
-            match &session {
+            match self.session_for(job.provider).await {
                 Some(session) => session.stop(&job.id).await,
                 None => {
                     self.queue.mutate(&job.id, |j| {
@@ -835,16 +1031,16 @@ impl App {
 
     /// Stop writers first, then drop the rows; files on disk and torrents on the service are kept.
     pub async fn queue_remove(&self, ids: Vec<String>) -> Vec<String> {
-        let session = self.session.lock().await.clone();
-        let targets: Vec<String> = self.queue.snapshot().into_iter().filter(|j| ids.contains(&j.id) && j.can_remove()).map(|j| j.id).collect();
-        for id in &targets {
+        let targets: Vec<(String, Provider)> = self.queue.snapshot().into_iter().filter(|j| ids.contains(&j.id) && j.can_remove()).map(|j| (j.id, j.provider)).collect();
+        for (id, _) in &targets {
             self.queue.mutate(id, |j| j.is_removing = true);
         }
-        if let Some(session) = &session {
-            for id in &targets {
+        for (id, provider) in &targets {
+            if let Some(session) = self.session_for(*provider).await {
                 session.stop(id).await;
             }
         }
+        let targets: Vec<String> = targets.into_iter().map(|(id, _)| id).collect();
         self.queue.remove(&targets);
         self.notifier.pending.lock().unwrap().retain(|id, _| !targets.contains(id));
         self.mark_dirty();
@@ -853,21 +1049,20 @@ impl App {
     }
 
     pub async fn queue_clear(&self, only_completed: bool) -> Vec<String> {
-        let provider = self.provider();
         let ids: Vec<String> = self
             .queue
             .snapshot()
             .into_iter()
-            .filter(|j| j.provider == provider && (!only_completed || (j.state == JobState::Completed && !j.is_active)))
+            .filter(|j| !only_completed || (j.state == JobState::Completed && !j.is_active))
             .map(|j| j.id)
             .collect();
         self.queue_remove(ids).await
     }
 
-    // ---- remote torrents ---------------------------------------------------------------------------------------
+    // ---- remote torrents (the service chosen in Settings) ------------------------------------------------------
 
     pub async fn remote_list(&self) -> Result<RemoteList> {
-        let (account, api) = self.verified().await?;
+        let (account, api) = self.verified(self.provider()).await?;
         let torrents = api.list().await?;
         Ok(RemoteList { account: account.user.username, torrents })
     }
@@ -875,12 +1070,12 @@ impl App {
     /// Delete exact IDs on the service. The account must still be the one the list was loaded for, and an ID known to
     /// belong to another account is never deleted. Ambiguous failures are reported, never replayed.
     pub async fn remote_delete(&self, ids: Vec<String>, list_account: String) -> Result<Vec<DeleteOutcome>> {
-        let (account, api) = self.verified().await?;
+        let provider = self.provider();
+        let (account, api) = self.verified(provider).await?;
         if !account.user.username.eq_ignore_ascii_case(&list_account) {
             return Err(Error::operation("Token hiện tại thuộc tài khoản {0}, không phải {1}. Tải lại danh sách trước khi xóa.", &[&account.user.username, &list_account]));
         }
-        let provider = account.provider;
-        let session = self.session.lock().await.clone();
+        let session = self.session_for(provider).await;
         let mut outcomes = Vec::new();
         for id in ids {
             let foreign = {
@@ -930,6 +1125,14 @@ impl App {
         self.mark_dirty();
         Ok(outcomes)
     }
+}
+
+/// Wait longer after each failed read of a torrent (1, 2, 4, 8 then 8 minutes).
+fn back_off(draft: &mut Draft, error: Msg) {
+    draft.inspection_attempts += 1;
+    draft.inspection_error = Some(error);
+    let wait = 30u64 * 2u64.pow(draft.inspection_attempts.min(4));
+    draft.next_inspection_at = Some(Utc::now() + chrono::Duration::seconds(wait as i64));
 }
 
 fn uuid_like() -> String {

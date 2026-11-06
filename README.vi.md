@@ -76,7 +76,7 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 - API token nằm trong **keychain của hệ điều hành** (Windows Credential Manager, macOS Keychain, Linux Secret
   Service), không bao giờ ghi vào file cài đặt dạng thường, không bao giờ hiện trong thông báo lỗi.
 - Bộ cài cho Windows, macOS và Linux, cùng **bản portable cho Windows** giữ toàn bộ dữ liệu cạnh file chạy.
-- Giao diện tiếng Việt và tiếng Anh, sáng và tối.
+- Giao diện tiếng Việt, tiếng Anh, tiếng Trung giản thể, tiếng Thổ Nhĩ Kỳ, tiếng Tây Ban Nha, tiếng Đức, tiếng Pháp, tiếng Hàn, tiếng Nhật, tiếng Bồ Đào Nha (Brazil) và tiếng Nga; chế độ sáng và tối.
 
 ## Cách hoạt động
 
@@ -108,8 +108,10 @@ DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ t�
 ## Tải về và cài đặt
 
 Tải bộ cài cho hệ điều hành của bạn ở trang [Releases](https://github.com/coolbirdzik/realdebrid/releases): `.msi`
-hoặc `.exe` cho Windows, `.dmg` cho macOS, `.deb`, `.rpm` hoặc `.AppImage` cho Linux. Bản portable cho Windows build
-được từ mã nguồn bằng `pnpm build:portable` (xem [Build và test](#build-và-test)).
+hoặc `.exe` cho Windows, `.dmg` cho macOS, `.deb`, `.rpm` hoặc `.AppImage` cho Linux. Với Windows còn có
+`DebridDock-portable-win-x64.zip`: giải nén ở đâu cũng chạy được `DebridDock.exe`, hàng đợi, thư viện và cài đặt nằm
+trong thư mục `data` cạnh file chạy (cần có WebView2 runtime, Windows 11 có sẵn). Cũng có thể build từ mã nguồn bằng
+`pnpm build:portable` (xem [Build và test](#build-và-test)).
 
 Bản build **chưa được ký số**, nên lần đầu mở hệ điều hành sẽ cảnh báo:
 
@@ -160,8 +162,8 @@ DebridDock gồm lõi và engine tải viết bằng Rust, vỏ Tauri 2 và giao
 | `crates/core` | `rdbatch-core`: adapter cho từng dịch vụ, downloader có resume, engine hàng đợi, lưu trữ. Không phụ thuộc UI hay Tauri nên `cargo test` chạy ở đâu cũng được. |
 | `src-tauri` | `rdbatch-desktop`: trạng thái ứng dụng, lệnh IPC, sự kiện gộp, truy cập keychain. |
 | `src` | Giao diện Svelte. `src/lib/browser.ts` chứa logic duyệt thư viện dưới dạng hàm thuần, có test. |
-| `scripts` | `check-i18n.mjs` (mọi chuỗi UI đều có bản dịch tiếng Anh), `seed-sample-data.py` (thư viện mẫu để chụp ảnh), `fake-realdebrid.py` (server giả để chạy end-to-end). |
-| `.github/workflows/build.yml` | Test trên cả ba hệ điều hành, build bộ cài và tạo draft release. |
+| `scripts` | `check-i18n.mjs` (mọi chuỗi UI đều có bản dịch tiếng Anh, mọi ngôn ngữ khớp khóa và placeholder), `seed-sample-data.py` (thư viện mẫu để chụp ảnh), `fake-realdebrid.py` (server giả để chạy end-to-end). |
+| `.github/workflows/build.yml` | Test trên cả ba hệ điều hành, build bộ cài và phát hành release. |
 
 ### Build và test
 
@@ -201,7 +203,7 @@ bất kỳ thông báo lỗi nào (kể cả URL tải của TorBox), từ chố
 ### Phát hành
 
 `.github/workflows/build.yml` test và build bộ cài trên mỗi lần push lên `main` và mỗi pull request (lưu dạng
-artifact 14 ngày). Với tag `vX.Y.Z` khớp `version` trong `src-tauri/tauri.conf.json`, workflow còn tạo draft release
+artifact 14 ngày). Với tag `vX.Y.Z` khớp `version` trong `package.json` (app, bộ cài và kiểm tra cập nhật đều đọc từ đây), workflow còn phát hành GitHub release
 kèm checksum:
 
 ```sh

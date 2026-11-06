@@ -35,7 +35,7 @@ library = [
 
 def job(name, state, detail, remote, local, total, key=None, selected=None, active=False, args=()):
     return {"id": os.urandom(16).hex(), "provider": "realDebrid", "source": "", "sourceKey": key or "", "torrentId": None, "remoteAccount": None, "selectedFileIds": selected,
-            "outputDirectory": None, "flattenFiles": None, "files": [], "name": name, "state": state, "detail": {"key": detail, "args": list(args)}, "remoteProgress": remote,
+            "outputDirectory": None, "targetDirectory": None, "flattenFiles": None, "files": [], "name": name, "state": state, "detail": {"key": detail, "args": list(args)}, "remoteProgress": remote,
             "localProgress": local, "totalBytes": total, "isActive": active, "isStopping": False, "isRemoving": False}
 
 jobs = [

@@ -93,6 +93,9 @@ pub struct Job {
     /// `None` keeps the all-files behavior of queues created before file selection existed.
     pub selected_file_ids: Option<Vec<i32>>,
     pub output_directory: Option<String>,
+    /// Folder the user picked when adding this job; used instead of the Settings folder as the download root.
+    #[serde(default)]
+    pub target_directory: Option<String>,
     pub flatten_files: Option<bool>,
     pub files: Vec<JobFile>,
     pub name: String,
@@ -120,6 +123,7 @@ impl Job {
             remote_account: None,
             selected_file_ids: None,
             output_directory: None,
+            target_directory: None,
             flatten_files: None,
             files: vec![],
             name: name.to_string(),
@@ -230,6 +234,28 @@ pub struct Draft {
     pub inspection_attempts: u32,
     pub next_inspection_at: Option<DateTime<Utc>>,
     pub inspection_error: Option<Msg>,
+    /// Latest state of the torrent on the service (its download to the cloud), refreshed in the background.
+    #[serde(default)]
+    pub cloud: Option<CloudState>,
+}
+
+/// How far a service has fetched a torrent into its own storage.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloudState {
+    /// The provider's normalized status, such as `downloading`, `downloaded` or `waiting_files_selection`.
+    pub status: String,
+    pub progress: f64,
+    pub speed: Option<u64>,
+    pub seeders: Option<i64>,
+}
+
+impl CloudState {
+    /// Nothing will change on the service by itself, so polling can stop. Real-Debrid waits for a file selection,
+    /// which only a queued download makes.
+    pub fn is_settled(&self) -> bool {
+        matches!(self.status.as_str(), "downloaded" | "waiting_files_selection" | "magnet_error" | "error" | "virus" | "dead" | "missing")
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -240,6 +266,14 @@ pub struct RemoteRef {
     pub source_key: String,
     pub name: String,
     pub account: Option<String>,
+}
+
+/// UI language codes the app can store. Keep in sync with `src/lib/languages.ts`.
+pub const SUPPORTED_LANGUAGES: [&str; 11] = ["vi", "en", "zh", "tr", "es", "de", "fr", "ko", "ja", "pt", "ru"];
+
+/// Returns `value` when it is a supported UI language, otherwise English.
+pub fn normalize_language(value: &str) -> String {
+    if SUPPORTED_LANGUAGES.contains(&value) { value.into() } else { "en".into() }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -257,6 +291,10 @@ pub struct Settings {
     pub library_import_paused: bool,
     /// Look for a newer GitHub release when the app starts.
     pub check_updates: bool,
+    /// Services the last Library import used; offered first next time.
+    pub library_providers: Vec<Provider>,
+    /// Reuse `library_providers` without asking when torrents are added to the Library.
+    pub remember_library_providers: bool,
 }
 
 impl Default for Settings {
@@ -266,13 +304,15 @@ impl Default for Settings {
             language: "en".into(),
             appearance: "system".into(),
             browser_view: "list".into(),
-            browser_sort: "name".into(),
+            browser_sort: "added-desc".into(),
             output_directory: String::new(),
             flatten_files: true,
             concurrency: 3,
             remember_token: true,
             library_import_paused: false,
             check_updates: true,
+            library_providers: Vec::new(),
+            remember_library_providers: false,
         }
     }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeDrafts, breadcrumbs, buildEntries, draftId, filterFiles, formatBytes, isStatusDone, isStatusPartial, queueRequests, queuedLookup, remainingCount, removalPatches, type BrowserQuery } from './browser';
+import { activeDrafts, breadcrumbs, buildEntries, draftId, filterFiles, formatBytes, isStatusDone, isStatusPartial, queueRequests, queuedLookup, remainingCount, remainingRequests, removalPatches, type BrowserQuery } from './browser';
 import type { Draft, Job } from './types';
 
 const file = (id: number, path: string, bytes = 100) => ({ id, path, bytes, selected: 1 });
@@ -8,13 +8,13 @@ function draft(overrides: Partial<Draft> = {}): Draft {
   return {
     addedAt: '2024-05-01T10:00:00Z', provider: 'realDebrid', source: 'magnet:?xt=urn:btih:AAA', sourceKey: 'btih:AAA', name: 'Show', torrentId: null, remoteAccount: null,
     files: [file(1, '/Show/S01/ep1.mkv'), file(2, '/Show/S01/ep2.mkv'), file(3, '/Show/S02/ep1.mkv'), file(4, '/Show/notes.txt', 5)],
-    excludedFileIds: [], downloadedFileIds: [], partialFileIds: [], isHidden: false, inspectionAttempts: 0, nextInspectionAt: null, inspectionError: null, ...overrides
+    excludedFileIds: [], downloadedFileIds: [], partialFileIds: [], isHidden: false, inspectionAttempts: 0, nextInspectionAt: null, inspectionError: null, cloud: null, ...overrides
   };
 }
 
 const query = (overrides: Partial<BrowserQuery> = {}): BrowserQuery => ({ location: { draft: null, path: '', flat: false }, search: '', videosOnly: false, sort: 'name', header: null, ...overrides });
 const job = (overrides: Partial<Job> = {}): Job => ({
-  id: 'j1', provider: 'realDebrid', source: '', sourceKey: 'btih:AAA', torrentId: null, remoteAccount: null, selectedFileIds: [1], outputDirectory: null, flattenFiles: null, files: [], name: 'Show',
+  id: 'j1', provider: 'realDebrid', source: '', sourceKey: 'btih:AAA', torrentId: null, remoteAccount: null, selectedFileIds: [1], outputDirectory: null, targetDirectory: null, flattenFiles: null, files: [], name: 'Show',
   state: 'queued', detail: { key: '', args: [] }, remoteProgress: 0, localProgress: 0, totalBytes: 0, isActive: false, isStopping: false, isRemoving: false, ...overrides
 });
 
@@ -51,7 +51,7 @@ describe('browser entries', () => {
     expect(activeDrafts([draft()], 'torBox')).toHaveLength(0);
   });
 
-  it('computes folder completion from descendants and sorts finished work last', () => {
+  it('computes folder completion from descendants', () => {
     const d = draft({ downloadedFileIds: [1, 2], partialFileIds: [3] });
     const loc = { draft: draftId(d), path: '', flat: false };
     const entries = buildEntries([d], 'realDebrid', [], query({ location: { ...loc, path: 'Show' } }));
@@ -59,7 +59,6 @@ describe('browser entries', () => {
     const s02 = entries.find((e) => e.name === 'S02')!;
     expect(isStatusDone(s01)).toBe(true);
     expect(isStatusPartial(s02)).toBe(true);
-    expect(entries.indexOf(s01)).toBeGreaterThan(entries.indexOf(s02));
   });
 
   it('sorts by added date and by header column', () => {
@@ -68,6 +67,21 @@ describe('browser entries', () => {
     expect(buildEntries([older, newer], 'realDebrid', [], query({ sort: 'added-desc' })).map((e) => e.name)).toEqual(['Newer', 'Older']);
     expect(buildEntries([older, newer], 'realDebrid', [], query({ sort: 'added-asc' })).map((e) => e.name)).toEqual(['Older', 'Newer']);
     expect(buildEntries([older, newer], 'realDebrid', [], query({ header: { column: 'name', direction: 'desc' } })).map((e) => e.name)).toEqual(['Older', 'Newer']);
+    expect(buildEntries([older, newer], 'realDebrid', [], query({ header: { column: 'added', direction: 'desc' } })).map((e) => e.name)).toEqual(['Newer', 'Older']);
+  });
+
+  it('keeps the chosen order even when download status differs', () => {
+    const older = draft({ sourceKey: 'btih:OLD', name: 'Older', addedAt: '2024-01-01T00:00:00Z' });
+    const newer = draft({ sourceKey: 'btih:NEW', name: 'Newer', addedAt: '2024-06-01T00:00:00Z', downloadedFileIds: [1, 2, 3, 4] });
+    expect(buildEntries([older, newer], 'realDebrid', [], query({ sort: 'added-desc' })).map((e) => e.name)).toEqual(['Newer', 'Older']);
+    expect(buildEntries([older, newer], 'realDebrid', [], query({ sort: 'added-asc' })).map((e) => e.name)).toEqual(['Older', 'Newer']);
+    expect(buildEntries([older, newer], 'realDebrid', [], query({ header: { column: 'name', direction: 'asc' } })).map((e) => e.name)).toEqual(['Newer', 'Older']);
+  });
+
+  it('sorts names naturally (Ep 2 before Ep 10)', () => {
+    const d = draft({ files: [file(1, '/Ep 10.mkv'), file(2, '/Ep 2.mkv')] });
+    const loc = { draft: draftId(d), path: '', flat: false };
+    expect(buildEntries([d], 'realDebrid', [], query({ location: loc, sort: 'name' })).map((e) => e.name)).toEqual(['Ep 2.mkv', 'Ep 10.mkv']);
   });
 });
 
@@ -123,5 +137,34 @@ describe('helpers', () => {
     expect(entries).toHaveLength(30000);
     expect(searched.length).toBeGreaterThan(0);
     expect(performance.now() - started).toBeLessThan(2000);
+  });
+});
+
+describe('several services', () => {
+  // The same torrent on TorBox: other file IDs and paths, same names and sizes.
+  const onTorBox = () => draft({ provider: 'torBox', files: [file(11, '/Show/S01/ep1.mkv'), file(12, '/Show/S01/ep2.mkv'), file(13, '/Show/S02/ep1.mkv'), file(14, '/Show/notes.txt', 5)] });
+
+  it('shows every service unless a source is picked', () => {
+    const library = [draft(), onTorBox()];
+    expect(activeDrafts(library)).toHaveLength(2);
+    expect(activeDrafts(library, 'torBox').map((d) => d.provider)).toEqual(['torBox']);
+    expect(buildEntries(library, 'all', [], query())).toHaveLength(2);
+  });
+
+  it('downloads a file held on two services only once, from the better-ranked one', () => {
+    const library = [draft(), onTorBox()];
+    expect(remainingCount(library, 'all', [])).toBe(4);
+    const ranked = remainingRequests(library, 'all', [], (d) => (d.provider === 'torBox' ? 1 : 0));
+    expect(ranked).toEqual([{ provider: 'torBox', sourceKey: 'btih:AAA', fileIds: [11, 12, 13, 14] }]);
+    const entries = buildEntries(library, 'all', [], query());
+    expect(queueRequests(entries, queuedLookup([], library)).map((r) => r.provider)).toEqual(['realDebrid']);
+  });
+
+  it('treats a file queued on one service as queued on the other', () => {
+    const library = [draft(), onTorBox()];
+    const lookup = queuedLookup([job({ selectedFileIds: [1] })], library);
+    expect(lookup(library[1], 11, library[1].files[0])).toBe(true);
+    expect(lookup(library[1], 12, library[1].files[1])).toBe(false);
+    expect(remainingCount(library, 'all', [job({ selectedFileIds: [1] })])).toBe(3);
   });
 });

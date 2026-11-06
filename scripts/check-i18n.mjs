@@ -1,9 +1,10 @@
-// Lists every source string used by the UI and the Rust core that has no English translation.
-// Vietnamese is the source language and the key of src/lib/en.json.
+// 1. Lists every source string used by the UI and the Rust core that has no English translation.
+// 2. Checks that every other locale file has exactly the keys of en.json, with the same {n} placeholders and line breaks.
+// Vietnamese is the source language and the key of src/lib/locales/en.json.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const catalog = JSON.parse(readFileSync('src/lib/en.json', 'utf8'));
+const catalog = JSON.parse(readFileSync('src/lib/locales/en.json', 'utf8'));
 const files = [];
 const walk = (dir) => {
   for (const name of readdirSync(dir)) {
@@ -32,4 +33,23 @@ for (const file of files) {
 }
 for (const [key, file] of missing) console.log(`${file}\t${JSON.stringify(key)}`);
 console.log(`${missing.size} untranslated Vietnamese source strings`);
-process.exitCode = missing.size ? 1 : 0;
+
+const localeDir = 'src/lib/locales';
+const placeholders = (text) => [...text.matchAll(/\{(\d+)(?::[^}]*)?\}/g)].map((m) => m[1]).sort().join(',');
+const lineBreaks = (text) => text.split('\n').length;
+let localeProblems = 0;
+const report = (locale, message) => { localeProblems++; console.log(`${locale}\t${message}`); };
+for (const name of readdirSync(localeDir).filter((n) => n.endsWith('.json') && n !== 'en.json')) {
+  const locale = JSON.parse(readFileSync(join(localeDir, name), 'utf8'));
+  for (const key of Object.keys(catalog)) {
+    if (!(key in locale)) report(name, `missing ${JSON.stringify(key)}`);
+    else if (typeof locale[key] !== 'string' || !locale[key].trim()) report(name, `empty ${JSON.stringify(key)}`);
+    else {
+      if (placeholders(locale[key]) !== placeholders(key)) report(name, `placeholder mismatch ${JSON.stringify(key)} -> ${JSON.stringify(locale[key])}`);
+      if (lineBreaks(locale[key]) !== lineBreaks(key)) report(name, `line break mismatch ${JSON.stringify(key)}`);
+    }
+  }
+  for (const key of Object.keys(locale)) if (!(key in catalog)) report(name, `unknown key ${JSON.stringify(key)}`);
+}
+console.log(`${localeProblems} locale problems`);
+process.exitCode = missing.size || localeProblems ? 1 : 0;
