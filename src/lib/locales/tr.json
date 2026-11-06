@@ -449,5 +449,7 @@
   "{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ": "{0} hazır · {1} bekleyen · {2} hata · Tüm hizmetler",
   "Xóa dữ liệu cloud?": "Bulut verileri silinsin mi?",
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "Bu öğeler ve içlerindeki dosyalar hizmetten silinecek. Bu işlem geri alınamaz.",
-  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "İlgili indirmeler durdurulacak ve kuyruktan kaldırılacak. Yerel dosyalar korunacak."
+  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "İlgili indirmeler durdurulacak ve kuyruktan kaldırılacak. Yerel dosyalar korunacak.",
+  "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Zaten kuyrukta olan dosyalar: {0}. Yinelenenler atlandı.",
+  "Không có file mới được thêm vào hàng đợi.": "Kuyruğa yeni dosya eklenmedi."
 }

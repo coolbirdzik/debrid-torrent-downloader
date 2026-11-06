@@ -49,7 +49,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU2RTIxN0UxODVEN0MzQUEKUldTcXc5ZUY0UmZpVm1maFV0bXJsak9mN1pvUURMa202Z2FKWTJlSXZuOGZaZHpja0I5bnllc20K",
       "endpoints": [
-        "https://github.com/coolbirdzik/realdebrid/releases/latest/download/latest.json"
+        "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/latest/download/latest.json"
       ],
       "requireSignedVersion": true,
       "windows": {

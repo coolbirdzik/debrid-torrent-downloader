@@ -449,5 +449,7 @@
   "{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ": "{0}개 준비 · {1}개 대기 · 오류 {2}개 · 모든 서비스",
   "Xóa dữ liệu cloud?": "클라우드 데이터를 삭제할까요?",
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "이 항목과 포함된 파일이 서비스에서 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
-  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "관련 다운로드 작업이 중지되고 대기열에서 제거됩니다. 로컬 파일은 유지됩니다."
+  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "관련 다운로드 작업이 중지되고 대기열에서 제거됩니다. 로컬 파일은 유지됩니다.",
+  "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "이미 대기열에 있는 파일: {0}개. 중복 파일을 건너뛰었습니다.",
+  "Không có file mới được thêm vào hàng đợi.": "대기열에 추가된 새 파일이 없습니다."
 }

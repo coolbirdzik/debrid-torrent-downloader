@@ -449,5 +449,7 @@
   "{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ": "{0} bereit · {1} ausstehend · {2} Fehler · Alle Dienste",
   "Xóa dữ liệu cloud?": "Cloud-Daten löschen?",
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "Diese Einträge und ihre Dateien werden vom Dienst gelöscht. Dies kann nicht rückgängig gemacht werden.",
-  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Zugehörige Downloads werden gestoppt und aus der Warteschlange entfernt. Lokale Dateien bleiben erhalten."
+  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Zugehörige Downloads werden gestoppt und aus der Warteschlange entfernt. Lokale Dateien bleiben erhalten.",
+  "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Bereits eingereihte Dateien: {0}. Duplikate übersprungen.",
+  "Không có file mới được thêm vào hàng đợi.": "Es wurden keine neuen Dateien zur Warteschlange hinzugefügt."
 }

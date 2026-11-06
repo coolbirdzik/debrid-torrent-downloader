@@ -449,5 +449,7 @@
   "{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ": "{0} ready · {1} pending · {2} errors · All services",
   "Xóa dữ liệu cloud?": "Delete cloud data?",
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "These items and their files will be deleted from the service. This cannot be undone.",
-  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Related download tasks will stop and be removed from the queue. Local files will be kept."
+  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Related download tasks will stop and be removed from the queue. Local files will be kept.",
+  "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Files already in the queue: {0}. Duplicates skipped.",
+  "Không có file mới được thêm vào hàng đợi.": "No new files were added to the queue."
 }

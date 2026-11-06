@@ -469,7 +469,7 @@
         {#if library.undoStack.length > 0}
           <button class="btn icon" onclick={() => library.undo()} title={t('Hoàn tác (Ctrl+Z)')} aria-label={t('Hoàn tác')}><span class="ic purple"><ArrowCounterClockwise size={16} weight="bold" /></span></button>
         {/if}
-        <button class="btn outline" disabled={library.remaining === 0} onclick={() => library.queueRemaining()} title={t('Thêm mọi file còn lại trong toàn bộ thư viện vào queue, kể cả ngoài bộ lọc hiện tại; bỏ qua file đã có trong queue.')}>
+        <button class="btn outline" disabled={library.queueing || library.remaining === 0} onclick={() => library.queueRemaining()} title={t('Thêm mọi file còn lại trong toàn bộ thư viện vào queue, kể cả ngoài bộ lọc hiện tại; bỏ qua file đã có trong queue.')}>
           <span class="ic blue"><DownloadSimple size={16} weight="duotone" /></span>{t('Thêm tất cả còn lại ({0})', library.remaining)}
         </button>
         <button class="btn primary" disabled={!library.canQueue} onclick={() => library.queueSelected()} title={t('Chọn nơi lưu rồi thêm vào hàng đợi (Shift+D)')}><Plus size={16} weight="bold" />{t('Thêm vào hàng đợi')}</button>

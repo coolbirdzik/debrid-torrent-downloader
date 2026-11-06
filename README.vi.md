@@ -2,7 +2,7 @@
 
 [English](README.md) · Tiếng Việt
 
-[![Build and release](https://github.com/coolbirdzik/realdebrid/actions/workflows/build.yml/badge.svg)](https://github.com/coolbirdzik/realdebrid/actions/workflows/build.yml)
+[![Build and release](https://github.com/coolbirdzik/debrid-torrent-downloader/actions/workflows/build.yml/badge.svg)](https://github.com/coolbirdzik/debrid-torrent-downloader/actions/workflows/build.yml)
 ![Nền tảng: Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational)
 ![Dịch vụ debrid: Real-Debrid, TorBox, AllDebrid](https://img.shields.io/badge/debrid-Real--Debrid%20%7C%20TorBox%20%7C%20AllDebrid-blueviolet)
 
@@ -90,6 +90,7 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 ### Tải torrent từ debrid
 
 - **Thêm file đã chọn, hoặc mọi file còn lại** trong thư viện vào hàng đợi chỉ với một cú bấm. Tải bắt đầu ngay.
+  Thêm lại file đã có trong hàng đợi sẽ hiện toast cảnh báo số file trùng; chỉ thêm những file mới.
 - **Tải có resume** (`Range` + `If-Range`): dừng, tạm dừng hoặc tắt app, lần sau tải tiếp đúng từ byte đã dừng.
 - **Tự động thử lại:** rớt mạng, quá thời gian chờ hay link tải hết hạn đều được thử lại với thời gian chờ tăng dần
   và tải tiếp phần dở. Nút **Retry tất cả** dành cho những gì vẫn lỗi.
@@ -143,7 +144,7 @@ DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ t�
 
 ## Tải về và cài đặt
 
-Tải bộ cài cho hệ điều hành của bạn ở trang [Releases](https://github.com/coolbirdzik/realdebrid/releases): `.msi`
+Tải bộ cài cho hệ điều hành của bạn ở trang [Releases](https://github.com/coolbirdzik/debrid-torrent-downloader/releases): `.msi`
 hoặc `.exe` cho Windows, `.dmg` cho macOS, `.deb`, `.rpm` hoặc `.AppImage` cho Linux. Với Windows còn có
 `DebridDock-portable-win-x64.zip`: giải nén ở đâu cũng chạy được `DebridDock.exe`, hàng đợi, thư viện và cài đặt nằm
 trong thư mục `data` cạnh file chạy (cần có WebView2 runtime, Windows 11 có sẵn). Cũng có thể build từ mã nguồn bằng
@@ -283,6 +284,10 @@ vào Git và giữ nguyên khóa khi phát hành các bản tiếp theo để ng
 Pipeline tạo các gói và chữ ký cập nhật cho Windows, macOS, Linux cùng `latest.json`; riêng portable Windows
 có file thực thi được ký riêng. Build theo tag sẽ dừng nếu thiếu khóa hoặc thiếu gói cập nhật.
 Chữ ký cập nhật này độc lập với Authenticode Windows và notarization macOS.
+
+`scripts/update-manifest.mjs` lấy repo phát hành từ endpoint updater trong `src-tauri/tauri.conf.json` và đối chiếu
+với `GITHUB_REPOSITORY` của CI. Khi đổi tên repo, cập nhật cả URL kiểm tra release và tiền tố URL tin cậy trong
+`src-tauri/src/update.rs`; các bài test kiểm tra những URL này khớp nhau.
 
 `.github/workflows/build.yml` test và build bộ cài trên mỗi lần push lên `main` và mỗi pull request (lưu dạng
 artifact 14 ngày). Với tag `vX.Y.Z` khớp `version` trong `package.json` (app, bộ cài và kiểm tra cập nhật đều đọc từ

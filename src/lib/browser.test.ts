@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeDrafts, breadcrumbs, buildEntries, draftId, filterFiles, formatBytes, isStatusDone, isStatusPartial, queueRequests, queuedLookup, remainingCount, remainingRequests, removalPatches, type BrowserQuery } from './browser';
+import { activeDrafts, breadcrumbs, buildEntries, draftId, filterFiles, formatBytes, isStatusDone, isStatusPartial, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, type BrowserQuery } from './browser';
 import type { Draft, Job } from './types';
 
 const file = (id: number, path: string, bytes = 100) => ({ id, path, bytes, selected: 1 });
@@ -86,6 +86,17 @@ describe('browser entries', () => {
 });
 
 describe('queueing', () => {
+  it('counts only existing queued files, once for overlapping folder/file selections', () => {
+    const d = draft();
+    const [root] = buildEntries([d], 'all', [], query());
+    const files = buildEntries([d], 'all', [], query({ location: { draft: draftId(d), path: '', flat: true } }));
+    const lookup = queuedLookup([job({ selectedFileIds: [1] })], [d]);
+    expect(queuedFileCount([root, files[0], root], lookup)).toBe(1);
+    expect(queueRequests([root, files[0]], lookup)[0].fileIds).toEqual([2, 3, 4]);
+    expect(queuedFileCount([root], queuedLookup([]))).toBe(0);
+    expect(queuedFileCount([root], queuedLookup([job({ selectedFileIds: null })]))).toBe(4);
+  });
+
   it('knows which files are already queued, including all-files jobs', () => {
     const d = draft();
     expect(queuedLookup([job({ selectedFileIds: [1] })])(d, 1)).toBe(true);
@@ -166,5 +177,8 @@ describe('several services', () => {
     expect(lookup(library[1], 11, library[1].files[0])).toBe(true);
     expect(lookup(library[1], 12, library[1].files[1])).toBe(false);
     expect(remainingCount(library, 'all', [job({ selectedFileIds: [1] })])).toBe(3);
+    const entries = buildEntries(library, 'all', [], query());
+    expect(queuedFileCount(entries, lookup)).toBe(1);
+    expect(queuedFileCount(entries.filter((entry) => entry.draft.provider === 'torBox'), lookup)).toBe(1);
   });
 });

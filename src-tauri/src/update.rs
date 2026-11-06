@@ -9,9 +9,9 @@ use tauri::Emitter;
 use tauri_plugin_updater::UpdaterExt;
 use crate::app::App;
 
-const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/coolbirdzik/realdebrid/releases/latest";
+const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/coolbirdzik/debrid-torrent-downloader/releases/latest";
 /// Only release pages and assets of this owner may be opened from the UI.
-const TRUSTED_PREFIX: &str = "https://github.com/coolbirdzik/realdebrid/releases/";
+const TRUSTED_PREFIX: &str = "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/";
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -304,16 +304,16 @@ mod tests {
     }
 
     const RELEASE: &str = r#"{
-        "tag_name": "v0.4.0", "html_url": "https://github.com/coolbirdzik/realdebrid/releases/tag/v0.4.0",
+        "tag_name": "v0.4.0", "html_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/tag/v0.4.0",
         "draft": false, "prerelease": false, "body": "  - Faster imports\n",
         "assets": [
-            {"name": "DebridDock_0.4.0_x64-setup.exe", "browser_download_url": "https://github.com/coolbirdzik/realdebrid/releases/download/v0.4.0/DebridDock_0.4.0_x64-setup.exe"},
-            {"name": "DebridDock_0.4.0_x64_en-US.msi", "browser_download_url": "https://github.com/coolbirdzik/realdebrid/releases/download/v0.4.0/DebridDock_0.4.0_x64_en-US.msi"},
-            {"name": "DebridDock_0.4.0_universal.dmg", "browser_download_url": "https://github.com/coolbirdzik/realdebrid/releases/download/v0.4.0/DebridDock_0.4.0_universal.dmg"},
-            {"name": "DebridDock_0.4.0_amd64.deb", "browser_download_url": "https://github.com/coolbirdzik/realdebrid/releases/download/v0.4.0/DebridDock_0.4.0_amd64.deb"},
-            {"name": "DebridDock_0.4.0_amd64.AppImage", "browser_download_url": "https://github.com/coolbirdzik/realdebrid/releases/download/v0.4.0/DebridDock_0.4.0_amd64.AppImage"},
-            {"name": "DebridDock-portable-win-x64.zip", "browser_download_url": "https://github.com/coolbirdzik/realdebrid/releases/download/v0.4.0/DebridDock-portable-win-x64.zip"},
-            {"name": "SHA256SUMS.txt", "browser_download_url": "https://github.com/coolbirdzik/realdebrid/releases/download/v0.4.0/SHA256SUMS.txt"}
+            {"name": "DebridDock_0.4.0_x64-setup.exe", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock_0.4.0_x64-setup.exe"},
+            {"name": "DebridDock_0.4.0_x64_en-US.msi", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock_0.4.0_x64_en-US.msi"},
+            {"name": "DebridDock_0.4.0_universal.dmg", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock_0.4.0_universal.dmg"},
+            {"name": "DebridDock_0.4.0_amd64.deb", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock_0.4.0_amd64.deb"},
+            {"name": "DebridDock_0.4.0_amd64.AppImage", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock_0.4.0_amd64.AppImage"},
+            {"name": "DebridDock-portable-win-x64.zip", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/DebridDock-portable-win-x64.zip"},
+            {"name": "SHA256SUMS.txt", "browser_download_url": "https://github.com/coolbirdzik/debrid-torrent-downloader/releases/download/v0.4.0/SHA256SUMS.txt"}
         ]
     }"#;
 
@@ -381,13 +381,14 @@ mod tests {
 
     #[test]
     fn only_project_release_urls_are_trusted() {
-        assert!(is_trusted_url("https://github.com/coolbirdzik/realdebrid/releases/tag/v1.0.0"));
+        assert!(is_trusted_url("https://github.com/coolbirdzik/debrid-torrent-downloader/releases/tag/v1.0.0"));
+        assert!(!is_trusted_url("https://github.com/coolbirdzik/realdebrid/releases/tag/v1.0.0"));
         assert!(!is_trusted_url("http://github.com/coolbirdzik/x/releases/tag/v1"));
         assert!(!is_trusted_url("https://github.com/coolbirdzik/x/issues/1"));
         assert!(!is_trusted_url("https://github.com/someone-else/x/releases/tag/v1"));
         assert!(!is_trusted_url("file:///C:/Windows/System32/calc.exe"));
         assert!(!is_trusted_url("https://github.com/coolbirdzik/another-project/releases/download/v1/setup.exe"));
-        assert!(!is_trusted_url("https://github.com/coolbirdzik/realdebrid/releases/../setup.exe"));
+        assert!(!is_trusted_url("https://github.com/coolbirdzik/debrid-torrent-downloader/releases/../setup.exe"));
     }
 
     #[test]
@@ -396,7 +397,7 @@ mod tests {
         let signed = RELEASE.replace("SHA256SUMS.txt", "latest.json");
         let info = evaluate(&signed, "0.3.0", "windows", "x86_64", true).unwrap();
         assert!(info.available && info.can_install);
-        let foreign = signed.replace("https://github.com/coolbirdzik/realdebrid/", "https://github.com/coolbirdzik/another-project/");
+        let foreign = signed.replace("https://github.com/coolbirdzik/debrid-torrent-downloader/", "https://github.com/coolbirdzik/another-project/");
         assert!(!evaluate(&foreign, "0.3.0", "windows", "x86_64", false).unwrap().can_install);
     }
 
@@ -405,5 +406,13 @@ mod tests {
         let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
         assert_eq!(config["plugins"]["updater"]["windows"]["installMode"], "quiet");
         assert_eq!(config["plugins"]["updater"]["requireSignedVersion"], true);
+    }
+
+    #[test]
+    fn release_discovery_and_trust_match_the_signed_updater_endpoint() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(config["plugins"]["updater"]["endpoints"][0], format!("{TRUSTED_PREFIX}latest/download/latest.json"));
+        let repository = TRUSTED_PREFIX.strip_prefix("https://github.com/").unwrap().strip_suffix("/releases/").unwrap();
+        assert_eq!(LATEST_RELEASE_URL, format!("https://api.github.com/repos/{repository}/releases/latest"));
     }
 }

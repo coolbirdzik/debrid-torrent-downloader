@@ -449,5 +449,7 @@
   "{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ": "{0} prontos · {1} pendentes · {2} erros · Todos os serviços",
   "Xóa dữ liệu cloud?": "Excluir dados da nuvem?",
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "Estes itens e seus arquivos serão excluídos do serviço. Esta ação não pode ser desfeita.",
-  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Os downloads relacionados serão interrompidos e removidos da fila. Os arquivos locais serão mantidos."
+  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Os downloads relacionados serão interrompidos e removidos da fila. Os arquivos locais serão mantidos.",
+  "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Arquivos já na fila: {0}. Duplicados ignorados.",
+  "Không có file mới được thêm vào hàng đợi.": "Nenhum novo arquivo foi adicionado à fila."
 }

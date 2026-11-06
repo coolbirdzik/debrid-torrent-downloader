@@ -17,7 +17,7 @@ const cloudKey = (draft: { provider: Provider; sourceKey: string }) => `${draft.
 
 export interface Toast {
   id: number;
-  tone: 'info' | 'error' | 'success';
+  tone: 'info' | 'error' | 'success' | 'warning';
   message: Msg;
 }
 

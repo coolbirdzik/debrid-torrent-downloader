@@ -353,6 +353,15 @@ export interface QueueRequest {
   fileIds: number[];
 }
 
+/** Count already queued files once, even when selected through overlapping folders or several services. */
+export function queuedFileCount(entries: Entry[], isQueued: QueuedLookup): number {
+  const duplicates = new Set<string>();
+  for (const entry of entries) for (const file of filesOf(entry)) {
+    if (isQueued(entry.draft, file.id, file)) duplicates.add(fileIdentity(entry.draft, file));
+  }
+  return duplicates.size;
+}
+
 export function queueRequests(entries: Entry[], isQueued: QueuedLookup, rank?: Rank): QueueRequest[] {
   const candidates: { draft: Draft; file: TorrentFile }[] = [];
   for (const entry of entries) for (const file of filesOf(entry)) if (!isQueued(entry.draft, file.id, file)) candidates.push({ draft: entry.draft, file });

@@ -2,6 +2,7 @@
   import { open as pickFolder } from '@tauri-apps/plugin-dialog';
   import FolderSimple from 'phosphor-svelte/lib/FolderSimple';
   import Plus from 'phosphor-svelte/lib/Plus';
+  import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
   import { app } from '../app.svelte';
   import { answer, dialog } from '../confirm.svelte';
   import { answerDestination, destinationDialog, isAbsolutePath } from '../destination.svelte';
@@ -109,7 +110,7 @@
 
 <div class="toasts" aria-live="polite">
   {#each app.toasts as toast (toast.id)}
-    <div class="toast card {toast.tone}">{tm(toast.message)}</div>
+    <div class="toast card {toast.tone}">{#if toast.tone === 'warning'}<WarningCircle size={18} weight="duotone" aria-hidden="true" /><span>{tm(toast.message)}</span>{:else}{tm(toast.message)}{/if}</div>
   {/each}
 </div>
 
@@ -134,4 +135,5 @@
   .toast { padding: 11px 16px; border-radius: 16px; background: var(--glass-strong); box-shadow: var(--float); backdrop-filter: blur(20px); }
   .toast.error { color: var(--danger); }
   .toast.success { color: var(--success); }
+  .toast.warning { display: flex; align-items: center; gap: 8px; color: var(--partial); }
 </style>

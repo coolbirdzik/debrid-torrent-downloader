@@ -2,7 +2,7 @@
 
 English · [Tiếng Việt](README.vi.md)
 
-[![Build and release](https://github.com/coolbirdzik/realdebrid/actions/workflows/build.yml/badge.svg)](https://github.com/coolbirdzik/realdebrid/actions/workflows/build.yml)
+[![Build and release](https://github.com/coolbirdzik/debrid-torrent-downloader/actions/workflows/build.yml/badge.svg)](https://github.com/coolbirdzik/debrid-torrent-downloader/actions/workflows/build.yml)
 ![Platforms: Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational)
 ![Debrid services: Real-Debrid, TorBox, AllDebrid](https://img.shields.io/badge/debrid-Real--Debrid%20%7C%20TorBox%20%7C%20AllDebrid-blueviolet)
 
@@ -92,6 +92,7 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 ### Torrent downloads from debrid
 
 - **Queue selected files, or everything that is left** in the library, with one click. Downloads start right away.
+  Adding selected files that are already queued shows a warning toast with the duplicate count; only new files are added.
 - **Resumable downloads** (`Range` + `If-Range`): stop, pause or close the app and continue from the exact byte later.
 - **Automatic retry:** a dropped connection, a timeout or an expired download link is retried with back-off and
   resumes the partial file. **Retry all** is there for anything that still fails.
@@ -147,7 +148,7 @@ examples above use the Vietnamese interface.
 
 ## Download and install
 
-Get the installer for your system from the [Releases](https://github.com/coolbirdzik/realdebrid/releases) page:
+Get the installer for your system from the [Releases](https://github.com/coolbirdzik/debrid-torrent-downloader/releases) page:
 `.msi` or `.exe` for Windows, `.dmg` for macOS, `.deb`, `.rpm` or `.AppImage` for Linux. For Windows there is also
 `DebridDock-portable-win-x64.zip`: unzip it anywhere and run `DebridDock.exe`; the queue, library and settings stay in
 a `data` folder next to it (the WebView2 runtime, included with Windows 11, must be installed). It can also be built
@@ -296,6 +297,10 @@ pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":true}}'
 CI publishes the installer signatures, a signed raw executable for Windows portable copies, the signed macOS
 app archive and Linux AppImage, and `latest.json`. Tag builds fail if the key or an update artifact is missing.
 Updater signatures are separate from Windows Authenticode and macOS notarization.
+
+`scripts/update-manifest.mjs` reads the release repository from the updater endpoint in `src-tauri/tauri.conf.json`
+and checks it against CI's `GITHUB_REPOSITORY`. When renaming the repository, also update release discovery and the
+trusted URL prefix in `src-tauri/src/update.rs`; tests check that these URLs agree.
 
 `.github/workflows/build.yml` tests on all three systems and builds installers on every push to `main` and pull
 request (uploaded as workflow artifacts for 14 days). For a tag named `vX.Y.Z` that matches the `version` in

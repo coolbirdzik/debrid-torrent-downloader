@@ -3,9 +3,16 @@ import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export function createManifest(files, read, version, repository) {
+// The published feed and its assets must use the same repository as the app's updater endpoint.
+const config = JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+const endpoint = config.plugins?.updater?.endpoints?.[0];
+const repositoryMatch = typeof endpoint === 'string' && /^https:\/\/github\.com\/([\w-]+\/[\w.-]+)\/releases\/latest\/download\/latest\.json$/.exec(endpoint);
+if (!repositoryMatch) throw new Error('Expected a GitHub latest.json updater endpoint in src-tauri/tauri.conf.json');
+export const UPDATER_REPOSITORY = repositoryMatch[1];
+
+export function createManifest(files, read, version, repository = UPDATER_REPOSITORY) {
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version)) throw new Error('Invalid release version');
-  if (repository !== 'coolbirdzik/realdebrid') throw new Error('Unexpected updater repository');
+  if (repository !== UPDATER_REPOSITORY) throw new Error(`Unexpected updater repository: ${repository}; expected ${UPDATER_REPOSITORY} from src-tauri/tauri.conf.json`);
   const platforms = {};
   const add = (targets, pattern) => {
     const matches = files.filter((name) => pattern.test(name));
@@ -31,7 +38,7 @@ export function createManifest(files, read, version, repository) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const folder = resolve(process.argv[2] ?? 'release');
-  const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
-  const manifest = createManifest(readdirSync(folder), (name) => readFileSync(join(folder, name), 'utf8'), version, process.env.GITHUB_REPOSITORY ?? 'coolbirdzik/realdebrid');
+  const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const manifest = createManifest(readdirSync(folder), (name) => readFileSync(join(folder, name), 'utf8'), version, process.env.GITHUB_REPOSITORY ?? UPDATER_REPOSITORY);
   writeFileSync(join(folder, 'latest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 }

@@ -2,7 +2,7 @@ import { untrack } from 'svelte';
 import { api } from './api';
 import { app } from './app.svelte';
 import { askDestination } from './destination.svelte';
-import { activeDrafts, buildEntries, draftId, queueRequests, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
+import { activeDrafts, buildEntries, draftId, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
 import { chooseProviders } from './providers.svelte';
 import { PROVIDERS, type LibraryPatch, type Provider } from './types';
 import { emptySelection, selectAll, selectItem, selectionKey } from './selection';
@@ -28,6 +28,7 @@ class LibraryState {
   undoStack = $state.raw<LibraryPatch[][]>([]);
   input = $state('');
   clearing = $state(false);
+  queueing = $state(false);
   /** Which service's torrents are shown. */
   source = $state<SourceFilter>('all');
 
@@ -68,7 +69,7 @@ class LibraryState {
     if (!cloud) return draft.torrentId ? 0 : -1;
     return cloud.status === 'downloaded' ? 1000 : cloud.progress;
   };
-  canQueue = $derived(this.selectedEntries.some((entry) => !entry.queued && (entry.kind === 'file' || entry.fileCount > 0)));
+  canQueue = $derived(!this.queueing && this.selectedEntries.some((entry) => entry.kind === 'file' || entry.fileCount > 0));
   selectedBytes = $derived(this.selectedEntries.reduce((sum, entry) => sum + entry.size, 0));
   pendingCount = $derived(this.drafts.filter((d) => d.files.length === 0).length);
   /** Import is shared across services even when the browser is filtered to only one. */
@@ -233,24 +234,52 @@ class LibraryState {
   }
 
   async queueSelected() {
-    this.flush();
-    const lookup = queuedLookup(untrack(() => app.jobs), app.library);
-    const requests = queueRequests(this.selectedEntries, lookup, this.rank);
-    if (requests.length === 0) return;
-    const directory = await this.askDirectory(requests);
-    if (directory === null) return;
-    this.clearSelection();
-    await this.queueAndStart(requests, directory);
+    if (this.queueing) return;
+    this.queueing = true;
+    try {
+      this.flush();
+      const entries = this.selectedEntries;
+      let lookup = queuedLookup(untrack(() => app.jobs), app.library);
+      let requests = queueRequests(entries, lookup, this.rank);
+      if (requests.length === 0) {
+        this.warnQueued(queuedFileCount(entries, lookup));
+        return;
+      }
+      const directory = await this.askDirectory(requests);
+      if (directory === null) return;
+      // A file can enter the queue while the destination dialog is open. Recheck the original selection.
+      lookup = queuedLookup(untrack(() => app.jobs), app.library);
+      requests = queueRequests(entries, lookup, this.rank);
+      const duplicates = queuedFileCount(entries, lookup);
+      if (requests.length === 0) {
+        this.warnQueued(duplicates);
+        return;
+      }
+      this.clearSelection();
+      await this.queueAndStart(requests, directory, duplicates);
+    } finally {
+      this.queueing = false;
+    }
   }
 
   async queueRemaining() {
-    this.flush();
-    const requests = remainingRequests(app.library, this.source, untrack(() => app.jobs), this.rank);
-    if (requests.length === 0) return;
-    const directory = await this.askDirectory(requests);
-    if (directory === null) return;
-    this.clearSelection();
-    await this.queueAndStart(requests, directory);
+    if (this.queueing) return;
+    this.queueing = true;
+    try {
+      this.flush();
+      const requests = remainingRequests(app.library, this.source, untrack(() => app.jobs), this.rank);
+      if (requests.length === 0) return;
+      const directory = await this.askDirectory(requests);
+      if (directory === null) return;
+      this.clearSelection();
+      await this.queueAndStart(requests, directory);
+    } finally {
+      this.queueing = false;
+    }
+  }
+
+  private warnQueued(count: number) {
+    if (count > 0) app.toast({ key: '{0} file đã có trong hàng đợi, bỏ qua file trùng.', args: [String(count)] }, 'warning');
   }
 
   /** Where to save: the Settings folder is offered first. `null` means the user cancelled. */
@@ -260,9 +289,14 @@ class LibraryState {
   }
 
   /** New queue rows start downloading right away; other queued, paused or stopped rows are left alone. */
-  private async queueAndStart(requests: Parameters<typeof api.queueAdd>[0], directory: string) {
+  private async queueAndStart(requests: Parameters<typeof api.queueAdd>[0], directory: string, duplicates = 0) {
     const created = await app.run(() => api.queueAdd(requests.map((request) => ({ ...request, outputDirectory: directory }))));
-    if (!created?.length) return;
+    if (!created) return;
+    this.warnQueued(duplicates);
+    if (!created.length) {
+      if (!duplicates) app.toast({ key: 'Không có file mới được thêm vào hàng đợi.', args: [] }, 'warning');
+      return;
+    }
     let started = true;
     await app.run(async () => {
       try {

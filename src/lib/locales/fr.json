@@ -449,5 +449,7 @@
   "{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ": "{0} prêts · {1} en attente · {2} erreurs · Tous les services",
   "Xóa dữ liệu cloud?": "Supprimer les données du cloud ?",
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "Ces éléments et leurs fichiers seront supprimés du service. Cette action est irréversible.",
-  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Les téléchargements associés seront arrêtés et retirés de la file. Les fichiers locaux seront conservés."
+  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Les téléchargements associés seront arrêtés et retirés de la file. Les fichiers locaux seront conservés.",
+  "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Fichiers déjà dans la file : {0}. Doublons ignorés.",
+  "Không có file mới được thêm vào hàng đợi.": "Aucun nouveau fichier ajouté à la file."
 }

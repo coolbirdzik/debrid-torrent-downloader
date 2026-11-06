@@ -449,5 +449,7 @@
   "{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ": "{0} listos · {1} pendientes · {2} errores · Todos los servicios",
   "Xóa dữ liệu cloud?": "¿Eliminar datos de la nube?",
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "Estos elementos y sus archivos se eliminarán del servicio. Esta acción no se puede deshacer.",
-  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Las descargas relacionadas se detendrán y se quitarán de la cola. Se conservarán los archivos locales."
+  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "Las descargas relacionadas se detendrán y se quitarán de la cola. Se conservarán los archivos locales.",
+  "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "Archivos ya en la cola: {0}. Se omitieron los duplicados.",
+  "Không có file mới được thêm vào hàng đợi.": "No se añadieron archivos nuevos a la cola."
 }

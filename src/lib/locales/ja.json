@@ -449,5 +449,7 @@
   "{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ": "{0} 件完了 · {1} 件待機 · エラー {2} 件 · 全サービス",
   "Xóa dữ liệu cloud?": "クラウドのデータを削除しますか？",
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "これらの項目と含まれるファイルがサービスから削除されます。この操作は取り消せません。",
-  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "関連するダウンロードタスクは停止し、キューから削除されます。ローカルファイルは保持されます。"
+  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "関連するダウンロードタスクは停止し、キューから削除されます。ローカルファイルは保持されます。",
+  "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "すでにキューにあるファイル: {0} 件。重複ファイルをスキップしました。",
+  "Không có file mới được thêm vào hàng đợi.": "新しいファイルはキューに追加されませんでした。"
 }

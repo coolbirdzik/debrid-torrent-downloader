@@ -449,5 +449,7 @@
   "{0} đã đọc · {1} chờ đọc · {2} lỗi · Tất cả dịch vụ": "{0} 个已读取 · {1} 个待导入 · {2} 个错误 · 所有服务",
   "Xóa dữ liệu cloud?": "删除云端数据？",
   "Các mục này và file bên trong sẽ bị xóa khỏi dịch vụ. Không thể hoàn tác.": "这些项目及其文件将从服务中删除。此操作无法撤销。",
-  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "相关下载任务将停止并从队列中移除。本地文件将保留。"
+  "Tác vụ tải liên quan sẽ dừng và bị bỏ khỏi hàng đợi. File trên máy được giữ lại.": "相关下载任务将停止并从队列中移除。本地文件将保留。",
+  "{0} file đã có trong hàng đợi, bỏ qua file trùng.": "已有 {0} 个文件在队列中，已跳过重复文件。",
+  "Không có file mới được thêm vào hàng đợi.": "没有新文件添加到队列。"
 }
