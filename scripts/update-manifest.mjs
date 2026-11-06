@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { verifyManifestArtifacts } from './verify-updater.mjs';
 
 // The published feed and its assets must use the same repository as the app's updater endpoint.
 const config = JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
@@ -40,5 +41,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const folder = resolve(process.argv[2] ?? 'release');
   const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   const manifest = createManifest(readdirSync(folder), (name) => readFileSync(join(folder, name), 'utf8'), version, process.env.GITHUB_REPOSITORY ?? UPDATER_REPOSITORY);
+  // A signature file being present is not enough: a different CI key used to produce un-installable releases.
+  const count = verifyManifestArtifacts(manifest, (name) => readFileSync(join(folder, name)));
   writeFileSync(join(folder, 'latest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(`Verified ${count} signed updater artifacts before writing latest.json.`);
 }

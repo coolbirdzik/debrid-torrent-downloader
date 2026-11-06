@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -21,7 +21,7 @@ describe('release updater manifest', () => {
     }
   });
 
-  it('runs the CI command with GITHUB_REPOSITORY and writes URLs to the renamed release', () => {
+  it('refuses to publish latest.json when CI artifacts have invalid signatures', () => {
     const tempRoot = resolve(tmpdir());
     const folder = mkdtempSync(join(tempRoot, 'debriddock-manifest-'));
     try {
@@ -29,11 +29,9 @@ describe('release updater manifest', () => {
       const run = spawnSync(process.execPath, ['scripts/update-manifest.mjs', folder], {
         cwd: resolve('.'), encoding: 'utf8', env: { ...process.env, GITHUB_REPOSITORY: 'coolbirdzik/debrid-torrent-downloader' }
       });
-      assert.equal(run.status, 0, run.stderr);
-      const feed = JSON.parse(readFileSync(join(folder, 'latest.json'), 'utf8'));
-      const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
-      assert.equal(feed.version, version);
-      assert.ok(Object.values(feed.platforms).every((entry) => entry.url.startsWith(`https://github.com/${UPDATER_REPOSITORY}/releases/download/v${version}/`)));
+      assert.notEqual(run.status, 0);
+      assert.match(run.stderr, /Invalid updater public key or signature encoding/);
+      assert.ok(!existsSync(join(folder, 'latest.json')), 'an unusable feed must never be published');
     } finally {
       assert.equal(dirname(resolve(folder)), tempRoot);
       assert.ok(basename(folder).startsWith('debriddock-manifest-'));
