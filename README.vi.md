@@ -78,6 +78,7 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
   TorBox**, lọc theo nhà cung cấp và loại dữ liệu.
 - **Ngày thêm mới nhất lên đầu** trên toàn danh sách, xuyên suốt nhà cung cấp và loại dữ liệu. Mỗi dòng hiện dịch vụ,
   tài khoản, loại, ID, dung lượng, trạng thái và ngày thêm; phần đầu hiện số mục và tổng dung lượng.
+  Bấm cột **Tên / ID, Dung lượng, Trạng thái hoặc Ngày thêm** để tăng dần, giảm dần, rồi trở về thứ tự mặc định.
 - **Xóa mục đã chọn** hoặc **Xóa tất cả cloud** trong bộ lọc nhà cung cấp/loại dữ liệu hiện tại. Cả hai đều cho xem lại
   đúng danh sách và tài khoản trong modal xác nhận có danh sách cuộn. Lệnh xóa giữ đúng tài khoản dù đổi Cài đặt; mục lỗi vẫn hiện để xử
   lý tiếp. Xóa tất cả bị vô hiệu khi đang tải danh sách hoặc một phần phạm vi đó chưa tải được.

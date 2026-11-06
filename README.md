@@ -80,6 +80,7 @@ unrestricting every link and feeding the links to a download manager. DebridDock
   Usenet downloads on TorBox**, with provider and download-type filters.
 - Items are sorted by **newest added first across providers and types**. Each row identifies the provider, account,
   type and ID, alongside size, status and date added; the header shows the item count and combined size.
+  Click **Name / ID, Size, Status or Date added** to sort ascending, descending, then reset to the default order.
 - **Delete selected items** or **Delete all cloud items** in the current provider/type filter. Both show the exact
   items and accounts in a confirmation modal with a scrollable list. Deletion stays tied to those accounts even if Settings changes;
   failed items remain visible. Delete all is unavailable while loading or when part of that scope failed to load.

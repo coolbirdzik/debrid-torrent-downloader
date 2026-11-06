@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RemoteBrowser, remoteKey, remoteQueuedKeys } from './remote';
+import { nextRemoteSort, RemoteBrowser, remoteKey, remoteQueuedKeys, sortRemoteRows, type RemoteRow, type RemoteSortColumn } from './remote';
 import type { AccountInfo, CloudKind, Job, RemoteTorrent } from './types';
 
 const torrent: RemoteTorrent = { id: 'same-id', filename: 'Movie', bytes: 100, progress: 100, status: 'downloaded', added: null, speed: null, seeders: null };
@@ -9,6 +9,70 @@ const deferred = <T>() => {
   const promise = new Promise<T>((done) => { resolve = done; });
   return { promise, resolve };
 };
+
+describe('cloud column sorting', () => {
+  const rows: RemoteRow[] = [
+    { ...torrent, provider: 'realDebrid', account: 'rd', id: '10', filename: 'Episode 10', bytes: 300, status: 'downloading', progress: 20, added: '2026-11-05T00:00:00Z' },
+    { ...torrent, provider: 'torBox', account: 'tb', kind: 'webDownload', id: '2', filename: 'episode 2', bytes: 20, status: 'downloaded', progress: 100, added: '2026-11-07T00:00:00Z' },
+    { ...torrent, provider: 'torBox', account: 'tb', id: '1', filename: 'Episode 1', bytes: 100, status: 'downloading', progress: 80, added: '2026-11-06T00:00:00Z' }
+  ];
+
+  it.each<{ column: RemoteSortColumn; ascending: string[]; descending: string[] }>([
+    { column: 'name', ascending: ['1', '2', '10'], descending: ['10', '2', '1'] },
+    { column: 'size', ascending: ['2', '1', '10'], descending: ['10', '1', '2'] },
+    { column: 'status', ascending: ['2', '10', '1'], descending: ['1', '10', '2'] },
+    { column: 'added', ascending: ['10', '1', '2'], descending: ['2', '1', '10'] }
+  ])('sorts $column in both directions without changing the underlying rows', ({ column, ascending, descending }) => {
+    expect(sortRemoteRows(rows, { column, direction: 'asc' }).map((row) => row.id)).toEqual(ascending);
+    expect(sortRemoteRows(rows, { column, direction: 'desc' }).map((row) => row.id)).toEqual(descending);
+    expect(rows.map((row) => row.id)).toEqual(['10', '2', '1']);
+    expect(sortRemoteRows(rows, null)).toBe(rows);
+  });
+
+  it('keeps missing and invalid dates last in either direction', () => {
+    const unknown = [{ ...rows[0], id: 'missing', added: null }, { ...rows[0], id: 'invalid', added: 'invalid' }];
+    for (const direction of ['asc', 'desc'] as const) {
+      const sorted = sortRemoteRows([...unknown, rows[1]], { column: 'added', direction });
+      expect(sorted[0]).toBe(rows[1]);
+      expect(new Set(sorted.slice(1).map((row) => row.id))).toEqual(new Set(['missing', 'invalid']));
+    }
+  });
+
+  it('uses numeric IDs for unnamed items and equal names', () => {
+    const equalNames = [{ ...rows[0], id: '10', filename: '' }, { ...rows[0], id: '2', filename: '' }];
+    expect(sortRemoteRows(equalNames, { column: 'name', direction: 'asc' }).map((row) => row.id)).toEqual(['2', '10']);
+    expect(sortRemoteRows(equalNames.map((row) => ({ ...row, filename: 'Same name' })), { column: 'name', direction: 'desc' }).map((row) => row.id)).toEqual(['10', '2']);
+  });
+
+  it('cycles ascending, descending, default and starts a different column ascending', () => {
+    const asc = nextRemoteSort(null, 'name');
+    const desc = nextRemoteSort(asc, 'name');
+    expect(asc).toEqual({ column: 'name', direction: 'asc' });
+    expect(desc).toEqual({ column: 'name', direction: 'desc' });
+    expect(nextRemoteSort(desc, 'name')).toBeNull();
+    expect(nextRemoteSort(desc, 'size')).toEqual({ column: 'size', direction: 'asc' });
+  });
+
+  it('keeps selection identities and uses the sorted range when reviewing deletion', async () => {
+    const api = {
+      remoteList: vi.fn(async () => ({ account: 'user', torrents: rows.map((row) => ({ ...row, provider: undefined, account: undefined })) })),
+      remoteDelete: vi.fn(async (_provider: string, ids: string[]) => ids.map((id) => ({ id, ok: true, message: null })))
+    };
+    const remote = new RemoteBrowser(api, () => {});
+    await remote.load(['realDebrid']);
+    const ascending = sortRemoteRows(remote.state.rows, { column: 'name', direction: 'asc' });
+    remote.pick(ascending[0], ascending, {});
+    const descending = sortRemoteRows(remote.state.rows, { column: 'name', direction: 'desc' });
+    expect(remote.state.selected).toEqual(new Set([remoteKey(ascending[0])]));
+    remote.pick(descending[1], descending, { shift: true });
+    expect(remote.state.selected).toEqual(new Set(descending.slice(1).map(remoteKey)));
+    remote.review();
+    expect(new Set(remote.state.reviewing?.map((row) => row.id))).toEqual(new Set(['1', '2']));
+    expect(await remote.confirmDelete()).toBe(2);
+    expect(api.remoteDelete).toHaveBeenCalledWith('realDebrid', ['2', '1'], 'user', 'torrent');
+    expect(remote.state.rows.map((row) => row.id)).toEqual(['10']);
+  });
+});
 
 describe('remote torrents across accounts', () => {
   it('selects ranges only inside the visible provider and freezes selection during review', async () => {

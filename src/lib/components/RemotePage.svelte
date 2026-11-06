@@ -2,6 +2,8 @@
   import ArrowClockwise from 'phosphor-svelte/lib/ArrowClockwise';
   import CloudArrowDown from 'phosphor-svelte/lib/CloudArrowDown';
   import CheckSquare from 'phosphor-svelte/lib/CheckSquare';
+  import CaretUp from 'phosphor-svelte/lib/CaretUp';
+  import CaretDown from 'phosphor-svelte/lib/CaretDown';
   import Trash from 'phosphor-svelte/lib/Trash';
   import { onDestroy, untrack } from 'svelte';
   import { api } from '../api';
@@ -9,7 +11,7 @@
   import { formatBytes } from '../browser';
   import { languageTag } from '../languages';
   import { t, tm } from '../i18n.svelte';
-  import { emptyRemoteState, parseRemoteScope, RemoteBrowser, remoteKey, remoteQueuedKeys, type RemoteRow } from '../remote';
+  import { emptyRemoteState, nextRemoteSort, parseRemoteScope, RemoteBrowser, remoteKey, remoteQueuedKeys, sortRemoteRows, type RemoteRow, type RemoteSort, type RemoteSortColumn } from '../remote';
   import { CLOUD_KINDS, cloudKindLabel, providerLabel, type CloudFilter, type Provider, type RemoteTorrent } from '../types';
   import TorBoxAccount from './TorBoxAccount.svelte';
   import RealDebridAccount from './RealDebridAccount.svelte';
@@ -21,9 +23,10 @@
   let view = $state.raw(emptyRemoteState());
   let filter = $state<Provider | 'all'>('all');
   let kind = $state<CloudFilter>('all');
+  let sort = $state<RemoteSort>(null);
   let listRef: { reveal: (index: number) => void } | undefined = $state();
   const remote = new RemoteBrowser(api, (next) => (view = next));
-  const torrents = $derived(view.rows.filter((row) => filter === 'all' || row.provider === filter));
+  const torrents = $derived(sortRemoteRows(view.rows.filter((row) => filter === 'all' || row.provider === filter), sort, languageTag(app.settings.language)));
   const queuedKeys = $derived(remoteQueuedKeys(app.jobs));
   const visibleErrors = $derived(Object.entries(view.errors).filter(([scope]) => filter === 'all' || parseRemoteScope(scope).provider === filter));
   const reviewTargets = $derived([...new Set(view.reviewing?.map((row) => `${providerLabel(row.provider)} · ${row.account} · ${cloudKindLabel(row.kind ?? 'torrent')}`) ?? [])].join(', '));
@@ -32,6 +35,12 @@
   const showTorBox = $derived((filter === 'all' || filter === 'torBox') && app.accounts.some((account) => account.provider === 'torBox' && account.hasToken));
 
   function load() { return remote.load(app.usableProviders, kind); }
+
+  function sortBy(column: RemoteSortColumn) {
+    if (view.reviewing || view.deleting) return;
+    sort = nextRemoteSort(sort, column);
+    listRef?.reveal(0);
+  }
 
   function keydown(event: KeyboardEvent) {
     const result = remote.keydown(torrents, event);
@@ -68,6 +77,14 @@
   }
 </script>
 
+{#snippet headerCell(column: RemoteSortColumn, label: string)}
+  {@const active = sort?.column === column}
+  <button class="hcell" class:active aria-pressed={active} disabled={view.reviewing !== null || view.deleting} onclick={() => sortBy(column)} title={t('Sắp xếp theo cột {0}. Bấm lần nữa để đảo chiều, lần thứ ba để bỏ.', label)}>
+    {label}
+    {#if active && sort?.direction === 'asc'}<CaretUp size={12} weight="bold" />{:else if active}<CaretDown size={12} weight="bold" />{/if}
+  </button>
+{/snippet}
+
 <section class="page">
   <header class="head">
     <div>
@@ -94,7 +111,7 @@
     {#each visibleErrors as [scope, error]}
       <p class="load-error" role="alert"><b>{providerLabel(parseRemoteScope(scope).provider)} · {cloudKindLabel(parseRemoteScope(scope).kind)}</b> · {tm(error)}</p>
     {/each}
-    <div class="cols head-row"><span></span><span>{t('Tên / ID')}</span><span>{t('Dung lượng')}</span><span>{t('Trạng thái')}</span><span>{t('Ngày thêm')}</span></div>
+    <div class="cols head-row"><span></span>{@render headerCell('name', t('Tên / ID'))}{@render headerCell('size', t('Dung lượng'))}{@render headerCell('status', t('Trạng thái'))}{@render headerCell('added', t('Ngày thêm'))}</div>
     <div class="body">
       {#if torrents.length === 0}
         <div class="empty">
@@ -145,6 +162,9 @@
   .load-error { margin: 0 16px 8px; color: var(--danger); line-height: 1.5; }
   .cols { display: grid; grid-template-columns: 52px minmax(180px, 1fr) 100px 190px 136px; align-items: center; padding-right: 16px; }
   .head-row { height: 36px; margin: 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; }
+  .hcell { display: flex; align-items: center; gap: 5px; min-width: 0; height: 30px; padding: 0 6px; margin-left: -6px; border-radius: 8px; font: inherit; color: inherit; text-align: left; }
+  .hcell:hover { background: var(--hover); color: var(--ink); }
+  .hcell.active { color: var(--accent); }
   .body { flex: 1; min-height: 0; position: relative; }
   .item { height: 56px; }
   .item input { justify-self: center; }

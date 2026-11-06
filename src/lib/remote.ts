@@ -7,6 +7,39 @@ export interface RemoteRow extends RemoteTorrent {
   kind?: CloudKind;
 }
 
+export type RemoteSortColumn = 'name' | 'size' | 'status' | 'added';
+export type RemoteSort = { column: RemoteSortColumn; direction: 'asc' | 'desc' } | null;
+
+/** Match Library headers: ascending, descending, then back to the default newest-first list. */
+export const nextRemoteSort = (current: RemoteSort, column: RemoteSortColumn): RemoteSort =>
+  current?.column !== column ? { column, direction: 'asc' }
+    : current.direction === 'asc' ? { column, direction: 'desc' } : null;
+
+/** Sort a display copy, keeping service/account/type identities and the backing list intact for deletion. */
+export function sortRemoteRows(rows: RemoteRow[], sort: RemoteSort, locale?: string): RemoteRow[] {
+  if (!sort) return rows;
+  const collator = new Intl.Collator(locale, { numeric: true, sensitivity: 'base' });
+  const name = (row: RemoteRow) => row.filename || row.id;
+  const added = (row: RemoteRow) => row.added ? Date.parse(row.added) : NaN;
+  return [...rows].sort((left, right) => {
+    let value = 0;
+    if (sort.column === 'added') {
+      const a = added(left), b = added(right);
+      // Unknown dates stay at the bottom in both directions.
+      if (Number.isFinite(a) !== Number.isFinite(b)) return Number.isFinite(a) ? -1 : 1;
+      if (Number.isFinite(a)) value = a - b;
+    } else if (sort.column === 'size') {
+      value = left.bytes - right.bytes;
+    } else if (sort.column === 'status') {
+      value = collator.compare(left.status, right.status) || left.progress - right.progress;
+    } else {
+      value = collator.compare(name(left), name(right)) || collator.compare(left.id, right.id);
+    }
+    return (sort.direction === 'desc' ? -value : value)
+      || collator.compare(name(left), name(right)) || collator.compare(remoteKey(left), remoteKey(right));
+  });
+}
+
 export const remoteKey = (row: Pick<RemoteRow, 'provider' | 'account' | 'id' | 'kind'>) =>
   JSON.stringify([row.provider, row.account.toLowerCase(), row.kind ?? 'torrent', row.id]);
 
