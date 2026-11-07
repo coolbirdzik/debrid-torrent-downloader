@@ -11,7 +11,7 @@ AllDebrid, duyệt chúng trong thư viện ảo, xem video trực tiếp từ c
 tiếp tục (resume).** Không còn phải mở nhiều tab web, copy từng link và dùng thêm một trình quản lý tải riêng cho mỗi
 dịch vụ debrid. Chạy trên Windows, macOS và Linux.
 
-![DebridDock: thư viện torrent ảo cho Real-Debrid, TorBox và AllDebrid, giao diện sáng](docs/images/app-vi.png)
+![DebridDock: thư viện torrent ảo cho Real-Debrid, TorBox và AllDebrid, giao diện sáng](docs/images/app-en.png)
 
 ## Mục lục
 
@@ -153,23 +153,21 @@ DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ t�
 
 ![Trình phát video tích hợp đang stream file từ dịch vụ debrid, có thanh tua, tốc độ, phụ đề, hình trong hình và nút mở trình phát ngoài](docs/images/player-en.png)
 
-![Hàng đợi tải của DebridDock: tải có resume, Retry tất cả và nút thao tác trên từng dòng](docs/images/queue-vi.png)
+![Hàng đợi tải của DebridDock: tải có resume, Retry tất cả và nút thao tác trên từng dòng](docs/images/queue-en.png)
 
-![Tiến độ import Library: số đã xử lý, phần trăm và các mục còn chờ](docs/images/import-vi.png)
+![Tiến độ import Library: số đã xử lý, phần trăm và các mục còn chờ trên nhiều dịch vụ](docs/images/import-en.png)
 
-![Quản lý cloud theo nhà cung cấp và loại dữ liệu, kèm gói TorBox và dung lượng AirLock](docs/images/cloud-vi.png)
+![Quản lý cloud theo nhà cung cấp và loại dữ liệu, kèm bảng tài khoản Real-Debrid, TorBox và dung lượng AirLock](docs/images/cloud-en.png)
 
 <details>
-<summary>Giao diện tối và bản tiếng Anh</summary>
+<summary>Giao diện tối</summary>
 
-![Thư viện ảo của DebridDock, giao diện tối](docs/images/app-vi-dark.png)
-
-![DebridDock bản tiếng Anh](docs/images/app-en.png)
+![Thư viện ảo của DebridDock, giao diện tối](docs/images/app-en-dark.png)
 
 </details>
 
-Ảnh chụp giao diện ứng dụng với dữ liệu mẫu, không dùng tài khoản thật hay thực hiện tải thật. Ảnh trình phát video
-dùng giao diện tiếng Anh.
+Ảnh chụp giao diện tiếng Anh với dữ liệu mẫu, không dùng tài khoản thật hay thực hiện tải thật. App có giao diện tiếng
+Việt, đổi trong Cài đặt.
 
 ## Tải về và cài đặt
 

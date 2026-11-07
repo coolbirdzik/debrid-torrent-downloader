@@ -156,21 +156,18 @@ DebridDock never connects to torrent peers itself: your computer only downloads 
 
 ![DebridDock download queue with resumable downloads, retry all and per-row controls](docs/images/queue-en.png)
 
-![Library import progress with processed counts and pending imports, Vietnamese interface](docs/images/import-vi.png)
+![Library import progress with processed counts and pending imports across services](docs/images/import-en.png)
 
-![Cloud files across providers and types, with TorBox plan and AirLock quota, Vietnamese interface](docs/images/cloud-vi.png)
+![Cloud files across providers and types, with Real-Debrid and TorBox account panels and AirLock quota](docs/images/cloud-en.png)
 
 <details>
-<summary>Dark appearance and Vietnamese interface</summary>
+<summary>Dark appearance</summary>
 
 ![DebridDock virtual library in dark appearance](docs/images/app-en-dark.png)
 
-![DebridDock in Vietnamese](docs/images/app-vi.png)
-
 </details>
 
-Screenshots show the application UI with sample data; no real account or transfer is involved. The import and cloud
-examples above use the Vietnamese interface.
+Screenshots show the application UI with sample data; no real account or transfer is involved.
 
 ## Download and install
 
