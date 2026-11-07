@@ -23,6 +23,7 @@
   import Copy from 'phosphor-svelte/lib/Copy';
   import Hash from 'phosphor-svelte/lib/Hash';
   import { copyText } from '../clipboard';
+  import ListChecks from 'phosphor-svelte/lib/ListChecks';
 
   let view = $state.raw(emptyRemoteState());
   let filter = $state<Provider | 'all'>('all');
@@ -46,11 +47,15 @@
     if (!view.selected.has(remoteKey(row))) remote.pick(row, torrents, {});
     menu = { x: event.clientX, y: event.clientY };
   }
+  const downloadedCount = $derived(torrents.filter((row) => row.status === 'downloaded').length);
+
   function menuItems(): MenuItem[] {
     const list = torrents.filter((row) => view.selected.has(remoteKey(row)));
     return [
       { label: t('Sao chép tên'), icon: Copy, tone: 'teal', action: () => copyText(list.map((row) => row.filename).join('\n'), { key: 'Đã sao chép {0} tên.', args: [String(list.length)] }) },
       { label: t('Sao chép ID'), icon: Hash, tone: 'purple', action: () => copyText(list.map((row) => row.id).join('\n'), { key: 'Đã sao chép {0} ID.', args: [String(list.length)] }) },
+      'separator',
+      { label: t('Chọn các mục đã tải xong ({0})', downloadedCount), icon: ListChecks, tone: 'green', disabled: downloadedCount === 0, action: () => remote.selectDownloaded(torrents) },
       'separator',
       { label: t('Xóa mục đã chọn…'), icon: Trash, tone: 'red', danger: true, disabled: list.length === 0, action: () => remote.review() }
     ];
@@ -160,7 +165,10 @@
       {/if}
     </div>
     <footer class="foot">
+      <div class="actions">
       <button class="btn" disabled={view.loading || torrents.length === 0 || view.reviewing !== null || view.deleting} onclick={() => remote.toggleAll(torrents)}><span class="ic teal"><CheckSquare size={16} weight="duotone" /></span>{t('Chọn / bỏ chọn tất cả')}</button>
+      <button class="btn" disabled={view.loading || downloadedCount === 0 || view.reviewing !== null || view.deleting} onclick={() => remote.selectDownloaded(torrents)} title={t('Chọn các mục dịch vụ đã tải xong')}><span class="ic green"><ListChecks size={16} weight="duotone" /></span>{t('Chọn các mục đã tải xong ({0})', downloadedCount)}</button>
+      </div>
       <div class="actions">
         <button class="btn danger" disabled={view.loading || view.deleting || view.selected.size === 0} onclick={() => remote.review()}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Xóa mục đã chọn…')}</button>
         <button class="btn danger" disabled={view.loading || view.deleting || torrents.length === 0 || visibleErrors.length > 0} onclick={() => remote.reviewAll(torrents)}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Xóa tất cả cloud…')}</button>

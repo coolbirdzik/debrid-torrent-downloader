@@ -26,6 +26,7 @@
   import X from 'phosphor-svelte/lib/X';
   import DownloadSimple from 'phosphor-svelte/lib/DownloadSimple';
   import Play from 'phosphor-svelte/lib/Play';
+  import ListChecks from 'phosphor-svelte/lib/ListChecks';
   import VideoPlayer from './VideoPlayer.svelte';
   import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
   import { copyText } from '../clipboard';
@@ -212,6 +213,8 @@
     menu = { x: event.clientX, y: event.clientY, entry };
   }
 
+  const doneCount = $derived(library.entries.filter(isStatusDone).length);
+
   function menuItems(entry: Entry): MenuItem[] {
     const chosen = library.selectedEntries;
     const magnets = [...new Set(chosen.map((e) => magnetOf(e.draft)).filter((m): m is string => m !== null))];
@@ -224,6 +227,8 @@
       'separator',
       { label: t('Sao chép tên'), icon: TextAa, tone: 'teal', action: () => copyText(names.join('\n'), { key: 'Đã sao chép {0} tên.', args: [String(names.length)] }) },
       { label: t('Sao chép magnet link'), icon: Link, tone: 'purple', disabled: magnets.length === 0, action: () => copyText(magnets.join('\n'), { key: 'Đã sao chép {0} magnet link.', args: [String(magnets.length)] }) },
+      'separator',
+      { label: t('Chọn các file đã tải xong ({0})', doneCount), icon: ListChecks, tone: 'green', disabled: doneCount === 0, action: () => library.selectDone() },
       'separator',
       { label: t('Bỏ khỏi thư viện'), icon: Trash, tone: 'red', danger: true, action: () => library.removeSelected() }
     ];
@@ -414,6 +419,7 @@
         <span class="ic purple"><FilmSlate size={16} weight={library.videosOnly ? 'fill' : 'duotone'} /></span>{t('Chỉ video')}
       </button>
       <Select width="168px" label={t('Nhà cung cấp')} value={library.source} options={sourceOptions} onchange={(v: SourceFilter) => { library.setSource(v); listRef?.reveal(0); }} />
+      <button class="btn icon" onclick={() => library.selectDone()} disabled={doneCount === 0} title={t('Chọn các file đã tải xong ({0})', doneCount)} aria-label={t('Chọn các file đã tải xong ({0})', doneCount)}><span class="ic green"><ListChecks size={17} weight="duotone" /></span></button>
       <button class="btn icon" onclick={() => library.toggleAll()} disabled={library.entries.length === 0} title="{t('Chọn / bỏ chọn kết quả (Ctrl+A)')}" aria-label={t('Chọn / bỏ chọn kết quả')}><span class="ic teal"><CheckSquare size={17} weight="duotone" /></span></button>
     </div>
 

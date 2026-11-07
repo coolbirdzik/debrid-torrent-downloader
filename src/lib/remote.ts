@@ -147,6 +147,12 @@ export class RemoteBrowser {
     return result;
   }
 
+  /** Selects exactly the given rows that the service has finished fetching. */
+  selectDownloaded(rows: RemoteRow[]) {
+    if (this.state.loading || this.state.reviewing || this.state.deleting) return;
+    this.update(selectAll(rows.filter((row) => row.status === 'downloaded').map(remoteKey)));
+  }
+
   toggleAll(rows: RemoteRow[]) {
     if (this.state.loading || this.state.reviewing || this.state.deleting) return;
     const allSelected = rows.every((row) => this.state.selected.has(remoteKey(row)));

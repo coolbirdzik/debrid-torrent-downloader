@@ -2,7 +2,7 @@ import { untrack } from 'svelte';
 import { api } from './api';
 import { app } from './app.svelte';
 import { askDestination } from './destination.svelte';
-import { activeDrafts, buildEntries, draftId, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
+import { activeDrafts, buildEntries, draftId, isStatusDone, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
 import { chooseProviders } from './providers.svelte';
 import { PROVIDERS, type LibraryPatch, type Provider } from './types';
 import { emptySelection, selectAll, selectItem, selectionKey } from './selection';
@@ -192,6 +192,12 @@ class LibraryState {
 
   toggle(entry: Entry, shift = false) {
     this.selection = selectItem(this.selection, this.entries.map((e) => e.key), entry.key, { shift }, true);
+  }
+
+  /** Selects exactly the visible entries already saved on this computer (the ✓ rows). */
+  selectDone() {
+    this.flush();
+    this.selection = selectAll(this.entries.filter(isStatusDone).map((e) => e.key));
   }
 
   toggleAll() {

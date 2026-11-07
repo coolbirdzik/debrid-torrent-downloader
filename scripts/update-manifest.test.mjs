@@ -37,7 +37,9 @@ describe('release updater manifest', () => {
       assert.ok(basename(folder).startsWith('debriddock-manifest-'));
       rmSync(folder, { recursive: true, force: true });
     }
-  });
+    // Starts a real Node process on fake .exe/.msi files; antivirus scanning and a busy release run can push that past
+    // the 5 s default even though it normally takes well under a second.
+  }, 30_000);
 
   it('keeps portable separate from the installer and maps both Macs to the universal bundle', () => {
     const feed = manifest();

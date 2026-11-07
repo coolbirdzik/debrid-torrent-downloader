@@ -366,7 +366,6 @@
   "Cũ nhất": "Oldest",
   "Tên": "Name",
   "Thử lại ngay mọi torrent bị lỗi, tiếp tục phần đã tải nếu có": "Retry every failed torrent now and resume partial downloads when possible",
-  "Lỗi kết nối · tự thử lại sau {0} giây ({1}/{2})…": "Connection problem · retrying automatically in {0} s ({1}/{2})…",
   "Cập nhật": "Updates",
   "Phiên bản hiện tại: {0}": "Current version: {0}",
   "Kiểm tra cập nhật": "Check for updates",
@@ -504,5 +503,8 @@
   "Sao chép tên": "Copy name",
   "Sao chép ID": "Copy ID",
   "Đã sao chép {0} tên.": "Copied {0} name(s).",
-  "Đã sao chép {0} ID.": "Copied {0} ID(s)."
+  "Đã sao chép {0} ID.": "Copied {0} ID(s).",
+  "Chọn các file đã tải xong ({0})": "Select downloaded files ({0})",
+  "Chọn các mục đã tải xong ({0})": "Select finished items ({0})",
+  "Chọn các mục dịch vụ đã tải xong": "Select the items the service has finished downloading"
 }
