@@ -14,6 +14,9 @@
   import { t, tm } from '../i18n.svelte';
   import { canRemove, canResume, canRetry, canStop, providerLabel, providerShort, type Job } from '../types';
   import VirtualList from './VirtualList.svelte';
+  import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
+  import Copy from 'phosphor-svelte/lib/Copy';
+  import { copyText } from '../clipboard';
   import { untrack } from 'svelte';
   import { emptySelection, reconcileSelection, selectItem, selectionKey, selectionMouseDown } from '../selection';
 
@@ -34,7 +37,7 @@
 
   const stateLabel = (job: Job) =>
     t(job.isStopping ? 'Đang dừng…' : ({ queued: 'Chờ xử lý', adding: 'Đang thêm', waiting: providerLabel(job.provider), downloading: 'Đang tải về', paused: 'Tạm dừng', stopped: 'Đã dừng', completed: 'Hoàn tất', failed: 'Có lỗi' } as const)[job.state]);
-  const tone = (job: Job) => (job.state === 'completed' ? 'success' : job.state === 'failed' ? 'danger' : job.state === 'downloading' ? 'info' : '');
+  const tone = (job: Job) => (job.state === 'completed' ? 'success' : job.state === 'failed' ? 'danger' : job.state === 'downloading' ? 'info' : job.state === 'paused' ? 'warn' : '');
 
   function pick(job: Job, event: MouseEvent) {
     selection = selectItem(selection, jobKeys, job.id, { ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey });
@@ -70,6 +73,27 @@
     selection = emptySelection();
   }
 
+  // Right-click acts on the selection; a row outside it becomes the only selected row first.
+  let menu: { x: number; y: number } | null = $state(null);
+  function openMenu(job: Job, event: MouseEvent) {
+    event.preventDefault();
+    if (!selected.has(job.id)) selection = selectItem(selection, jobKeys, job.id, {});
+    menu = { x: event.clientX, y: event.clientY };
+  }
+  function menuItems(): MenuItem[] {
+    const list = chosen;
+    return [
+      { label: t('Retry'), icon: ArrowClockwise, weight: 'bold', disabled: !list.some(canRetry), action: () => app.run(() => api.queueStart(ids(list, canRetry))) },
+      { label: t('Bắt đầu / Resume'), icon: Play, tone: 'green', weight: 'fill', disabled: !list.some(canResume), action: () => app.run(() => api.queueStart(ids(list, canResume))) },
+      { label: t('Stop'), icon: Stop, tone: 'red', weight: 'fill', disabled: !list.some(canStop), action: () => app.run(() => api.queueStop(ids(list, canStop))) },
+      'separator',
+      { label: t('Mở thư mục'), icon: FolderOpen, tone: 'amber', action: openFolder },
+      { label: t('Sao chép tên'), icon: Copy, tone: 'teal', action: () => copyText(list.map((job) => job.name).join('\n'), { key: 'Đã sao chép {0} tên.', args: [String(list.length)] }) },
+      'separator',
+      { label: t('Xóa khỏi danh sách'), icon: Trash, tone: 'red', danger: true, disabled: !list.some(canRemove), action: () => remove(ids(list, canRemove)) }
+    ];
+  }
+
   function openFolder() {
     const dir = chosen[0]?.outputDirectory ?? chosen[0]?.targetDirectory ?? app.settings.outputDirectory;
     if (dir) void app.run(() => api.openFolder(dir));
@@ -103,14 +127,14 @@
       {:else}
         <VirtualList bind:this={listRef} items={jobs} rowHeight={64} key={(job) => job.id} onkeydown={keydown} label={t('Hàng đợi tải')}>
           {#snippet row(job: Job)}
-            <div class="cols item row-glass" class:on={selected.has(job.id)} role="option" aria-selected={selected.has(job.id)} tabindex="-1" onmousedown={selectionMouseDown} onclick={(e) => pick(job, e)} onkeydown={() => {}}>
+            <div class="cols item row-glass" class:on={selected.has(job.id)} role="option" aria-selected={selected.has(job.id)} tabindex="-1" onmousedown={selectionMouseDown} onclick={(e) => pick(job, e)} oncontextmenu={(e) => openMenu(job, e)} onkeydown={() => {}}>
               <div class="names">
                 <b class="ell" title={job.name}>{job.name}</b>
                 <span class="caption ell" title={tm(job.detail)}>{tm(job.detail)}</span>
               </div>
               <span>{formatBytes(job.totalBytes)}</span>
               <div class="prog" title={providerLabel(job.provider)}><span>{providerShort(job.provider)} · {job.remoteProgress.toFixed(0)}%</span><div class="bar"><span style:width="{job.remoteProgress}%"></span></div></div>
-              <div class="prog"><span>{job.localProgress.toFixed(0)}%</span><div class="bar"><span style:width="{job.localProgress}%"></span></div></div>
+              <div class="prog"><span class="local"><span>{job.localProgress.toFixed(0)}%</span>{#if job.state === 'downloading' && job.speed}<b class="speed">{formatBytes(job.speed)}/s</b>{/if}</span><div class="bar"><span style:width="{job.localProgress}%"></span></div></div>
               <span><span class="pill {tone(job)}">{stateLabel(job)}</span></span>
               <div class="row-actions">
                 {#if canRetry(job)}<button class="btn icon" title={t('Thử lại torrent bị lỗi ngay, tiếp tục phần đã tải nếu có')} aria-label={t('Retry')} onclick={(e) => { e.stopPropagation(); app.run(() => api.queueStart([job.id])); }}><span class="ic blue"><ArrowClockwise size={16} weight="bold" /></span></button>{/if}
@@ -142,18 +166,24 @@
   </div>
 </section>
 
+{#if menu}
+  <ContextMenu x={menu.x} y={menu.y} items={menuItems()} onclose={() => (menu = null)} />
+{/if}
+
 <style>
   .page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
   .actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
   .table { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .cols { display: grid; grid-template-columns: minmax(220px, 1fr) 96px 110px 110px 120px 150px; align-items: center; padding: 0 16px; column-gap: 8px; }
+  .cols { display: grid; grid-template-columns: minmax(220px, 1fr) 96px 110px 160px 120px 150px; align-items: center; padding: 0 16px; column-gap: 8px; }
   .head-row { height: 40px; margin: 4px 8px 0; color: var(--muted); font-size: 11px; font-weight: 600; }
   .body { flex: 1; min-height: 0; position: relative; }
   .item { height: 60px; }
   .names { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
   .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .prog { display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+  .local { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+  .speed { color: var(--accent); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .row-actions { display: flex; }
   .empty { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; text-align: center; }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }

@@ -56,7 +56,14 @@ impl RealDebrid {
             let status = response.status();
             if attempt < 3 && (status.as_u16() == 429 || (method == Method::GET && status.as_u16() >= 500)) {
                 let wait = retry_after(&response).unwrap_or(self.retry_base * 2u32.pow(attempt));
-                tokio::time::sleep(if wait.is_zero() { Duration::from_millis(5) } else { wait }).await;
+                // Cool the shared limiter down so every other request waits too, instead of only this one backing off.
+                {
+                    let mut next = self.next.lock().await;
+                    let until = Instant::now() + if wait.is_zero() { Duration::from_millis(5) } else { wait };
+                    if until > *next {
+                        *next = until;
+                    }
+                }
                 attempt += 1;
                 continue;
             }

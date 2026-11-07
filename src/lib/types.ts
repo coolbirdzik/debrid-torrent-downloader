@@ -49,6 +49,7 @@ export interface Job {
   remoteProgress: number;
   localProgress: number;
   totalBytes: number;
+  speed?: number;
   isActive: boolean;
   isStopping: boolean;
   isRemoving: boolean;
@@ -217,3 +218,23 @@ export const canRetry = (job: Job) => !job.isRemoving && !job.isActive && !job.i
 export const canResume = (job: Job) => !job.isRemoving && !job.isActive && !job.isStopping && ['queued', 'paused', 'stopped'].includes(job.state);
 export const canStop = (job: Job) => !job.isRemoving && !job.isStopping && (job.isActive || ['queued', 'paused'].includes(job.state));
 export const canRemove = (job: Job) => !job.isRemoving && !job.isStopping;
+
+export interface StreamFile {
+  linkIndex: number;
+  fileId: number;
+  path: string;
+  bytes: number;
+}
+
+export interface StreamList {
+  ready: boolean;
+  status: string;
+  progress: number;
+  files: StreamFile[];
+}
+
+export interface StreamSource {
+  url: string;
+  filename: string;
+  bytes: number;
+}

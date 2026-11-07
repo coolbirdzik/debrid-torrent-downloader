@@ -104,6 +104,9 @@ pub struct Job {
     pub remote_progress: f64,
     pub local_progress: f64,
     pub total_bytes: u64,
+    /// Current local download speed in bytes/s; only meaningful while the job is downloading.
+    #[serde(default)]
+    pub speed: u64,
     #[serde(default)]
     pub is_active: bool,
     #[serde(default)]
@@ -132,6 +135,7 @@ impl Job {
             remote_progress: 0.0,
             local_progress: 0.0,
             total_bytes: 0,
+            speed: 0,
             is_active: false,
             is_stopping: false,
             is_removing: false,

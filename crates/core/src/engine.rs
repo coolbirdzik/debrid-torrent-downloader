@@ -17,7 +17,6 @@ use tokio_util::sync::CancellationToken;
 
 const MAX_TORRENT_BYTES: usize = 20 * 1024 * 1024;
 /// A job that fails on a connection problem runs again by itself this many times before it is marked failed.
-const AUTO_RETRIES: u32 = 5;
 const MAX_RETRY_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// `(job, durable)`: `durable` is false for byte-progress updates, which the UI wants but the disk does not. The job
@@ -181,9 +180,7 @@ fn remote_label(status: &str) -> String {
     .to_string()
 }
 
-fn failed_status(status: &str) -> bool {
-    matches!(status, "magnet_error" | "error" | "virus" | "dead")
-}
+use crate::stream::failed_status;
 
 pub struct Engine {
     api: Arc<dyn Debrid>,
@@ -605,11 +602,11 @@ impl Engine {
                 } else {
                     (completed_index - 1) as f64 * 100.0 / download_count as f64
                 };
+                job.speed = p.bytes_per_second.max(0.0) as u64;
                 job.detail = Msg::plain(&format!(
-                    "{completed_index}/{download_count} · {name} · {} / {} · {}/s",
+                    "{completed_index}/{download_count} · {name} · {} / {}",
                     format_bytes(p.bytes as f64),
-                    format_bytes(p.total as f64),
-                    format_bytes(p.bytes_per_second)
+                    format_bytes(p.total as f64)
                 ));
             });
         };
@@ -813,12 +810,13 @@ impl Session {
             // A dropped connection, a timeout or a dead download link: wait (without holding a slot, so other jobs
             // keep going) and run the job again. Finished files are skipped and partial ones resume from their bytes.
             match outcome {
-                Err(error) if error.is_transient() && !execution.ct.is_cancelled() && attempt < AUTO_RETRIES => {
-                    attempt += 1;
-                    let wait = (self.engine.timing.job_retry * 2u32.pow(attempt - 1)).min(MAX_RETRY_WAIT);
+                Err(error) if error.is_transient() && !execution.ct.is_cancelled() => {
+                    // No attempt cap: the service can be slow for a long time, so keep retrying until the user stops the job.
+                    attempt = attempt.saturating_add(1);
+                    let wait = self.engine.timing.job_retry.saturating_mul(2u32.saturating_pow((attempt - 1).min(16))).min(MAX_RETRY_WAIT);
                     queue.mutate(&id, |job| {
                         job.state = JobState::Waiting;
-                        job.detail = Msg::new("Lỗi kết nối · tự thử lại sau {0} giây ({1}/{2})…", &[&wait.as_secs(), &attempt, &AUTO_RETRIES]);
+                        job.detail = Msg::new("Lỗi kết nối · tự thử lại sau {0} giây (lần {1})…", &[&wait.as_secs(), &attempt]);
                     });
                     if pause(&execution.ct, wait).await.is_err() {
                         break Err(Error::Cancelled);

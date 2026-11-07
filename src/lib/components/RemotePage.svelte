@@ -19,6 +19,10 @@
   import VirtualList from './VirtualList.svelte';
   import { selectionMouseDown } from '../selection';
   import CloudDeleteDialog from './CloudDeleteDialog.svelte';
+  import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
+  import Copy from 'phosphor-svelte/lib/Copy';
+  import Hash from 'phosphor-svelte/lib/Hash';
+  import { copyText } from '../clipboard';
 
   let view = $state.raw(emptyRemoteState());
   let filter = $state<Provider | 'all'>('all');
@@ -33,6 +37,24 @@
   const totalBytes = $derived(torrents.reduce((sum, row) => sum + row.bytes, 0));
   const showRealDebrid = $derived((filter === 'all' || filter === 'realDebrid') && app.accounts.some((account) => account.provider === 'realDebrid' && account.hasToken));
   const showTorBox = $derived((filter === 'all' || filter === 'torBox') && app.accounts.some((account) => account.provider === 'torBox' && account.hasToken));
+
+  // Right-click acts on the selection; a row outside it becomes the only selected row first.
+  let menu: { x: number; y: number } | null = $state(null);
+  function openMenu(row: RemoteRow, event: MouseEvent) {
+    event.preventDefault();
+    if (view.loading || view.reviewing || view.deleting) return;
+    if (!view.selected.has(remoteKey(row))) remote.pick(row, torrents, {});
+    menu = { x: event.clientX, y: event.clientY };
+  }
+  function menuItems(): MenuItem[] {
+    const list = torrents.filter((row) => view.selected.has(remoteKey(row)));
+    return [
+      { label: t('Sao chép tên'), icon: Copy, tone: 'teal', action: () => copyText(list.map((row) => row.filename).join('\n'), { key: 'Đã sao chép {0} tên.', args: [String(list.length)] }) },
+      { label: t('Sao chép ID'), icon: Hash, tone: 'purple', action: () => copyText(list.map((row) => row.id).join('\n'), { key: 'Đã sao chép {0} ID.', args: [String(list.length)] }) },
+      'separator',
+      { label: t('Xóa mục đã chọn…'), icon: Trash, tone: 'red', danger: true, disabled: list.length === 0, action: () => remote.review() }
+    ];
+  }
 
   function load() { return remote.load(app.usableProviders, kind); }
 
@@ -122,7 +144,7 @@
         {#key `${filter}|${kind}`}
         <VirtualList bind:this={listRef} items={torrents} rowHeight={60} key={remoteKey} onkeydown={keydown} label={t('Danh sách dữ liệu cloud')}>
           {#snippet row(torrent: RemoteRow)}
-            <div class="cols item row-glass" class:on={view.selected.has(remoteKey(torrent))} role="option" aria-selected={view.selected.has(remoteKey(torrent))} tabindex="-1" onmousedown={selectionMouseDown} onclick={(e) => remote.pick(torrent, torrents, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })} onkeydown={() => {}}>
+            <div class="cols item row-glass" class:on={view.selected.has(remoteKey(torrent))} role="option" aria-selected={view.selected.has(remoteKey(torrent))} tabindex="-1" onmousedown={selectionMouseDown} onclick={(e) => remote.pick(torrent, torrents, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })} oncontextmenu={(e) => openMenu(torrent, e)} onkeydown={() => {}}>
               <input type="checkbox" checked={view.selected.has(remoteKey(torrent))} disabled={view.loading || view.reviewing !== null || view.deleting} onclick={(e) => { e.stopPropagation(); remote.toggle(torrent, e.shiftKey, torrents); }} aria-label={`${providerLabel(torrent.provider)} · ${torrent.account} · ${torrent.filename}`} />
               <div class="names">
                 <b class="ell" title={torrent.filename}>{torrent.filename}</b>
@@ -146,6 +168,10 @@
     </footer>
   </div>
 </section>
+
+{#if menu}
+  <ContextMenu x={menu.x} y={menu.y} items={menuItems()} onclose={() => (menu = null)} />
+{/if}
 
 {#if view.reviewing}
   <CloudDeleteDialog rows={view.reviewing} deleting={view.deleting} oncancel={() => remote.cancelReview()} onconfirm={confirmDelete} />

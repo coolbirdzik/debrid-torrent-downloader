@@ -70,7 +70,14 @@ impl ProviderHttp {
             let status = response.status();
             if attempt < 3 && (status.as_u16() == 429 || (safe_read && status.as_u16() >= 500)) {
                 let wait = retry_after(&response).unwrap_or(self.retry_base * (attempt + 1));
-                tokio::time::sleep(if wait.is_zero() { Duration::from_millis(5) } else { wait }).await;
+                // Shared cool-down: every other request to this service waits too.
+                {
+                    let mut next = self.next.lock().await;
+                    let until = Instant::now() + if wait.is_zero() { Duration::from_millis(5) } else { wait };
+                    if until > *next {
+                        *next = until;
+                    }
+                }
                 attempt += 1;
                 continue;
             }

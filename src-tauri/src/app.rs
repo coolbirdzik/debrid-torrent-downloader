@@ -10,6 +10,7 @@ use rdbatch_core::error::{Error, Result};
 use rdbatch_core::models::{CloudKind, CloudState, Draft, Job, JobState, Msg, Persisted, Provider, RemoteRef, RemoteTorrent, Settings, TorBoxAccount, User};
 use rdbatch_core::provider::{self, Debrid, Timing};
 use rdbatch_core::store::Store;
+use rdbatch_core::stream::{self, StreamList, StreamSource};
 use rdbatch_core::{parser, search};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -1124,6 +1125,75 @@ impl App {
         let (account, api) = self.verified(provider).await?;
         let torrents = api.cloud_list(kind).await?;
         Ok(RemoteList { account: account.user.username, torrents })
+    }
+
+    /// The verified account must still be the one the list was loaded for, so a token swap can't play another account's file.
+    async fn stream_api(&self, provider: Provider, list_account: Option<&str>) -> Result<Arc<dyn Debrid>> {
+        let (account, api) = self.verified(provider).await?;
+        if let Some(list_account) = list_account.filter(|a| !a.eq_ignore_ascii_case(&account.user.username)) {
+            return Err(Error::operation("Token hiện tại thuộc tài khoản {0}, không phải {1}. Tải lại danh sách trước khi phát.", &[&account.user.username, &list_account]));
+        }
+        Ok(api)
+    }
+
+    /// Video files of a cloud torrent, each tied to the link that `stream_url` will resolve; or, while the service is
+    /// still fetching it, its progress so the player can wait. With `select`, a torrent the Library left at file
+    /// selection gets every file selected, so a later queue of any subset still finds its links. Never pass `select`
+    /// for a torrent a queue job owns: the job makes its own selection.
+    pub async fn stream_files(&self, provider: Provider, id: String, list_account: Option<String>, select: bool) -> Result<StreamList> {
+        let api = self.stream_api(provider, list_account.as_deref()).await?;
+        let mut info = api.info(&id).await?;
+        if select && info.status == "waiting_files_selection" {
+            api.select_all(&id).await?;
+            info = api.info(&id).await?;
+        }
+        if stream::failed_status(&info.status) {
+            return Err(Error::operation("Torrent không tải được trên {0}: {1}", &[&provider.label(), &info.status]));
+        }
+        self.note_stream_cloud(provider, &id, &info);
+        let ready = info.status == "downloaded";
+        Ok(StreamList { ready, status: info.status.clone(), progress: info.progress, files: if ready { stream::playable_files(&info) } else { Vec::new() } })
+    }
+
+    /// Keep the Library's cloud badge in step with what the player just learned.
+    fn note_stream_cloud(&self, provider: Provider, id: &str, info: &rdbatch_core::models::TorrentInfo) {
+        let cloud = CloudState { status: info.status.clone(), progress: info.progress, speed: info.speed, seeders: info.seeders };
+        let update = {
+            let mut data = self.data.lock().unwrap();
+            let Some(draft) = data.library.iter_mut().find(|d| d.provider == provider && d.torrent_id.as_deref() == Some(id)) else { return };
+            if draft.cloud.as_ref() == Some(&cloud) { return }
+            draft.cloud = Some(cloud.clone());
+            CloudUpdate { provider, source_key: draft.source_key.clone(), cloud: Some(cloud) }
+        };
+        self.mark_dirty();
+        self.emit("cloud", vec![update]);
+    }
+
+    /// A fresh direct link for one file. Links expire, so this is resolved on every Play, never stored.
+    pub async fn stream_url(&self, provider: Provider, id: String, link_index: usize, list_account: Option<String>) -> Result<StreamSource> {
+        let api = self.stream_api(provider, list_account.as_deref()).await?;
+        let info = api.info(&id).await?;
+        let (name, bytes) = stream::expected_at(&info, link_index).ok_or_else(|| Error::invalid("Không xác định được file cần phát."))?;
+        let link = info.links.get(link_index).ok_or_else(|| Error::invalid("Không xác định được file cần phát."))?;
+        let resolved = api.unrestrict(link).await?;
+        let same_name = name.eq_ignore_ascii_case(&stream::basename(&resolved.filename));
+        let same_size = !(bytes > 0 && resolved.filesize > 0 && bytes != resolved.filesize);
+        if !same_name || !same_size {
+            return Err(Error::invalid("Link phát không khớp với file đã chọn."));
+        }
+        Ok(StreamSource { url: resolved.download, filename: resolved.filename, bytes: resolved.filesize })
+    }
+
+    /// Hands the stream to the OS default media player through a one-line playlist.
+    pub fn open_external_player(&self, url: &str, filename: &str) -> Result<()> {
+        use tauri_plugin_opener::OpenerExt;
+        if !(url.starts_with("https://") || url.starts_with("http://")) || url.contains(['\r', '\n']) {
+            return Err(Error::invalid("Liên kết phát không hợp lệ."));
+        }
+        let path = std::env::temp_dir().join("DebridDock-stream.m3u");
+        let title: String = filename.chars().filter(|c| !c.is_control()).collect();
+        std::fs::write(&path, format!("#EXTM3U\n#EXTINF:-1,{title}\n{url}\n")).map_err(|e| Error::invalid(e.to_string()))?;
+        self.handle.opener().open_path(path.to_string_lossy().to_string(), None::<&str>).map_err(|e| Error::invalid(e.to_string()))
     }
 
     /// Delete exact IDs on the service. The account must still be the one the list was loaded for, and an ID known to

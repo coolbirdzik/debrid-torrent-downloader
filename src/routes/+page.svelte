@@ -11,6 +11,12 @@
   import RemotePage from '$lib/components/RemotePage.svelte';
   import SettingsPage from '$lib/components/SettingsPage.svelte';
 
+  function blockNativeMenu(event: MouseEvent) {
+    const target = event.target as HTMLElement | null;
+    const editable = target?.closest('input, textarea, [contenteditable="true"]');
+    if (!editable || (editable instanceof HTMLInputElement && ['checkbox', 'radio', 'range', 'button', 'file'].includes(editable.type))) event.preventDefault();
+  }
+
   const filesDone = $derived(app.jobs.reduce((sum, job) => sum + job.files.filter((file) => file.completed).length, 0));
 
   onMount(() => {
@@ -29,6 +35,8 @@
     return () => unlisten?.();
   });
 </script>
+
+<svelte:window oncontextmenu={blockNativeMenu} />
 
 {#if app.ready}
   <div class="shell">

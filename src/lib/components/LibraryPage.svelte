@@ -25,6 +25,10 @@
   import User from 'phosphor-svelte/lib/User';
   import X from 'phosphor-svelte/lib/X';
   import DownloadSimple from 'phosphor-svelte/lib/DownloadSimple';
+  import Play from 'phosphor-svelte/lib/Play';
+  import VideoPlayer from './VideoPlayer.svelte';
+  import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
+  import { copyText } from '../clipboard';
   import ListBullets from 'phosphor-svelte/lib/ListBullets';
   import SquaresFour from 'phosphor-svelte/lib/SquaresFour';
   import ArrowsDownUp from 'phosphor-svelte/lib/ArrowsDownUp';
@@ -169,7 +173,7 @@
   // 3 (back) and 4 (forward); mouse software (Logitech, Razer…) often sends the keyboard keys BrowserBack/BrowserForward
   // instead. Cancelling both mousedown and mouseup also stops the webview from running its own history navigation.
   function mouseNav(event: MouseEvent) {
-    if (event.button !== 3 && event.button !== 4) return;
+    if (playing || (event.button !== 3 && event.button !== 4)) return;
     event.preventDefault();
     if (event.type !== 'mouseup') return;
     if (event.button === 3) library.goBack();
@@ -196,13 +200,10 @@
 
   function closeSortOutside(event: PointerEvent) {
     if (sortOpen && sortBox && !sortBox.contains(event.target as Node)) sortOpen = false;
-    if (menu && !menuBox?.contains(event.target as Node)) menu = null;
   }
 
   // Right-click menu. Like a file explorer: right-clicking a row outside the selection selects just that row first.
   let menu: { x: number; y: number; entry: Entry } | null = $state(null);
-  let menuBox: HTMLDivElement | undefined = $state();
-  const menuMagnets = $derived(menu ? [...new Set(library.selectedEntries.map((e) => magnetOf(e.draft)).filter((m): m is string => m !== null))] : []);
 
   function openMenu(entry: Entry, event: MouseEvent) {
     event.preventDefault();
@@ -211,29 +212,21 @@
     menu = { x: event.clientX, y: event.clientY, entry };
   }
 
-  // Keep the menu inside the window once its size is known.
-  $effect(() => {
-    if (!menu || !menuBox) return;
-    const box = menuBox.getBoundingClientRect();
-    menuBox.style.left = `${Math.max(8, Math.min(menu.x, window.innerWidth - box.width - 8))}px`;
-    menuBox.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - box.height - 8))}px`;
-  });
-
-  async function copyMagnets() {
-    const links = menuMagnets;
-    menu = null;
-    if (links.length === 0) return;
-    try {
-      await navigator.clipboard.writeText(links.join('\n'));
-      app.toast({ key: 'Đã sao chép {0} magnet link.', args: [String(links.length)] }, 'success');
-    } catch {
-      app.toast({ key: 'Không sao chép được vào clipboard.', args: [] }, 'error');
-    }
-  }
-
-  function menuAction(action: () => unknown) {
-    menu = null;
-    void action();
+  function menuItems(entry: Entry): MenuItem[] {
+    const chosen = library.selectedEntries;
+    const magnets = [...new Set(chosen.map((e) => magnetOf(e.draft)).filter((m): m is string => m !== null))];
+    const names = chosen.map((e) => e.name);
+    return [
+      ...(entry.kind === 'folder' ? [{ label: t('Mở'), icon: FolderOpen, tone: 'amber', action: () => library.open(entry) } as const] : []),
+      ...(canPlay(entry) ? [{ label: t('Phát video'), icon: Play, weight: 'fill', action: () => play(entry) } as const] : []),
+      'separator',
+      { label: t('Thêm vào hàng đợi'), icon: DownloadSimple, disabled: !library.canQueue, action: () => library.queueSelected() },
+      'separator',
+      { label: t('Sao chép tên'), icon: TextAa, tone: 'teal', action: () => copyText(names.join('\n'), { key: 'Đã sao chép {0} tên.', args: [String(names.length)] }) },
+      { label: t('Sao chép magnet link'), icon: Link, tone: 'purple', disabled: magnets.length === 0, action: () => copyText(magnets.join('\n'), { key: 'Đã sao chép {0} magnet link.', args: [String(magnets.length)] }) },
+      'separator',
+      { label: t('Bỏ khỏi thư viện'), icon: Trash, tone: 'red', danger: true, action: () => library.removeSelected() }
+    ];
   }
 
   /** Header click cycles ascending → descending → off. */
@@ -245,6 +238,7 @@
   const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
   function browserKeys(event: KeyboardEvent) {
+    if (playing) return; // the player owns the keyboard while it is open
     if (event.key === 'Escape' && (sortOpen || menu)) { sortOpen = false; menu = null; return; }
     // Shift+D: choose where to save, then queue the selection (same as the "Thêm vào hàng đợi" button).
     if (event.code === 'KeyD' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat && !typing(event.target)) {
@@ -258,6 +252,30 @@
     else library.goForward();
   }
 
+  // Streaming: a video whose torrent the service has fully fetched. Whether this exact file has a link is checked by the
+  // backend, because the draft's file list can predate the file selection made by the queue.
+  // Queueing hands the remote torrent from the draft to its job, so a queued file is found through that job.
+  // A torrent the Library still owns may be selected for playback (`select`); one a queue job owns is only waited on,
+  // because the job makes its own file selection.
+  type PlaySource = { torrentId: string; account: string | null; fileId: number; title: string; provider: Entry['draft']['provider']; select: boolean };
+  let playing = $state.raw<PlaySource | null>(null);
+  function playSource(entry: Entry): PlaySource | null {
+    if (entry.kind !== 'file' || entry.videoKind !== 'video' || !entry.file) return null;
+    const { draft, file } = entry;
+    const base = { fileId: file.id, title: entry.name, provider: draft.provider };
+    if (draft.torrentId) return { ...base, torrentId: draft.torrentId, account: draft.remoteAccount, select: true };
+    const key = draft.sourceKey.toLowerCase();
+    const job = app.jobs.find((j) => j.provider === draft.provider && j.sourceKey.toLowerCase() === key && j.torrentId
+      && (j.selectedFileIds === null || j.selectedFileIds.includes(file.id)));
+    return job?.torrentId ? { ...base, torrentId: job.torrentId, account: job.remoteAccount, select: false } : null;
+  }
+  const canPlay = (entry: Entry) => playSource(entry) !== null;
+  function play(entry: Entry) {
+    menu = null;
+    playing = playSource(entry);
+  }
+  const activate = (entry: Entry) => (canPlay(entry) ? play(entry) : library.open(entry));
+
   function rowClick(entry: Entry, event: MouseEvent) {
     library.select(entry, { ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey });
   }
@@ -265,7 +283,7 @@
   const gridTitle = (entry: Entry) => `${entry.name}\n${entry.location}`;
 </script>
 
-<svelte:window onmousedown={mouseNav} onmouseup={mouseNav} onkeydown={browserKeys} onpointerdown={closeSortOutside} onwheel={() => (menu = null)} onblur={() => (menu = null)} onresize={() => (menu = null)} />
+<svelte:window onmousedown={mouseNav} onmouseup={mouseNav} onkeydown={browserKeys} onpointerdown={closeSortOutside} />
 
 {#snippet headerCell(column: NonNullable<HeaderSort>['column'], label: string)}
   {@const active = library.header?.column === column}
@@ -414,7 +432,7 @@
           {#snippet row(entry: Entry)}
             {@const cloud = cloudView(entry)}
             <div class="tile" class:on={library.selected.has(entry.key)} role="option" aria-selected={library.selected.has(entry.key)} tabindex="-1" title={gridTitle(entry)}
-              onmousedown={selectionMouseDown} onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
+              onmousedown={selectionMouseDown} onclick={(e) => rowClick(entry, e)} ondblclick={() => activate(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
               <div class="tile-top">
                 <span class="chip kind-{entry.videoKind}" style="width:38px;height:38px">{@render kindIcon(entry, 20)}</span>
                 <span class="tag" title={providerLabel(entry.draft.provider)}>{providerShort(entry.draft.provider)}</span>
@@ -434,7 +452,7 @@
           {#snippet row(entry: Entry)}
             {@const cloud = cloudView(entry)}
             <div class="cols item row-glass" class:on={library.selected.has(entry.key)} role="option" aria-selected={library.selected.has(entry.key)} tabindex="-1"
-              onmousedown={selectionMouseDown} onclick={(e) => rowClick(entry, e)} ondblclick={() => library.open(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
+              onmousedown={selectionMouseDown} onclick={(e) => rowClick(entry, e)} ondblclick={() => activate(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
               <input type="checkbox" checked={library.selected.has(entry.key)} onclick={(e) => { e.stopPropagation(); library.toggle(entry, e.shiftKey); }} aria-label={entry.location} />
               <div class="name">
                 <span class="chip kind-{entry.videoKind}" style="width:34px;height:34px">{@render kindIcon(entry, 18)}</span>
@@ -478,16 +496,13 @@
   </div>
 
   {#if menu}
-    <div class="menu card menu-glass ctx" bind:this={menuBox} role="menu" tabindex="-1" aria-label={t('Menu chuột phải')} style:left="{menu.x}px" style:top="{menu.y}px" oncontextmenu={(e) => e.preventDefault()}>
-      {#if menu.entry.kind === 'folder'}
-        <button class="menu-item" role="menuitem" onclick={() => { const target = menu!.entry; menuAction(() => library.open(target)); }}><span class="ic amber"><FolderOpen size={16} weight="duotone" /></span><span class="grow">{t('Mở')}</span></button>
-      {/if}
-      <button class="menu-item" role="menuitem" disabled={!library.canQueue} onclick={() => menuAction(() => library.queueSelected())}><span class="ic blue"><DownloadSimple size={16} weight="duotone" /></span><span class="grow">{t('Thêm vào hàng đợi')}</span></button>
-      <button class="menu-item" role="menuitem" disabled={menuMagnets.length === 0} onclick={copyMagnets}><span class="ic purple"><Link size={16} weight="duotone" /></span><span class="grow">{t('Sao chép magnet link')}</span></button>
-      <button class="menu-item" role="menuitem" onclick={() => menuAction(() => library.removeSelected())}><span class="ic red"><Trash size={16} weight="duotone" /></span><span class="grow">{t('Bỏ khỏi thư viện')}</span></button>
-    </div>
+    <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.entry)} onclose={() => (menu = null)} />
   {/if}
 </section>
+
+{#if playing}
+  <VideoPlayer provider={playing.provider} id={playing.torrentId} account={playing.account} title={playing.title} fileId={playing.fileId} select={playing.select} onclose={() => (playing = null)} />
+{/if}
 
 <style>
   .page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -529,7 +544,6 @@
   .menu-item[aria-checked='true'] { background: var(--selected); }
   .grow { flex: 1; }
   .menu-item:disabled { opacity: 0.45; pointer-events: none; }
-  .ctx { position: fixed; right: auto; z-index: 60; min-width: 220px; }
   /* Segmented control: options on a soft track. */
   .seg { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--subtle); }
   .seg .btn.icon { min-height: 28px; width: 32px; }

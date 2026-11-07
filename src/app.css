@@ -245,6 +245,7 @@ input[type='checkbox']:checked::after { content: ''; width: 9px; height: 5px; bo
 .pill.danger { background: var(--danger-soft); color: var(--danger); }
 .pill.info { background: var(--info-soft); color: var(--info); }
 .pill.partial { color: var(--partial); }
+.pill.warn { background: color-mix(in srgb, var(--partial) 16%, transparent); color: var(--partial); }
 
 /* Progress: a solid fill in a recessed channel. */
 .bar { height: 6px; border-radius: 999px; background: var(--track); overflow: hidden; }

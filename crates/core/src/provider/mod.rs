@@ -36,10 +36,10 @@ pub struct Timing {
 impl Default for Timing {
     fn default() -> Self {
         Timing {
-            gate_realdebrid: Duration::from_millis(400),
+            gate_realdebrid: Duration::from_millis(700),
             gate_other: Duration::from_millis(500),
             retry_base: Duration::from_secs(5),
-            poll: Duration::from_secs(5),
+            poll: Duration::from_secs(8),
             inspect_poll: Duration::from_secs(2),
             transfer_retry: Duration::from_secs(3),
             job_retry: Duration::from_secs(10),

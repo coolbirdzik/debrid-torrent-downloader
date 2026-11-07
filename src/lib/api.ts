@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import type { AccountInfo, AddResult, CloudKind, CloudUpdate, DeleteOutcome, Draft, Job, LibraryPatch, Marks, Msg, Provider, RemoteTorrent, Settings, Snapshot, TorBoxAccount, UpdateInfo, User } from './types';
+import type { AccountInfo, AddResult, CloudKind, CloudUpdate, DeleteOutcome, Draft, Job, LibraryPatch, Marks, Msg, Provider, RemoteTorrent, Settings, Snapshot, StreamList, StreamSource, TorBoxAccount, UpdateInfo, User } from './types';
 
 /** The backend rejects with `{ key, args }`; anything else (a runtime failure) becomes a plain message. */
 export function toMsg(error: unknown): Msg {
@@ -35,6 +35,9 @@ export const api = {
   torboxAccount: () => call<TorBoxAccount>('torbox_account'),
   remoteList: (provider: Provider, kind: CloudKind = 'torrent') => call<{ account: string; torrents: RemoteTorrent[] }>('remote_list', { provider, kind }),
   remoteDelete: (provider: Provider, ids: string[], listAccount: string, kind: CloudKind = 'torrent') => call<DeleteOutcome[]>('remote_delete', { provider, kind, ids, listAccount }),
+  streamFiles: (provider: Provider, id: string, listAccount: string | null, select = false) => call<StreamList>('stream_files', { provider, id, listAccount, select }),
+  streamUrl: (provider: Provider, id: string, linkIndex: number, listAccount: string | null) => call<StreamSource>('stream_url', { provider, id, linkIndex, listAccount }),
+  openExternalPlayer: (url: string, filename: string) => call<void>('open_external_player', { url, filename }),
   openFolder: (path: string) => call<void>('open_folder', { path }),
   openTokenPage: (provider: Provider) => call<void>('open_token_page', { provider }),
   checkUpdate: () => call<UpdateInfo>('check_update'),

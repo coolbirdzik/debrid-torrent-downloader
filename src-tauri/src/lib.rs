@@ -4,6 +4,7 @@ mod theme;
 
 use app::{AddResult, App, DeleteOutcome, LibraryPatch, QueueItem, RemoteList, SettingsPatch, Snapshot};
 use rdbatch_core::error::Error;
+use rdbatch_core::stream::{StreamList, StreamSource};
 use rdbatch_core::models::{CloudKind, Msg, Provider, Settings, TorBoxAccount, User};
 use serde::Serialize;
 use std::sync::Arc;
@@ -116,6 +117,21 @@ async fn remote_delete(app: Shared<'_>, provider: Provider, kind: Option<CloudKi
 }
 
 #[tauri::command]
+async fn stream_files(app: Shared<'_>, provider: Provider, id: String, list_account: Option<String>, select: Option<bool>) -> Cmd<StreamList> {
+    Ok(app.stream_files(provider, id, list_account, select.unwrap_or(false)).await?)
+}
+
+#[tauri::command]
+async fn stream_url(app: Shared<'_>, provider: Provider, id: String, link_index: usize, list_account: Option<String>) -> Cmd<StreamSource> {
+    Ok(app.stream_url(provider, id, link_index, list_account).await?)
+}
+
+#[tauri::command]
+fn open_external_player(app: Shared<'_>, url: String, filename: String) -> Cmd<()> {
+    Ok(app.open_external_player(&url, &filename)?)
+}
+
+#[tauri::command]
 fn open_folder(handle: tauri::AppHandle, path: String) -> Cmd<()> {
     let target = std::path::PathBuf::from(&path);
     if !target.is_dir() {
@@ -214,6 +230,9 @@ pub fn run() {
             remote_list,
             remote_delete,
             torbox_account,
+            stream_files,
+            stream_url,
+            open_external_player,
             open_folder,
             open_token_page,
             check_update,

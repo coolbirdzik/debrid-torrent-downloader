@@ -131,7 +131,7 @@
   .who small { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
   .danger-fill, .danger-fill:hover:not(:disabled) { background: var(--icon-red); color: #fff; }
-  .toasts { position: fixed; right: 20px; bottom: 48px; display: flex; flex-direction: column; gap: 8px; z-index: 40; max-width: 420px; }
+  .toasts { position: fixed; right: 20px; bottom: 48px; display: flex; flex-direction: column; gap: 8px; z-index: 70; max-width: 420px; }
   .toast { padding: 11px 16px; border-radius: 16px; background: var(--glass-strong); box-shadow: var(--float); backdrop-filter: blur(20px); }
   .toast.error { color: var(--danger); }
   .toast.success { color: var(--success); }

@@ -33,11 +33,11 @@ impl Error {
     pub fn is_cancelled(&self) -> bool {
         matches!(self, Error::Cancelled)
     }
-    /// Transient failures worth replaying: connection loss, timeouts and Real-Debrid 5xx.
+    /// Transient failures worth replaying: connection loss, timeouts and Real-Debrid 5xx, 408 and 429 (it is just slow or rate limiting).
     pub fn is_transient(&self) -> bool {
         match self {
             Error::Network(_) | Error::Timeout => true,
-            Error::Api { provider: Provider::RealDebrid, status, .. } => *status >= 500,
+            Error::Api { provider: Provider::RealDebrid, status, .. } => *status >= 500 || matches!(*status, 408 | 429),
             _ => false,
         }
     }

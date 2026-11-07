@@ -10,5 +10,6 @@ pub mod paths;
 pub mod provider;
 pub mod search;
 pub mod store;
+pub mod stream;
 
 pub use error::{Error, Result};
