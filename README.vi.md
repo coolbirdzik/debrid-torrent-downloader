@@ -7,7 +7,7 @@
 ![Dịch vụ debrid: Real-Debrid, TorBox, AllDebrid](https://img.shields.io/badge/debrid-Real--Debrid%20%7C%20TorBox%20%7C%20AllDebrid-blueviolet)
 
 **DebridDock là ứng dụng debrid miễn phí cho máy tính: một app duy nhất để thêm torrent vào Real-Debrid, TorBox hoặc
-AllDebrid, duyệt chúng trong thư viện ảo, chọn đúng file cần lấy rồi tải về máy qua một hàng đợi tải nhanh, có thể
+AllDebrid, duyệt chúng trong thư viện ảo, xem video trực tiếp từ cloud, chọn đúng file cần lấy rồi tải về máy qua một hàng đợi tải nhanh, có thể
 tiếp tục (resume).** Không còn phải mở nhiều tab web, copy từng link và dùng thêm một trình quản lý tải riêng cho mỗi
 dịch vụ debrid. Chạy trên Windows, macOS và Linux.
 
@@ -35,6 +35,8 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
   file, trước khi có bất kỳ thứ gì ghi xuống ổ đĩa.
 - **Chỉ tải những gì bạn chọn về máy.** Chọn từng video, cả thư mục hoặc toàn bộ phần còn lại. Dịch vụ có thể lấy cả
   torrent lên cloud; hàng đợi trên máy chỉ tải những file bạn đã chọn.
+- **Xem trước rồi mới tải.** Phát video trong thư viện trực tiếp từ dịch vụ debrid, không cần lưu về máy, để kiểm
+  tra đúng tập, chất lượng hay ngôn ngữ trước.
 - **Hàng đợi tải cứ để đó mà chạy.** Thêm vào là tải ngay, tiếp tục được sau khi dừng hay app bị tắt, tự thử lại khi
   rớt mạng.
 
@@ -71,6 +73,24 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
   chế độ xem hiện tại, kể cả các dòng nằm ngoài vùng cuộn đang hiển thị.
 - **Xóa toàn bộ thư viện** xác nhận xóa mục của tất cả nhà cung cấp, kể cả mục đang chờ đọc, rồi đặt lại ô nhập và
   bộ lọc. Giữ nguyên hàng đợi tải, file trên máy và dữ liệu cloud.
+
+### Xem video trực tiếp từ cloud
+
+- **Phát video có torrent trên dịch vụ** bằng nhấp đúp hoặc **Phát video** trong menu chuột phải, trên Real-Debrid,
+  TorBox và AllDebrid. Video được stream qua HTTPS thẳng từ dịch vụ; không tải file nào về máy.
+- Nếu dịch vụ còn đang lấy torrent, trình phát hiện tiến độ và tự phát khi sẵn sàng. Torrent có nhiều video sẽ hiện
+  danh sách để chọn.
+- **Trình phát tích hợp:** thanh tua có hiển thị phần đã đệm, lùi/tới 10 giây, âm lượng (được ghi nhớ), tốc độ 0.5×
+  đến 2×, toàn màn hình và hình trong hình. Phím tắt: Space/K phát hoặc tạm dừng, J/L lùi/tới 10 giây, ←/→ 5 giây
+  (Shift: 30 giây), ↑/↓ âm lượng, M tắt tiếng, F toàn màn hình, 0–9 nhảy tới 0–90 %, Home/End, `<`/`>` tốc độ,
+  Esc đóng.
+- **Phụ đề:** nạp file `.srt` hoặc `.vtt` trên máy.
+- **Sao chép link phát** hoặc **mở bằng trình phát ngoài** (trình phát mặc định của hệ thống cho playlist, ví dụ VLC
+  hay mpv) chỉ với một cú bấm.
+- Một số file dùng codec mà trình phát tích hợp không giải mã được (thường là video HEVC/x265, âm thanh AC3/DTS).
+  Trình phát báo rõ, cảnh báo khi video chạy mà không có tiếng và gợi ý mở bằng trình phát ngoài.
+- Mỗi lần bấm Phát đều lấy link mới, không lưu vào dữ liệu của app, và kiểm tra tài khoản sở hữu torrent trước. Phát một torrent
+  trong thư viện còn chờ chọn file trên Real-Debrid sẽ chọn toàn bộ file của torrent đó trên dịch vụ.
 
 ### Quản lý cloud và tài khoản TorBox
 
@@ -121,7 +141,7 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 2. **Thêm torrent.** Dán link magnet hoặc URL `.torrent`, hoặc thả file `.torrent` vào. DebridDock thêm chúng vào tài
    khoản dịch vụ đã chọn và đọc danh sách file. Theo dõi tiến độ import, thử lại hoặc dừng khi cần.
 3. **Duyệt và chọn.** Mặc định mục mới thêm lên đầu. Lọc theo nhà cung cấp, mở thư mục, tìm kiếm hoặc lọc video rồi
-   chọn những file/thư mục cần tải.
+   chọn những file/thư mục cần tải. Nhấp đúp vào video để xem thử trước.
 4. **Tải về.** Bấm **Thêm vào hàng đợi**, chọn nơi lưu và xác nhận. Các tác vụ mới bắt đầu ngay; DebridDock chờ cloud
    chuẩn bị xong, lấy link trực tiếp và tải file đã chọn về máy, có resume và tự thử lại.
 5. **Quản lý cloud riêng.** Mở **Quản lý cloud** để xem hoặc xóa mục trên dịch vụ. Xóa Thư viện vẫn giữ các mục cloud
@@ -130,6 +150,8 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ tải qua HTTPS từ dịch vụ debrid.
 
 ## Ảnh chụp màn hình
+
+![Trình phát video tích hợp đang stream file từ dịch vụ debrid, có thanh tua, tốc độ, phụ đề, hình trong hình và nút mở trình phát ngoài](docs/images/player-en.png)
 
 ![Hàng đợi tải của DebridDock: tải có resume, Retry tất cả và nút thao tác trên từng dòng](docs/images/queue-vi.png)
 
@@ -146,7 +168,8 @@ DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ t�
 
 </details>
 
-Ảnh chụp giao diện ứng dụng với dữ liệu mẫu, không dùng tài khoản thật hay thực hiện tải thật.
+Ảnh chụp giao diện ứng dụng với dữ liệu mẫu, không dùng tài khoản thật hay thực hiện tải thật. Ảnh trình phát video
+dùng giao diện tiếng Anh.
 
 ## Tải về và cài đặt
 
@@ -185,6 +208,11 @@ Có. DebridDock miễn phí và mã nguồn mở (MIT). Bạn chỉ trả tiền
 
 **DebridDock có tải torrent bằng BitTorrent trên máy tôi không?**
 Không. Dịch vụ debrid lấy torrent. DebridDock chỉ tải file đã xong qua HTTPS, nên không peer nào thấy IP của bạn.
+
+**Có xem video mà không cần tải về không?**
+Có. Nhấp đúp vào video trong Thư viện (hoặc chuột phải → **Phát video**) để stream từ dịch vụ. Nếu video không phát
+hoặc không có tiếng, file có thể dùng HEVC/x265, AC3 hoặc DTS: bấm **Mở bằng trình phát ngoài** để mở cùng link đó
+bằng VLC, mpv hay trình phát khác.
 
 **Có tải được chỉ vài file trong torrent, ví dụ một tập phim, không?**
 Được. Mở torrent trong thư viện, chọn file hoặc thư mục cần lấy rồi thêm vào hàng đợi. Chỉ những file đó được tải về

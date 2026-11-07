@@ -7,8 +7,8 @@ English · [Tiếng Việt](README.vi.md)
 ![Debrid services: Real-Debrid, TorBox, AllDebrid](https://img.shields.io/badge/debrid-Real--Debrid%20%7C%20TorBox%20%7C%20AllDebrid-blueviolet)
 
 **DebridDock is a free desktop debrid client: one app to add torrents to Real-Debrid, TorBox or AllDebrid, browse
-them in a virtual library, pick the exact files you want and download them to your computer through a fast,
-resumable download queue.** It replaces the browser tabs, copy-pasted links and separate download manager you would
+them in a virtual library, stream videos straight from the cloud, pick the exact files you want and download them
+to your computer through a fast, resumable download queue.** It replaces the browser tabs, copy-pasted links and separate download manager you would
 otherwise juggle for each debrid service. It runs on Windows, macOS and Linux.
 
 ![DebridDock: virtual torrent library for Real-Debrid, TorBox and AllDebrid, light appearance](docs/images/app-en.png)
@@ -35,6 +35,8 @@ unrestricting every link and feeding the links to a download manager. DebridDock
   like a file explorer, before anything reaches your disk.
 - **Download only what you choose to your computer.** Pick single videos, whole folders or everything left. The
   service may fetch the whole torrent into its cloud; the local queue downloads your selected files.
+- **Watch before you download.** Play a video from the library straight from your debrid service, with no local
+  copy, to check the episode, the quality or the language first.
 - **A download queue you can leave running.** Downloads start as soon as you queue them, resume after a stop or a
   crash, and retry by themselves when a connection drops.
 
@@ -73,6 +75,23 @@ unrestricting every link and feeding the links to a download manager. DebridDock
   all items in the current view, including rows outside the visible scroll area.
 - **Clear entire library** confirms removal of all providers' library entries, including pending imports, and resets
   the input and browser filters. It keeps the download queue, local files and cloud data.
+
+### Stream videos from the cloud
+
+- **Play a video whose torrent is on the service** with a double-click or **Play video** in the right-click menu, on Real-Debrid,
+  TorBox and AllDebrid. The video streams over HTTPS straight from the service; no file is downloaded.
+- If the service is still fetching the torrent, the player shows its progress and starts as soon as it is ready. A
+  torrent with several videos opens a picker.
+- **Built-in player:** seek bar with buffered range, skip 10 s back or forward, volume (remembered), speed 0.5× to
+  2×, fullscreen and picture-in-picture. Keyboard: Space/K play or pause, J/L skip 10 s, ←/→ 5 s (Shift: 30 s),
+  ↑/↓ volume, M mute, F fullscreen, 0–9 jump to 0–90 %, Home/End, `<`/`>` speed, Esc close.
+- **Subtitles:** load a local `.srt` or `.vtt` file.
+- **Copy the stream link** or **open it in your external player** (the system's default player for playlists, such
+  as VLC or mpv) with one click.
+- Some files use codecs the embedded player cannot decode (often HEVC/x265 video, or AC3/DTS audio). The player says
+  so, warns when a video plays without sound, and offers the external player.
+- A fresh link is requested on every Play and not saved in the app's data, and the account that owns the torrent is checked first.
+  Playing a library torrent still waiting for file selection on Real-Debrid selects all of its files on the service.
 
 ### Cloud files and TorBox account
 
@@ -123,7 +142,7 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 2. **Add torrents.** Paste magnet links or `.torrent` URLs, or drop `.torrent` files. DebridDock adds them to your
    chosen service(s) and reads their file lists. Follow import progress and retry or stop pending work as needed.
 3. **Browse and pick.** Library defaults to newest added first. Filter by provider, open folders, search or filter to
-   videos, then select the files or folders you want.
+   videos, then select the files or folders you want. Double-click a video to stream it first.
 4. **Download.** Click **Add to queue**, choose a destination and confirm. New queue entries start immediately;
    DebridDock waits for cloud preparation, gets direct links and downloads your selected files with resume and retry.
 5. **Manage cloud separately.** Open **Cloud files** to inspect or delete remote items. Clearing Library keeps those
@@ -132,6 +151,8 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 DebridDock never connects to torrent peers itself: your computer only downloads over HTTPS from your debrid service.
 
 ## Screenshots
+
+![Built-in video player streaming a file from the debrid service, with seek bar, speed, subtitles, picture-in-picture and external player controls](docs/images/player-en.png)
 
 ![DebridDock download queue with resumable downloads, retry all and per-row controls](docs/images/queue-en.png)
 
@@ -194,6 +215,11 @@ see your IP address.
 Yes. That is what the virtual library is for: open the torrent, select the files or folders you want and queue them.
 Only those files are downloaded to your computer. TorBox and AllDebrid fetch the torrent into their cloud without
 per-file selection; choosing files in DebridDock controls the local download.
+
+**Can I watch a video without downloading it?**
+Yes. Double-click a video in Library (or right-click → **Play video**) to stream it from the service. If it will not
+play or has no sound, the file probably uses HEVC/x265, AC3 or DTS: click **Open in external player** to hand the same
+link to VLC, mpv or another player.
 
 **What happens if my connection drops or I close the app mid-download?**
 Partial files are kept. Connection problems are retried automatically, and after a restart **Start / Resume**
