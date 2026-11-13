@@ -9,9 +9,12 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
+import { ensureCargoOnPath } from './ensure-cargo.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(root);
+// An already-open terminal may not have Cargo on PATH yet; without this the CI checks cannot even start.
+ensureCargoOnPath();
 
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith('--')));
@@ -28,13 +31,13 @@ const say = (message) => console.log(message);
 function run(command, commandArgs, { allowFail = false } = {}) {
   // pnpm is a .cmd shim on Windows, which needs a shell.
   const result = spawnSync(command, commandArgs, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' && command === 'pnpm' });
-  if (result.status !== 0 && !allowFail) fail(`${command} ${commandArgs.join(' ')}\n${(result.stderr || result.stdout || '').trim()}`);
+  if (result.status !== 0 && !allowFail) fail(`${command} ${commandArgs.join(' ')}\n${(result.error?.message || result.stderr || result.stdout || '').trim()}`);
   return (result.stdout ?? '').trim();
 }
 
 function runVisible(command, commandArgs) {
   const result = spawnSync(command, commandArgs, { stdio: 'inherit', shell: process.platform === 'win32' && command === 'pnpm' });
-  if (result.status !== 0) fail(`${command} ${commandArgs.join(' ')} failed`);
+  if (result.status !== 0) fail(`${command} ${commandArgs.join(' ')} failed${result.error ? `: ${result.error.message}` : ''}`);
 }
 
 // Files that carry the version. Each edit replaces only the version text, so line endings are preserved.
