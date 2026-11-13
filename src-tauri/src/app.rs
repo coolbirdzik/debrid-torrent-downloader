@@ -7,7 +7,7 @@
 use chrono::Utc;
 use rdbatch_core::engine::{Allocator, DownloadSlots, Engine, Queue, Session};
 use rdbatch_core::error::{Error, Result};
-use rdbatch_core::models::{CloudKind, CloudState, Draft, Job, JobState, Msg, Persisted, Provider, RemoteRef, RemoteTorrent, Settings, TorBoxAccount, User};
+use rdbatch_core::models::{CloudKind, CloudState, Draft, Job, JobState, Msg, Persisted, Provider, RemoteRef, RemoteTorrent, Settings, TorBoxAccount, TorrentInfo, User};
 use rdbatch_core::provider::{self, Debrid, Timing};
 use rdbatch_core::store::Store;
 use rdbatch_core::stream::{self, StreamList, StreamSource};
@@ -315,10 +315,12 @@ impl App {
     /// Runs forever: coalesced job events, completion marks, and debounced saves.
     pub async fn background(self: Arc<Self>) {
         let mut tick = 0u64;
+        let mut taskbar = crate::taskbar::DownloadBadge::default();
         loop {
             tokio::time::sleep(Duration::from_millis(250)).await;
             tick += 1;
             self.flush_jobs();
+            taskbar.update(&self.handle, self.queue.downloading_count());
             // State changes are saved within ~1.5 s; progress alone at most every 20 s (it is rebuilt from the .part files).
             let progress_due = tick % 80 == 0 && self.notifier.progress_dirty.load(Ordering::SeqCst);
             if (tick % 6 == 0 && self.notifier.dirty.load(Ordering::SeqCst)) || progress_due {
@@ -760,6 +762,47 @@ impl App {
         }
     }
 
+    /// Add a draft's source to its service and record the new torrent on the draft.
+    async fn add_for_draft(&self, engine: &Engine, provider: Provider, key: &str, username: &str, source: &str) -> Result<String> {
+        let id = engine.add_source(source).await?;
+        let name = self.with_draft(provider, key, |d| {
+            d.torrent_id = Some(id.clone());
+            d.remote_account = Some(username.to_string());
+            d.name.clone()
+        });
+        self.data.lock().unwrap().remote_refs.push(RemoteRef {
+            provider,
+            id: id.clone(),
+            source_key: key.to_string(),
+            name: name.unwrap_or_default(),
+            account: Some(username.to_string()),
+        });
+        // Persist the remote ID before any further request; retries reuse it.
+        self.save_now();
+        Ok(id)
+    }
+
+    /// Wait for a torrent's file list, showing its live service progress on the draft meanwhile.
+    async fn inspect_remote(&self, engine: &Engine, provider: Provider, key: &str, torrent_id: &str, cancel: &CancellationToken) -> Result<TorrentInfo> {
+        engine.inspect_with_progress(torrent_id, cancel, |info| {
+            if cancel.is_cancelled() { return; }
+            let cloud = CloudState { status: info.status.clone(), progress: info.progress, speed: info.speed, seeders: info.seeders };
+            let changed = {
+                let mut data = self.data.lock().unwrap();
+                // A reset or a new import can replace this source while its request is in flight.
+                let Some(draft) = data.library.iter_mut().find(|d| d.provider == provider && same_key(&d.source_key, key) && d.torrent_id.as_deref() == Some(torrent_id)) else { return; };
+                if draft.cloud.as_ref() == Some(&cloud) { false } else {
+                    draft.cloud = Some(cloud.clone());
+                    true
+                }
+            };
+            if changed {
+                self.notifier.progress_dirty.store(true, Ordering::SeqCst);
+                self.emit("cloud", vec![CloudUpdate { provider, source_key: key.to_string(), cloud: Some(cloud) }]);
+            }
+        }).await
+    }
+
     /// Add one torrent to its service (once) and wait for its file list. Returns false when cancelled.
     async fn inspect_one(&self, engine: &Engine, provider: Provider, key: &str, username: &str, cancel: &CancellationToken) -> bool {
         let existing = self.with_draft(provider, key, |d| {
@@ -769,44 +812,26 @@ impl App {
             (d.source.clone(), d.torrent_id.clone())
         }).unwrap_or_default();
         let outcome = async {
-            let torrent_id = match existing.1 {
+            let stored = existing.1.is_some();
+            let mut torrent_id = match existing.1 {
                 Some(id) => id,
-                None => {
-                    let id = engine.add_source(&existing.0).await?;
-                    let name = self.with_draft(provider, key, |d| {
-                        d.torrent_id = Some(id.clone());
-                        d.remote_account = Some(username.to_string());
-                        d.name.clone()
-                    });
-                    self.data.lock().unwrap().remote_refs.push(RemoteRef {
-                        provider,
-                        id: id.clone(),
-                        source_key: key.to_string(),
-                        name: name.unwrap_or_default(),
-                        account: Some(username.to_string()),
-                    });
-                    // Persist the remote ID before any further request; retries reuse it.
-                    self.save_now();
-                    id
-                }
+                None => self.add_for_draft(engine, provider, key, username, &existing.0).await?,
             };
-            engine.inspect_with_progress(&torrent_id, cancel, |info| {
-                if cancel.is_cancelled() { return; }
-                let cloud = CloudState { status: info.status.clone(), progress: info.progress, speed: info.speed, seeders: info.seeders };
-                let changed = {
-                    let mut data = self.data.lock().unwrap();
-                    // A reset or a new import can replace this source while its request is in flight.
-                    let Some(draft) = data.library.iter_mut().find(|d| d.provider == provider && same_key(&d.source_key, key) && d.torrent_id.as_deref() == Some(torrent_id.as_str())) else { return; };
-                    if draft.cloud.as_ref() == Some(&cloud) { false } else {
-                        draft.cloud = Some(cloud.clone());
-                        true
-                    }
-                };
-                if changed {
-                    self.notifier.progress_dirty.store(true, Ordering::SeqCst);
-                    self.emit("cloud", vec![CloudUpdate { provider, source_key: key.to_string(), cloud: Some(cloud) }]);
+            match self.inspect_remote(engine, provider, key, &torrent_id, cancel).await {
+                // The torrent was deleted on the service before it could be read: add the source again, once, instead of
+                // backing off forever on a dead ID. An ID that was just added is never re-added.
+                Err(error) if stored && error.is_gone() && !cancel.is_cancelled() => {
+                    self.with_draft(provider, key, |d| {
+                        d.torrent_id = None;
+                        d.remote_account = None;
+                        d.cloud = None;
+                    });
+                    self.data.lock().unwrap().remote_refs.retain(|r| !(r.provider == provider && r.id == torrent_id));
+                    torrent_id = self.add_for_draft(engine, provider, key, username, &existing.0).await?;
+                    self.inspect_remote(engine, provider, key, &torrent_id, cancel).await
                 }
-            }).await
+                other => other,
+            }
         }
         .await;
         match outcome {

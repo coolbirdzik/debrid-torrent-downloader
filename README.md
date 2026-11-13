@@ -123,6 +123,8 @@ unrestricting every link and feeding the links to a download manager. DebridDock
   independently. Turn off **Independent parallel downloads per cloud** in Settings to share one total limit.
   Limit and mode changes apply once the queue has no active jobs; Pause all, then Resume to apply them immediately.
 - Progress shows both sides: the service's progress and the download to your computer, with speed and file count.
+- The **Windows taskbar icon** shows the number of torrents downloading to your computer, even while minimized.
+  Paused, stopped, waiting and finished jobs do not count; the badge disappears when no transfers remain.
 
 ### Fast, private, cross-platform
 
@@ -274,6 +276,10 @@ pnpm test:updater         # updater UI logic and release manifest tests
 pnpm tauri build          # installers for the current OS, in target/release/bundle
 pnpm build:portable       # portable build, in dist/portable and dist/DebridDock-portable-win-x64.zip (Windows)
 ```
+
+`pnpm tauri` and `pnpm build:portable` automatically find an installed Cargo in `CARGO_HOME/bin` or
+`~/.cargo/bin` if the current terminal's `PATH` does not include it. For direct `cargo` commands on Windows,
+reopen the terminal after installing Rust, or run `$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"` in PowerShell.
 
 On Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-portable-update.ps1` checks portable
 replacement and rollback with disposable files.

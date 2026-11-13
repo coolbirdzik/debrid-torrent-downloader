@@ -80,6 +80,12 @@ impl Queue {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// Local transfers only; waiting jobs and cancelled writers do not count. Avoid cloning file lists on each tick.
+    pub fn downloading_count(&self) -> usize {
+        self.jobs.lock().unwrap().iter().filter(|job| {
+            job.state == JobState::Downloading && job.is_active && !job.is_stopping && !job.is_removing
+        }).count()
+    }
 }
 
 /// Keeps final names and the downloader's temporary files distinct across a whole batch.
@@ -276,6 +282,18 @@ impl Engine {
         Ok(buffer)
     }
 
+    /// Add a job's source to the service and record the new torrent on the job.
+    async fn add_for_job(&self, id: &str, source: &str, ct: &CancellationToken) -> Result<String> {
+        let created = guard(ct, self.add_source(source)).await?;
+        self.queue.mutate(id, |j| {
+            j.torrent_id = Some(created.clone());
+            j.remote_account = self.account.clone();
+        });
+        // Persist the ID before any later network call: a crash must not orphan the remote torrent.
+        self.queue.persist_now();
+        Ok(created)
+    }
+
     fn set(&self, id: &str, state: JobState, detail: Msg) {
         self.queue.mutate(id, |job| {
             job.state = state;
@@ -305,18 +323,11 @@ impl Engine {
             JobState::Adding,
             if job.torrent_id.is_none() { Msg::new("Đang thêm vào {0}…", &[&label]) } else { Msg::plain("Đang tiếp tục torrent đã thêm…") },
         );
-        let torrent_id = match job.torrent_id.clone() {
+        // Only an ID saved by an earlier run can be stale; one added just now is never re-added.
+        let mut stored_id = job.torrent_id.is_some();
+        let mut torrent_id = match job.torrent_id.clone() {
             Some(existing) => existing,
-            None => {
-                let created = guard(ct, self.add_source(&job.source)).await?;
-                self.queue.mutate(id, |j| {
-                    j.torrent_id = Some(created.clone());
-                    j.remote_account = self.account.clone();
-                });
-                // Persist the ID before any later network call: a crash must not orphan the remote torrent.
-                self.queue.persist_now();
-                created
-            }
+            None => self.add_for_job(id, &job.source, ct).await?,
         };
 
         let selected_ids = job.selected_file_ids.clone();
@@ -325,7 +336,24 @@ impl Engine {
             if ct.is_cancelled() {
                 return Err(Error::Cancelled);
             }
-            let info = guard(ct, self.api.info(&torrent_id)).await?;
+            let first_look = std::mem::take(&mut stored_id);
+            let info = match guard(ct, self.api.info(&torrent_id)).await {
+                // The torrent was removed from the service since the last run (Retry after "no longer on the service"):
+                // add the source again instead of failing. Rows, partial files and the file selection are kept, and the
+                // links of the new torrent are matched back to the rows below.
+                Err(error) if first_look && error.is_gone() => {
+                    self.queue.mutate(id, |j| {
+                        j.torrent_id = None;
+                        j.remote_account = None;
+                        j.remote_progress = 0.0;
+                    });
+                    self.set(id, JobState::Adding, Msg::new("Đang thêm vào {0}…", &[&label]));
+                    torrent_id = self.add_for_job(id, &job.source, ct).await?;
+                    selected = false;
+                    continue;
+                }
+                other => other?,
+            };
             self.queue.mutate(id, |j| {
                 if !info.filename.trim().is_empty() {
                     j.name = info.filename.clone();

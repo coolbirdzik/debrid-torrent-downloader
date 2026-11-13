@@ -135,6 +135,7 @@
   "Đang chọn file": "ファイルを選択中",
   "Token không hợp lệ hoặc hết hạn. Cập nhật token rồi thử lại.": "トークンが無効または期限切れです。更新してからもう一度お試しください。",
   "Torrent không còn trên dịch vụ. Xóa dòng khỏi hàng đợi rồi thêm lại.": "このトレントはサービス上にもうありません。行を削除してから再追加してください。",
+  "Torrent không còn trên dịch vụ. Bấm Thử lại để thêm lại.": "このトレントはサービス上にもうありません。「再試行」をクリックして再追加してください。",
   "Đã đạt giới hạn torrent đang hoạt động. Chờ torrent khác xong rồi thử lại.": "アクティブなトレントの上限に達しました。他のトレントが完了するまで待ってから再試行してください。",
   "Tài khoản đã hết lưu lượng tải.": "アカウントのダウンロード可能トラフィックが残っていません。",
   "Lỗi kết nối hoặc link tải không khả dụng. Bấm Thử lại để tiếp tục.": "接続に失敗したか、ダウンロードリンクが利用できません。「再試行」をクリックして続行してください。",
@@ -506,5 +507,9 @@
   "Đã sao chép {0} ID.": "{0} 件の ID をコピーしました。",
   "Chọn các file đã tải xong ({0})": "ダウンロード済みのファイルを選択 ({0})",
   "Chọn các mục đã tải xong ({0})": "完了した項目を選択 ({0})",
-  "Chọn các mục dịch vụ đã tải xong": "サービスでのダウンロードが完了した項目を選択"
+  "Chọn các mục dịch vụ đã tải xong": "サービスでのダウンロードが完了した項目を選択",
+  "Bỏ các file đã tải xong ({0})": "ダウンロード済みのファイルを削除 ({0})",
+  "Bỏ các file đã tải xong?": "ダウンロード済みのファイルを削除しますか？",
+  "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "ダウンロード済みの {0} 個のファイルをライブラリから削除します。ローカルファイル、キュー、クラウドのデータは保持されます。Ctrl+Z で元に戻せます。",
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "表示中のフォルダー外も含め、ダウンロード済みのファイルをすべてライブラリから削除します。ローカルファイルは保持されます。"
 }

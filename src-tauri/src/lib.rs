@@ -1,6 +1,7 @@
 mod app;
 mod update;
 mod theme;
+mod taskbar;
 
 use app::{AddResult, App, DeleteOutcome, LibraryPatch, QueueItem, RemoteList, SettingsPatch, Snapshot};
 use rdbatch_core::error::Error;

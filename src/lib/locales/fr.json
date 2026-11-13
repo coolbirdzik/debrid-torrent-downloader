@@ -135,6 +135,7 @@
   "Đang chọn file": "Sélection des fichiers",
   "Token không hợp lệ hoặc hết hạn. Cập nhật token rồi thử lại.": "Le jeton est invalide ou a expiré. Mettez-le à jour et réessayez.",
   "Torrent không còn trên dịch vụ. Xóa dòng khỏi hàng đợi rồi thêm lại.": "Le torrent n'est plus sur le service. Retirez la ligne et ajoutez-le de nouveau.",
+  "Torrent không còn trên dịch vụ. Bấm Thử lại để thêm lại.": "Le torrent n'est plus sur le service. Cliquez sur « Réessayer » pour l'ajouter de nouveau.",
   "Đã đạt giới hạn torrent đang hoạt động. Chờ torrent khác xong rồi thử lại.": "La limite de torrents actifs est atteinte. Attendez la fin d'autres torrents, puis réessayez.",
   "Tài khoản đã hết lưu lượng tải.": "Le compte n'a plus de trafic de téléchargement disponible.",
   "Lỗi kết nối hoặc link tải không khả dụng. Bấm Thử lại để tiếp tục.": "La connexion a échoué ou le lien de téléchargement est indisponible. Cliquez sur « Réessayer » pour continuer.",
@@ -506,5 +507,9 @@
   "Đã sao chép {0} ID.": "{0} ID copié(s).",
   "Chọn các file đã tải xong ({0})": "Sélectionner les fichiers téléchargés ({0})",
   "Chọn các mục đã tải xong ({0})": "Sélectionner les éléments terminés ({0})",
-  "Chọn các mục dịch vụ đã tải xong": "Sélectionner les éléments que le service a fini de télécharger"
+  "Chọn các mục dịch vụ đã tải xong": "Sélectionner les éléments que le service a fini de télécharger",
+  "Bỏ các file đã tải xong ({0})": "Retirer les fichiers téléchargés ({0})",
+  "Bỏ các file đã tải xong?": "Retirer les fichiers téléchargés ?",
+  "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "Retirer {0} fichier(s) téléchargé(s) de la bibliothèque. Les fichiers locaux, la file et les données cloud sont conservés. Annuler avec Ctrl+Z.",
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "Retire de la bibliothèque tous les fichiers téléchargés, même hors du dossier affiché. Les fichiers locaux sont conservés."
 }

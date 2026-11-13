@@ -33,6 +33,10 @@ impl Error {
     pub fn is_cancelled(&self) -> bool {
         matches!(self, Error::Cancelled)
     }
+    /// The service answered that the torrent (or magnet) does not exist, e.g. it was deleted there.
+    pub fn is_gone(&self) -> bool {
+        matches!(self, Error::Api { status: 404, .. })
+    }
     /// Transient failures worth replaying: connection loss, timeouts and Real-Debrid 5xx, 408 and 429 (it is just slow or rate limiting).
     pub fn is_transient(&self) -> bool {
         match self {
@@ -46,7 +50,7 @@ impl Error {
         match self {
             Error::Api { status: 401, .. } => Msg::plain("Token không hợp lệ hoặc hết hạn. Cập nhật token rồi thử lại."),
             Error::Api { provider: Provider::RealDebrid, status: 404, .. } => {
-                Msg::plain("Torrent không còn trên dịch vụ. Xóa dòng khỏi hàng đợi rồi thêm lại.")
+                Msg::plain("Torrent không còn trên dịch vụ. Bấm Thử lại để thêm lại.")
             }
             Error::Api { error_code: Some(21 | 33), .. } => {
                 Msg::plain("Đã đạt giới hạn torrent đang hoạt động. Chờ torrent khác xong rồi thử lại.")

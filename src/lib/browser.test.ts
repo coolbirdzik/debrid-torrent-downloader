@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeDrafts, breadcrumbs, buildEntries, draftId, filterFiles, formatBytes, isStatusDone, isStatusPartial, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, type BrowserQuery } from './browser';
+import { activeDrafts, breadcrumbs, buildEntries, draftId, filterFiles, formatBytes, isStatusDone, isStatusPartial, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, downloadedRemoval, type BrowserQuery } from './browser';
 import type { Draft, Job } from './types';
 
 const file = (id: number, path: string, bytes = 100) => ({ id, path, bytes, selected: 1 });
@@ -127,6 +127,26 @@ describe('removal and undo', () => {
     const hidden = removalPatches([root]);
     expect(hidden.apply[0].isHidden).toBe(true);
     expect(hidden.undo[0].isHidden).toBe(false);
+  });
+});
+
+describe('downloaded removal', () => {
+  it('removes only the finished files of a partly downloaded torrent, and hides a finished torrent', () => {
+    const partial = draft({ downloadedFileIds: [1, 4] });
+    const complete = draft({ sourceKey: 'btih:BBB', name: 'Done', files: [file(1, '/Done/a.mkv'), file(2, '/Done/b.mkv')], downloadedFileIds: [1, 2] });
+    const untouched = draft({ sourceKey: 'btih:CCC', name: 'New' });
+    const { entries, files } = downloadedRemoval([partial, complete, untouched], 'all');
+    expect(files).toBe(4);
+    const { apply, undo } = removalPatches(entries);
+    const of = (key: string) => apply.find((p) => p.sourceKey === key)!;
+    expect(of('btih:AAA')).toMatchObject({ excludedFileIds: [1, 4], isHidden: false });
+    expect(of('btih:BBB').isHidden).toBe(true);
+    expect(apply.some((p) => p.sourceKey === 'btih:CCC')).toBe(false);
+    expect(undo.find((p) => p.sourceKey === 'btih:AAA')).toMatchObject({ excludedFileIds: [], isHidden: false });
+  });
+
+  it('ignores files that are already removed and reports nothing when none are finished', () => {
+    expect(downloadedRemoval([draft({ downloadedFileIds: [1], excludedFileIds: [1] })], 'all')).toEqual({ entries: [], files: 0 });
   });
 });
 

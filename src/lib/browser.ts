@@ -413,6 +413,26 @@ export function removalPatches(entries: Entry[]): { apply: LibraryPatch[]; undo:
   return { apply, undo };
 }
 
+/**
+ * Everything the Library holds that is already saved on this computer, ready for `removalPatches`: the finished files
+ * of each torrent, or the whole torrent when every one of its files is finished. Works per file, independent of the
+ * folder being browsed, so a half-downloaded torrent still gets its finished files removed.
+ */
+export function downloadedRemoval(library: Draft[], source: SourceFilter): { entries: Entry[]; files: number } {
+  const entries: Entry[] = [];
+  let files = 0;
+  for (const draft of activeDrafts(library, source)) {
+    const visible = visibleFiles(draft);
+    const downloaded = setOf(draft.downloadedFileIds);
+    const finished = visible.filter((file) => downloaded.has(file.id));
+    if (finished.length === 0) continue;
+    files += finished.length;
+    if (finished.length === visible.length) entries.push({ kind: 'folder', draft, folderPath: '' } as Entry);
+    else for (const file of finished) entries.push({ kind: 'file', draft, file } as Entry);
+  }
+  return { entries, files };
+}
+
 export interface Crumb {
   label: string | null;
   location: Location;

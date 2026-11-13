@@ -135,6 +135,7 @@
   "Đang chọn file": "Seleccionando archivos",
   "Token không hợp lệ hoặc hết hạn. Cập nhật token rồi thử lại.": "El token no es válido o ha caducado. Actualízalo e inténtalo de nuevo.",
   "Torrent không còn trên dịch vụ. Xóa dòng khỏi hàng đợi rồi thêm lại.": "El torrent ya no está en el servicio. Quita la fila y vuelve a añadirlo.",
+  "Torrent không còn trên dịch vụ. Bấm Thử lại để thêm lại.": "El torrent ya no está en el servicio. Haz clic en «Reintentar» para añadirlo de nuevo.",
   "Đã đạt giới hạn torrent đang hoạt động. Chờ torrent khác xong rồi thử lại.": "Se alcanzó el límite de torrents activos. Espera a que terminen otros e inténtalo de nuevo.",
   "Tài khoản đã hết lưu lượng tải.": "La cuenta no tiene tráfico de descarga disponible.",
   "Lỗi kết nối hoặc link tải không khả dụng. Bấm Thử lại để tiếp tục.": "La conexión falló o el enlace de descarga no está disponible. Haz clic en «Reintentar» para continuar.",
@@ -506,5 +507,9 @@
   "Đã sao chép {0} ID.": "Se copiaron {0} ID.",
   "Chọn các file đã tải xong ({0})": "Seleccionar archivos descargados ({0})",
   "Chọn các mục đã tải xong ({0})": "Seleccionar elementos terminados ({0})",
-  "Chọn các mục dịch vụ đã tải xong": "Seleccionar los elementos que el servicio ya descargó"
+  "Chọn các mục dịch vụ đã tải xong": "Seleccionar los elementos que el servicio ya descargó",
+  "Bỏ các file đã tải xong ({0})": "Quitar archivos descargados ({0})",
+  "Bỏ các file đã tải xong?": "¿Quitar los archivos descargados?",
+  "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "Quitar {0} archivo(s) descargado(s) de la biblioteca. Se conservan los archivos locales, la cola y los datos en la nube. Deshacer con Ctrl+Z.",
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "Quita de la biblioteca todos los archivos descargados, incluso fuera de la carpeta actual. Se conservan los archivos locales."
 }

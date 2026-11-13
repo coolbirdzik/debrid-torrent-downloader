@@ -17,6 +17,43 @@ struct Fixture {
     persisted: Arc<AtomicUsize>,
 }
 
+#[test]
+fn download_badge_tracks_transfers_across_providers_and_lifecycle_changes() {
+    let queue = Queue::new(vec![], |_, _| {}, || {});
+    let mut ids = Vec::new();
+    for provider in [Provider::RealDebrid, Provider::TorBox, Provider::AllDebrid] {
+        let job = Job::new(provider, "magnet:test", "test", "test");
+        ids.push(job.id.clone());
+        queue.push(job);
+    }
+    assert_eq!(queue.downloading_count(), 0);
+    for id in &ids {
+        queue.mutate(id, |job| {
+            job.is_active = true;
+            job.state = JobState::Downloading;
+        });
+    }
+    assert_eq!(queue.downloading_count(), 3);
+    queue.mutate(&ids[0], |job| job.is_stopping = true);
+    assert_eq!(queue.downloading_count(), 2);
+    queue.mutate(&ids[1], |job| job.is_removing = true);
+    assert_eq!(queue.downloading_count(), 1);
+    queue.remove(&ids[..2]);
+    assert_eq!(queue.downloading_count(), 1);
+    // An active session may still own a job while it waits for a slot, retries, or finishes cancellation.
+    for state in [JobState::Queued, JobState::Adding, JobState::Waiting, JobState::Paused,
+        JobState::Stopped, JobState::Failed, JobState::Completed] {
+        queue.mutate(&ids[2], |job| job.state = state);
+        assert_eq!(queue.downloading_count(), 0, "{state:?} must not count");
+    }
+    queue.mutate(&ids[2], |job| job.state = JobState::Downloading);
+    assert_eq!(queue.downloading_count(), 1);
+    queue.mutate(&ids[2], |job| job.is_active = false);
+    assert_eq!(queue.downloading_count(), 0);
+    queue.remove(&ids[2..]);
+    assert_eq!(queue.downloading_count(), 0);
+}
+
 async fn fixture(account: Option<&str>) -> Fixture {
     let server = MockServer::start().await;
     let persisted = Arc::new(AtomicUsize::new(0));
@@ -274,6 +311,58 @@ async fn a_torrent_from_another_account_or_provider_is_refused_before_any_reques
     assert_eq!(done[0].detail.args, vec!["someone-else".to_string(), "me".to_string()]);
     assert_eq!(done[1].state, JobState::Failed);
     assert!(done[1].detail.key.starts_with("Chọn dịch vụ"));
+}
+
+async fn requests_to(f: &Fixture, route: &str) -> usize {
+    f.server.received_requests().await.unwrap().iter().filter(|r| r.url.path() == route).count()
+}
+
+/// Retry on a row that says "no longer on the service" adds the source again and finishes in the same run.
+#[tokio::test]
+async fn retrying_a_torrent_deleted_from_the_service_adds_it_again_and_downloads() {
+    let f = fixture(Some("me")).await;
+    mount_torrent(&f, "NEW", &[(1, "/a.bin", b"alpha"), (2, "/b.bin", b"bravo!")], &[1, 2]).await;
+    Mock::given(method("GET")).and(path("/torrents/info/DEAD")).respond_with(ResponseTemplate::new(404).set_body_json(json!({"error":"unknown_ressource","error_code":7}))).mount(&f.server).await;
+    let dir = tempfile::tempdir().unwrap();
+    let mut stale = job("NEW", Some(vec![1]));
+    stale.torrent_id = Some("DEAD".into());
+    stale.remote_account = Some("me".into());
+    stale.state = JobState::Failed;
+    stale.detail = rdbatch_core::models::Msg::plain("Torrent không còn trên dịch vụ. Xóa dòng khỏi hàng đợi rồi thêm lại.");
+    let done = run(&f, dir.path(), vec![stale]).await;
+    assert_eq!(done[0].state, JobState::Completed, "{:?}", done[0].detail);
+    assert_eq!(done[0].torrent_id.as_deref(), Some("NEW"));
+    assert_eq!(done[0].remote_account.as_deref(), Some("me"));
+    assert_eq!(std::fs::read(dir.path().join("a.bin")).unwrap(), b"alpha");
+    assert!(!dir.path().join("b.bin").exists(), "the original file selection is kept");
+    assert_eq!(requests_to(&f, "/torrents/addMagnet").await, 1);
+    assert_eq!(requests_to(&f, "/torrents/selectFiles/NEW").await, 1, "the new torrent still needs its files selected");
+}
+
+/// A 404 on a torrent that was just added is a real failure: no endless re-adding.
+#[tokio::test]
+async fn a_torrent_that_is_missing_right_after_being_added_fails_instead_of_looping() {
+    let f = fixture(None).await;
+    Mock::given(method("POST")).and(path("/torrents/addMagnet")).respond_with(ResponseTemplate::new(201).set_body_json(json!({"id":"GHOST"}))).mount(&f.server).await;
+    Mock::given(method("GET")).and(path("/torrents/info/GHOST")).respond_with(ResponseTemplate::new(404).set_body_json(json!({"error":"unknown_ressource","error_code":7}))).mount(&f.server).await;
+    let dir = tempfile::tempdir().unwrap();
+    let done = run(&f, dir.path(), vec![job("GHOST", None)]).await;
+    assert_eq!(done[0].state, JobState::Failed);
+    assert_eq!(requests_to(&f, "/torrents/addMagnet").await, 1);
+}
+
+/// A saved ID that is dead and whose replacement is dead too ends after one re-add.
+#[tokio::test]
+async fn a_stale_torrent_is_re_added_only_once_per_run() {
+    let f = fixture(None).await;
+    Mock::given(method("POST")).and(path("/torrents/addMagnet")).respond_with(ResponseTemplate::new(201).set_body_json(json!({"id":"GHOST"}))).mount(&f.server).await;
+    Mock::given(method("GET")).and(wiremock::matchers::path_regex("^/torrents/info/.*")).respond_with(ResponseTemplate::new(404).set_body_json(json!({"error":"unknown_ressource","error_code":7}))).mount(&f.server).await;
+    let dir = tempfile::tempdir().unwrap();
+    let mut stale = job("GHOST", None);
+    stale.torrent_id = Some("DEAD".into());
+    let done = run(&f, dir.path(), vec![stale]).await;
+    assert_eq!(done[0].state, JobState::Failed);
+    assert_eq!(requests_to(&f, "/torrents/addMagnet").await, 1);
 }
 
 #[tokio::test]

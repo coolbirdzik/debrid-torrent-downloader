@@ -2,7 +2,7 @@ import { untrack } from 'svelte';
 import { api } from './api';
 import { app } from './app.svelte';
 import { askDestination } from './destination.svelte';
-import { activeDrafts, buildEntries, draftId, isStatusDone, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
+import { activeDrafts, buildEntries, downloadedRemoval, draftId, isStatusDone, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
 import { chooseProviders } from './providers.svelte';
 import { PROVIDERS, type LibraryPatch, type Provider } from './types';
 import { emptySelection, selectAll, selectItem, selectionKey } from './selection';
@@ -80,6 +80,8 @@ class LibraryState {
   });
   readyCount = $derived(this.drafts.length - this.pendingCount);
   subfolders = $derived(this.drafts.reduce((sum, d) => sum + new Set(visibleFiles(d).map((f) => f.path.replace(/\\/g, '/').split('/').slice(0, -1).join('/').toLowerCase())).size, 0));
+  /** Finished files across the whole Library (for the current service filter), whatever folder is open. */
+  downloaded = $derived(downloadedRemoval(app.library, this.source));
   canRemoveFolder = $derived(this.location.draft !== null && !this.location.flat);
 
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -218,6 +220,20 @@ class LibraryState {
     const { apply, undo } = removalPatches(this.selectedEntries);
     this.undoStack = [...this.undoStack, undo];
     this.clearSelection();
+    await app.run(() => api.libraryUpdate(apply));
+  }
+
+  /** Removes every finished file from the Library (the files on disk are kept); one Ctrl+Z restores them all. */
+  async removeDownloaded() {
+    this.flush();
+    const { entries } = this.downloaded;
+    if (entries.length === 0) return;
+    const { apply, undo } = removalPatches(entries);
+    this.undoStack = [...this.undoStack, undo];
+    this.clearSelection();
+    // A torrent hidden while it is open would leave the browser pointing at a torrent that no longer exists.
+    const hidden = new Set(entries.filter((e) => e.kind === 'folder').map((e) => draftId(e.draft)));
+    if (this.location.draft && hidden.has(this.location.draft)) this.navigate({ ...HOME });
     await app.run(() => api.libraryUpdate(apply));
   }
 

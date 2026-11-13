@@ -135,6 +135,7 @@
   "Đang chọn file": "Dosyalar seçiliyor",
   "Token không hợp lệ hoặc hết hạn. Cập nhật token rồi thử lại.": "Belirteç geçersiz veya süresi dolmuş. Güncelleyip tekrar deneyin.",
   "Torrent không còn trên dịch vụ. Xóa dòng khỏi hàng đợi rồi thêm lại.": "Torrent artık hizmette değil. Satırı kaldırıp yeniden ekleyin.",
+  "Torrent không còn trên dịch vụ. Bấm Thử lại để thêm lại.": "Torrent artık hizmette değil. Yeniden eklemek için “Yeniden dene”ye tıklayın.",
   "Đã đạt giới hạn torrent đang hoạt động. Chờ torrent khác xong rồi thử lại.": "Etkin torrent sınırına ulaşıldı. Diğer torrent'lerin bitmesini bekleyip tekrar deneyin.",
   "Tài khoản đã hết lưu lượng tải.": "Hesapta kalan indirme trafiği yok.",
   "Lỗi kết nối hoặc link tải không khả dụng. Bấm Thử lại để tiếp tục.": "Bağlantı başarısız oldu veya indirme bağlantısı kullanılamıyor. Devam etmek için “Yeniden dene”ye tıklayın.",
@@ -506,5 +507,9 @@
   "Đã sao chép {0} ID.": "{0} ID kopyalandı.",
   "Chọn các file đã tải xong ({0})": "İndirilen dosyaları seç ({0})",
   "Chọn các mục đã tải xong ({0})": "Tamamlanan öğeleri seç ({0})",
-  "Chọn các mục dịch vụ đã tải xong": "Servisin indirmeyi bitirdiği öğeleri seç"
+  "Chọn các mục dịch vụ đã tải xong": "Servisin indirmeyi bitirdiği öğeleri seç",
+  "Bỏ các file đã tải xong ({0})": "İndirilen dosyaları kaldır ({0})",
+  "Bỏ các file đã tải xong?": "İndirilen dosyalar kaldırılsın mı?",
+  "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "İndirilen {0} dosya kitaplıktan kaldırılacak. Yerel dosyalar, kuyruk ve bulut verileri korunur. Ctrl+Z ile geri alınabilir.",
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "Görüntülenen klasörün dışındakiler dahil, indirilen tüm dosyaları kitaplıktan kaldırır. Yerel dosyalar korunur."
 }

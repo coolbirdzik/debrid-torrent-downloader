@@ -213,6 +213,16 @@
     menu = { x: event.clientX, y: event.clientY, entry };
   }
 
+  async function removeDownloaded() {
+    const sure = await confirmAction({
+      title: { key: 'Bỏ các file đã tải xong?', args: [] },
+      body: { key: 'Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.', args: [String(library.downloaded.files)] },
+      confirm: { key: 'Bỏ khỏi thư viện', args: [] },
+      danger: true
+    });
+    if (sure) await library.removeDownloaded();
+  }
+
   const doneCount = $derived(library.entries.filter(isStatusDone).length);
 
   function menuItems(entry: Entry): MenuItem[] {
@@ -493,6 +503,9 @@
         {#if library.undoStack.length > 0}
           <button class="btn icon" onclick={() => library.undo()} title={t('Hoàn tác (Ctrl+Z)')} aria-label={t('Hoàn tác')}><span class="ic purple"><ArrowCounterClockwise size={16} weight="bold" /></span></button>
         {/if}
+        <button class="btn danger" disabled={library.downloaded.files === 0} onclick={removeDownloaded} title={t('Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.')}>
+          <span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Bỏ các file đã tải xong ({0})', library.downloaded.files)}
+        </button>
         <button class="btn outline" disabled={library.queueing || library.remaining === 0} onclick={() => library.queueRemaining()} title={t('Thêm mọi file còn lại trong toàn bộ thư viện vào queue, kể cả ngoài bộ lọc hiện tại; bỏ qua file đã có trong queue.')}>
           <span class="ic blue"><DownloadSimple size={16} weight="duotone" /></span>{t('Thêm tất cả còn lại ({0})', library.remaining)}
         </button>

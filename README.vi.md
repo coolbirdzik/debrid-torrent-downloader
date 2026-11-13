@@ -122,6 +122,8 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
   **Tải song song độc lập giữa các cloud** trong Cài đặt để dùng chung một giới hạn tổng.
   Thay đổi giới hạn và chế độ áp dụng khi hàng đợi hết tác vụ đang chạy; Pause tất cả rồi Resume để áp dụng ngay.
 - Tiến độ hiện cả hai phía: tiến độ trên dịch vụ và tiến độ tải về máy, kèm tốc độ và số file.
+- **Icon trên taskbar Windows** hiện số torrent đang tải về máy, kể cả khi thu nhỏ cửa sổ. Không tính tác vụ
+  tạm dừng, đã dừng, đang chờ hoặc hoàn tất; badge tự ẩn khi không còn lượt tải.
 
 ### Nhanh, riêng tư, đa nền tảng
 
@@ -273,6 +275,10 @@ pnpm test:updater         # test logic UI cập nhật và manifest release
 pnpm tauri build          # bộ cài cho hệ điều hành hiện tại, trong target/release/bundle
 pnpm build:portable       # bản portable, trong dist/portable và dist/DebridDock-portable-win-x64.zip (Windows)
 ```
+
+`pnpm tauri` và `pnpm build:portable` tự tìm Cargo đã cài trong `CARGO_HOME/bin` hoặc `~/.cargo/bin` nếu
+terminal hiện tại chưa có trong `PATH`. Để chạy trực tiếp lệnh `cargo` trên Windows, mở lại terminal sau khi
+cài Rust hoặc chạy `$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"` trong PowerShell.
 
 Trên Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-portable-update.ps1` kiểm tra thay
 file portable và khôi phục khi lỗi bằng dữ liệu tạm.

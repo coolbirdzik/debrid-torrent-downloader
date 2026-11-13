@@ -9,8 +9,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const windows = process.platform === 'win32';
-const run = (command, args) => {
-	const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: windows });
+const run = (command, args, options = {}) => {
+	const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: windows, ...options });
+	if (result.error) console.error(result.error.message);
 	if (result.status !== 0) process.exit(result.status ?? 1);
 };
 
@@ -31,7 +32,16 @@ writeFileSync(join(folder, 'portable'), 'Presence of this file keeps all app dat
 if (windows) {
 	const zip = join(root, 'dist', 'DebridDock-portable-win-x64.zip');
 	rmSync(zip, { force: true });
-	run('powershell', ['-NoProfile', '-Command', `Compress-Archive -Path '${folder}\\*' -DestinationPath '${zip}'`]);
+	// Use .NET directly: a package-manager shell can inherit an incompatible PowerShell module search path.
+	// Pass paths as environment values so spaces and quotes never become shell syntax.
+	run('powershell.exe', ['-NoProfile', '-Command', [
+		"$ErrorActionPreference = 'Stop'",
+		'Add-Type -AssemblyName System.IO.Compression.FileSystem',
+		'[System.IO.Compression.ZipFile]::CreateFromDirectory($env:DEBRIDDOCK_PORTABLE_DIR, $env:DEBRIDDOCK_PORTABLE_ZIP)'
+	].join('\n')], {
+		shell: false,
+		env: { ...process.env, DEBRIDDOCK_PORTABLE_DIR: folder, DEBRIDDOCK_PORTABLE_ZIP: zip }
+	});
 	console.log(`\nPortable zip: ${zip}`);
 }
 console.log(`Portable folder: ${folder}`);
