@@ -41,7 +41,8 @@
   import SortDescending from 'phosphor-svelte/lib/SortDescending';
   import { app } from '../app.svelte';
   import CloudArrowDown from 'phosphor-svelte/lib/CloudArrowDown';
-  import { breadcrumbs, draftId, formatBytes, isStatusDone, isStatusPartial, magnetOf, type Entry, type HeaderSort, type SourceFilter } from '../browser';
+  import { breadcrumbs, draftId, formatBytes, isStatusDone, isStatusPartial, magnetOf, remoteOf, thumbRequest, type Entry, type HeaderSort, type SourceFilter } from '../browser';
+  import Thumb from './Thumb.svelte';
   import { PROVIDERS, providerLabel, providerShort, type Settings } from '../types';
   import Select from './Select.svelte';
   import { confirmAction, dialog } from '../confirm.svelte';
@@ -275,15 +276,10 @@
   type PlaySource = { torrentId: string; account: string | null; fileId: number; title: string; provider: Entry['draft']['provider']; select: boolean };
   let playing = $state.raw<PlaySource | null>(null);
   function playSource(entry: Entry): PlaySource | null {
-    if (entry.kind !== 'file' || entry.videoKind !== 'video' || !entry.file) return null;
-    const { draft, file } = entry;
-    const base = { fileId: file.id, title: entry.name, provider: draft.provider };
-    if (draft.torrentId) return { ...base, torrentId: draft.torrentId, account: draft.remoteAccount, select: true };
-    const key = draft.sourceKey.toLowerCase();
-    const job = app.jobs.find((j) => j.provider === draft.provider && j.sourceKey.toLowerCase() === key && j.torrentId
-      && (j.selectedFileIds === null || j.selectedFileIds.includes(file.id)));
-    return job?.torrentId ? { ...base, torrentId: job.torrentId, account: job.remoteAccount, select: false } : null;
+    const remote = remoteOf(entry, app.jobs);
+    return remote && entry.file ? { ...remote, fileId: entry.file.id, title: entry.name, provider: entry.draft.provider } : null;
   }
+  const thumbOf = (entry: Entry) => thumbRequest(entry, app.jobs, app.cloudOf(entry.draft)?.status);
   const canPlay = (entry: Entry) => playSource(entry) !== null;
   function play(entry: Entry) {
     menu = null;
@@ -444,13 +440,15 @@
           {:else}{t('Không tìm thấy file. Thử từ khóa khác hoặc bỏ lọc.')}{/if}
         </p>
       {:else if grid}
-        <VirtualList bind:this={listRef} items={library.entries} rowHeight={148} tileWidth={160} key={(e) => e.key} onkeydown={keydown} label={t('Lưới file trong torrent')}>
+        <VirtualList bind:this={listRef} items={library.entries} rowHeight={186} tileWidth={160} key={(e) => e.key} onkeydown={keydown} label={t('Lưới file trong torrent')}>
           {#snippet row(entry: Entry)}
             {@const cloud = cloudView(entry)}
             <div class="tile" class:on={library.selected.has(entry.key)} role="option" aria-selected={library.selected.has(entry.key)} tabindex="-1" title={gridTitle(entry)}
               onmousedown={selectionMouseDown} onclick={(e) => rowClick(entry, e)} ondblclick={() => activate(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
-              <div class="tile-top">
-                <span class="chip kind-{entry.videoKind}" style="width:38px;height:38px">{@render kindIcon(entry, 20)}</span>
+              <div class="preview">
+                <Thumb request={thumbOf(entry)}>
+                  <span class="chip kind-{entry.videoKind}" style="width:44px;height:44px">{@render kindIcon(entry, 24)}</span>
+                </Thumb>
                 <span class="tag" title={providerLabel(entry.draft.provider)}>{providerShort(entry.draft.provider)}</span>
               </div>
               <div class="tile-name"><b>{entry.name}</b><span class="m {isStatusDone(entry) ? 'done' : isStatusPartial(entry) ? 'partial' : ''}">{mark(entry)}</span></div>
@@ -471,7 +469,11 @@
               onmousedown={selectionMouseDown} onclick={(e) => rowClick(entry, e)} ondblclick={() => activate(entry)} oncontextmenu={(e) => openMenu(entry, e)} onkeydown={() => {}}>
               <input type="checkbox" checked={library.selected.has(entry.key)} onclick={(e) => { e.stopPropagation(); library.toggle(entry, e.shiftKey); }} aria-label={entry.location} />
               <div class="name">
-                <span class="chip kind-{entry.videoKind}" style="width:34px;height:34px">{@render kindIcon(entry, 18)}</span>
+                <span class="lead">
+                  <Thumb request={thumbOf(entry)}>
+                    <span class="chip kind-{entry.videoKind}" style="width:34px;height:34px">{@render kindIcon(entry, 18)}</span>
+                  </Thumb>
+                </span>
                 <div class="names">
                   <b class="ell">{entry.name}<span class="m {isStatusDone(entry) ? 'done' : isStatusPartial(entry) ? 'partial' : ''}" title={statusLabel(entry)}>{mark(entry)}</span></b>
                   <span class="caption ell loc">{entry.location}</span>
@@ -588,11 +590,15 @@
   .m { margin-left: 8px; font-weight: 600; color: var(--muted); }
   .m.done { color: var(--success); } .m.partial { color: var(--partial); }
   .empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 24px; }
-  .tile { position: relative; width: 160px; height: 148px; padding: 12px; border-radius: 20px; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s, box-shadow 0.15s; }
+  .tile { position: relative; width: 160px; height: 186px; padding: 12px; border-radius: 20px; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s, box-shadow 0.15s; }
   .tile:hover { background: var(--hover); }
   .tile.on { background: var(--selected); }
   .tile > * { flex: none; }
-  .tile-top { display: flex; justify-content: space-between; }
+  /* 16:9 preview: the video's frame when there is one, else the file-type icon on a soft panel. */
+  .preview { position: relative; height: 76px; border-radius: 12px; overflow: hidden; background: var(--subtle); display: grid; place-items: center; }
+  .preview .tag { position: absolute; top: 5px; right: 5px; background: rgb(0 0 0 / 0.55); color: #fff; backdrop-filter: blur(4px); }
+  /* List rows: a 16:9 slot so a frame is wide enough to recognise; icons sit at its left edge. */
+  .lead { flex: none; width: 60px; height: 34px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; }
   /* Two lines of name, never squeezed out by the rows below it. */
   .tile-name { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; font-size: 12px; line-height: 16px; height: 32px; overflow: hidden; }
   .tile-name b { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -600,7 +606,6 @@
   /* Source: a quiet tag, so the file-type colors stay the loudest thing in a row. */
   .tag { display: inline-block; max-width: 100%; padding: 2px 8px; border-radius: 999px; background: var(--subtle); color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .source { min-width: 0; }
-  .tile-top .tag { align-self: flex-start; }
   .status-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding-right: 8px; }
   .status-line { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
   .progress-value { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--accent); }

@@ -11,7 +11,8 @@ use rdbatch_core::models::{CloudKind, CloudState, Draft, Job, JobState, Msg, Per
 use rdbatch_core::provider::{self, Debrid, Timing};
 use rdbatch_core::store::Store;
 use rdbatch_core::stream::{self, StreamList, StreamSource};
-use rdbatch_core::{parser, search};
+use rdbatch_core::{parser, paths, search};
+use crate::thumbs::{Source, Thumbs};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -178,6 +179,7 @@ pub struct App {
     inspect_cancel: Mutex<CancellationToken>,
     cloud_running: AtomicBool,
     timing: Timing,
+    pub thumbs: Thumbs,
 }
 
 // Debug-build-only hooks that let an end-to-end run use a fake provider server. Release builds ignore them.
@@ -205,6 +207,7 @@ fn entry(provider: Provider) -> Option<keyring::Entry> {
 impl App {
     pub fn new(handle: AppHandle, directory: PathBuf, default_output: String) -> Arc<App> {
         let store = Store::new(&directory);
+        let thumbs = Thumbs::new(&directory);
         let loaded = store.load();
         let mut data = loaded.data;
         if data.settings.output_directory.trim().is_empty() {
@@ -244,6 +247,7 @@ impl App {
             inspect_cancel: Mutex::new(CancellationToken::new()),
             cloud_running: AtomicBool::new(false),
             timing: test_timing(),
+            thumbs,
         });
         let weak = Arc::downgrade(&app);
         *notifier.persist.lock().unwrap() = Some(Box::new(move || {
@@ -1207,6 +1211,48 @@ impl App {
             return Err(Error::invalid("Link phát không khớp với file đã chọn."));
         }
         Ok(StreamSource { url: resolved.download, filename: resolved.filename, bytes: resolved.filesize })
+    }
+
+    /// Where a Library video's thumbnail frame can be read: the downloaded copy when a queue job still knows it, else
+    /// the service link of a torrent the service has finished. `Ok(None)` means not available yet (still fetching, not
+    /// selected, link count mismatch). Never selects files or adds torrents: a thumbnail must not change the service.
+    pub async fn thumbnail_source(&self, provider: Provider, source_key: &str, file_id: i32, torrent_id: Option<String>, list_account: Option<String>) -> Result<Option<String>> {
+        if let Some(path) = self.local_video(provider, source_key, file_id) {
+            return Ok(Some(self.thumbs.register(Source::Local(path))));
+        }
+        let Some(id) = torrent_id.filter(|id| !id.trim().is_empty()) else { return Ok(None) };
+        let api = self.stream_api(provider, list_account.as_deref()).await?;
+        let cache_key = format!("{provider:?}|{id}");
+        let info = match self.thumbs.cached_info(&cache_key) {
+            Some(info) => info,
+            None => {
+                let info = api.info(&id).await?;
+                self.thumbs.remember_info(cache_key, info.clone());
+                info
+            }
+        };
+        if info.status != "downloaded" {
+            return Ok(None);
+        }
+        let Some(file) = stream::playable_files(&info).into_iter().find(|f| f.file_id == file_id) else { return Ok(None) };
+        let (Some((name, bytes)), Some(link)) = (stream::expected_at(&info, file.link_index), info.links.get(file.link_index)) else { return Ok(None) };
+        let resolved = api.unrestrict(link).await?;
+        let same_name = name.eq_ignore_ascii_case(&stream::basename(&resolved.filename));
+        let same_size = !(bytes > 0 && resolved.filesize > 0 && bytes != resolved.filesize);
+        if !same_name || !same_size || !resolved.download.starts_with("http") {
+            return Ok(None);
+        }
+        Ok(Some(self.thumbs.register(Source::Remote(resolved.download))))
+    }
+
+    /// A completed, still-present download of this torrent file, found through the queue job that wrote it.
+    fn local_video(&self, provider: Provider, source_key: &str, file_id: i32) -> Option<PathBuf> {
+        self.queue.snapshot().into_iter().filter(|job| job.provider == provider && same_key(&job.source_key, source_key)).find_map(|job| {
+            let root = job.output_directory.as_deref()?;
+            job.files.iter().filter(|f| f.completed && f.torrent_file_id == Some(file_id)).find_map(|f| {
+                paths::under_root(std::path::Path::new(root), &f.relative_path).ok().filter(|path| path.is_file())
+            })
+        })
     }
 
     /// Hands the stream to the OS default media player through a one-line playlist.

@@ -37,6 +37,11 @@ export const api = {
   remoteDelete: (provider: Provider, ids: string[], listAccount: string, kind: CloudKind = 'torrent') => call<DeleteOutcome[]>('remote_delete', { provider, kind, ids, listAccount }),
   streamFiles: (provider: Provider, id: string, listAccount: string | null, select = false) => call<StreamList>('stream_files', { provider, id, listAccount, select }),
   streamUrl: (provider: Provider, id: string, linkIndex: number, listAccount: string | null) => call<StreamSource>('stream_url', { provider, id, linkIndex, listAccount }),
+  thumbnails: () => call<Record<string, string | null>>('thumbnails'),
+  thumbnailSource: (provider: Provider, sourceKey: string, fileId: number, torrentId: string | null, listAccount: string | null) =>
+    call<string | null>('thumbnail_source', { provider, sourceKey, fileId, torrentId, listAccount }),
+  thumbnailSave: (id: string, token: string | null, jpeg: number[] | null) => call<string | null>('thumbnail_save', { id, token, jpeg }),
+  thumbnailRelease: (token: string) => call<void>('thumbnail_release', { token }),
   openExternalPlayer: (url: string, filename: string) => call<void>('open_external_player', { url, filename }),
   openFolder: (path: string) => call<void>('open_folder', { path }),
   openTokenPage: (provider: Provider) => call<void>('open_token_page', { provider }),

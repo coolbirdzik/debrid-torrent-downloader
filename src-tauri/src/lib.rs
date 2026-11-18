@@ -2,6 +2,7 @@ mod app;
 mod update;
 mod theme;
 mod taskbar;
+mod thumbs;
 
 use app::{AddResult, App, DeleteOutcome, LibraryPatch, QueueItem, RemoteList, SettingsPatch, Snapshot};
 use rdbatch_core::error::Error;
@@ -127,6 +128,33 @@ async fn stream_url(app: Shared<'_>, provider: Provider, id: String, link_index:
     Ok(app.stream_url(provider, id, link_index, list_account).await?)
 }
 
+/// Thumbnail ID → image hash (`null` for a video known to give no frame), loaded once by the Library.
+#[tauri::command]
+fn thumbnails(app: Shared<'_>) -> std::collections::HashMap<String, Option<String>> {
+    app.thumbs.known()
+}
+
+/// A token for the `thumb` scheme that streams this video, or `null` when it can't be read yet.
+#[tauri::command]
+async fn thumbnail_source(app: Shared<'_>, provider: Provider, source_key: String, file_id: i32, torrent_id: Option<String>, list_account: Option<String>) -> Cmd<Option<String>> {
+    Ok(app.thumbnail_source(provider, &source_key, file_id, torrent_id, list_account).await?)
+}
+
+/// Stores the captured JPEG (or, with `jpeg` null, that the video gives no frame) and drops the source token.
+#[tauri::command]
+fn thumbnail_save(app: Shared<'_>, id: String, token: Option<String>, jpeg: Option<Vec<u8>>) -> Cmd<Option<String>> {
+    if let Some(token) = &token {
+        app.thumbs.release(token);
+    }
+    app.thumbs.save(&id, jpeg).map_err(|e| ApiError(Msg::plain(&e)))
+}
+
+/// Drops a source token without recording anything (the read failed for a reason worth retrying later).
+#[tauri::command]
+fn thumbnail_release(app: Shared<'_>, token: String) {
+    app.thumbs.release(&token);
+}
+
 #[tauri::command]
 fn open_external_player(app: Shared<'_>, url: String, filename: String) -> Cmd<()> {
     Ok(app.open_external_player(&url, &filename)?)
@@ -176,6 +204,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(update::UpdateGuard::default())
+        // Video bytes and cached thumbnails for the Library (see thumbs.rs). Requests only start after setup.
+        .register_asynchronous_uri_scheme_protocol(thumbs::SCHEME, |ctx, request, responder| {
+            let Some(app) = ctx.app_handle().try_state::<Arc<App>>().map(|state| state.inner().clone()) else {
+                responder.respond(tauri::http::Response::builder().status(503).body(Vec::new()).unwrap());
+                return;
+            };
+            tauri::async_runtime::spawn(async move { responder.respond(app.thumbs.serve(request).await) });
+        })
         .setup(|app| {
             // RDBATCH_DATA_DIR keeps all data in one folder (tests, screenshots). A file named `portable` next to the
             // executable does the same with `<exe folder>/data`, which is how the portable zip is laid out.
@@ -233,6 +269,10 @@ pub fn run() {
             torbox_account,
             stream_files,
             stream_url,
+            thumbnails,
+            thumbnail_source,
+            thumbnail_save,
+            thumbnail_release,
             open_external_player,
             open_folder,
             open_token_page,

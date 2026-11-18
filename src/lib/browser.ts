@@ -461,3 +461,46 @@ export function formatBytes(bytes: number): string {
   }
   return `${Number(value.toFixed(2))} ${units[unit]}`;
 }
+
+/** The cloud torrent that holds a Library video. The draft owns it until it is queued; then the queue job that
+ * selected this file does. `select` is true only for a draft-owned torrent (a job makes its own file selection). */
+export function remoteOf(entry: Entry, jobs: Job[]): { torrentId: string; account: string | null; select: boolean } | null {
+  if (entry.kind !== 'file' || entry.videoKind !== 'video' || !entry.file) return null;
+  const { draft, file } = entry;
+  if (draft.torrentId) return { torrentId: draft.torrentId, account: draft.remoteAccount, select: true };
+  const key = draft.sourceKey.toLowerCase();
+  const job = jobs.find((j) => j.provider === draft.provider && j.sourceKey.toLowerCase() === key && j.torrentId
+    && (j.selectedFileIds === null || j.selectedFileIds.includes(file.id)));
+  return job?.torrentId ? { torrentId: job.torrentId, account: job.remoteAccount, select: false } : null;
+}
+
+export interface ThumbRequest {
+  /** Cache key: one thumbnail per file of a torrent on a service. */
+  id: string;
+  provider: Provider;
+  sourceKey: string;
+  fileId: number;
+  torrentId: string | null;
+  account: string | null;
+}
+
+export const thumbId = (draft: { provider: Provider; sourceKey: string }, fileId: number) => `${draftId(draft)}|${fileId}`;
+
+/** What a video row needs to get a thumbnail: a downloaded copy (found by the backend through its job), or a cloud
+ * torrent the service has finished fetching. `cloudStatus` is the service status last seen for the draft, if any. */
+export function thumbRequest(entry: Entry, jobs: Job[], cloudStatus: string | undefined): ThumbRequest | null {
+  if (entry.kind !== 'file' || entry.videoKind !== 'video' || !entry.file || entry.pending) return null;
+  const remote = remoteOf(entry, jobs);
+  const downloaded = entry.downloaded > 0;
+  const cloudReady = remote !== null && (cloudStatus === undefined || cloudStatus === 'downloaded');
+  if (!downloaded && !cloudReady) return null;
+  const { draft, file } = entry;
+  return {
+    id: thumbId(draft, file.id),
+    provider: draft.provider,
+    sourceKey: draft.sourceKey,
+    fileId: file.id,
+    torrentId: cloudReady ? remote.torrentId : null,
+    account: cloudReady ? remote.account : null
+  };
+}
