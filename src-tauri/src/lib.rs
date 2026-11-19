@@ -72,6 +72,11 @@ fn library_retry(app: Shared) {
 }
 
 #[tauri::command]
+async fn library_refresh(app: Shared<'_>) -> Cmd<Snapshot> {
+    Ok(app.inner().library_refresh().await)
+}
+
+#[tauri::command]
 fn queue_add(app: Shared, items: Vec<QueueItem>) -> Cmd<Vec<String>> {
     Ok(app.queue_add(items)?)
 }
@@ -258,6 +263,7 @@ pub fn run() {
             library_reset,
             library_cancel_inspect,
             library_retry,
+            library_refresh,
             queue_add,
             queue_start,
             queue_pause,

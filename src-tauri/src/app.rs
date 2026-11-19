@@ -664,6 +664,15 @@ impl App {
         self.mark_dirty();
     }
 
+    pub async fn library_refresh(self: &Arc<Self>) -> Snapshot {
+        if !self.cloud_running.swap(true, Ordering::SeqCst) {
+            self.refresh_cloud().await;
+            self.cloud_running.store(false, Ordering::SeqCst);
+        }
+        self.clone().start_inspection();
+        self.snapshot()
+    }
+
     pub fn start_inspection(self: Arc<Self>) {
         if self.data.lock().unwrap().settings.library_import_paused || self.inspect_running.swap(true, Ordering::SeqCst) {
             return;

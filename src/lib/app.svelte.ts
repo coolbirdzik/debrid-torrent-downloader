@@ -1,7 +1,7 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { api, on, toMsg } from './api';
 import { setLanguage } from './i18n.svelte';
-import { activeDrafts, fileIdentity, visibleFiles } from './browser';
+import { activeDrafts } from './browser';
 import type { AccountInfo, CloudState, Draft, Job, Marks, Msg, Provider, Settings, Snapshot, TorBoxAccount, UpdateInfo, User } from './types';
 import { canRetry, canResume, PROVIDERS } from './types';
 
@@ -27,22 +27,13 @@ class AppState {
   settings = $state<Settings>({ ...defaults });
   // Large and replaced wholesale on every update, so keep them out of Svelte's deep proxies.
   library = $state.raw<Draft[]>([]);
-  private seenLibraryFiles = $state.raw<Set<string>>(new Set());
+  imported = $state.raw<ReadonlyMap<string, number>>(new Map());
+  private importSequence = 0;
+  private libraryGeneration = 0;
   private clearedLibraryDrafts = new Map<string, string | null>();
-  /** Navigation counts always cover every service, independent of the Library's current filters. */
-  libraryBadges = $derived.by(() => {
-    let pending = 0;
-    const unread = new Set<string>();
-    for (const draft of activeDrafts(this.library)) {
-      if (draft.files.length === 0) pending++;
-      else if (this.page !== 'library') {
-        for (const file of visibleFiles(draft)) {
-          const key = fileIdentity(draft, file);
-          if (!this.seenLibraryFiles.has(key)) unread.add(key);
-        }
-      }
-    }
-    return { pending, newFiles: unread.size };
+  /** Count the same completed imports marked New in the Library, across every service and filter. */
+  libraryBadges = $derived({
+    newImports: activeDrafts(this.library).filter((draft) => draft.files.length > 0 && this.imported.has(cloudKey(draft))).length
   });
   jobs = $state.raw<Job[]>([]);
   /** Cloud progress per Library torrent (key: `provider|sourcekey`), kept apart so it never rebuilds the rows. */
@@ -120,11 +111,10 @@ class AppState {
     this.accountErrors = {};
     this.settings = snapshot.settings;
     this.library = snapshot.library;
+    this.imported = new Map();
+    this.libraryGeneration++;
     this.inspect = snapshot.inspect ?? { running: false, done: 0, total: 0 };
     this.clearedLibraryDrafts.clear();
-    // Existing files are the startup baseline; later metadata arrivals can be new while another page is open.
-    this.seenLibraryFiles = new Set();
-    this.markLibrarySeen();
     this.jobs = snapshot.jobs;
     this.cloud = new Map(snapshot.library.filter((d) => d.cloud).map((d) => [cloudKey(d), d.cloud!]));
     this.accounts = snapshot.accounts;
@@ -203,25 +193,13 @@ class AppState {
     return this.cloud.get(cloudKey(draft));
   }
 
-  /** Opening the Library acknowledges all currently visible files, including copies on another service. */
-  markLibrarySeen() {
-    const seen = new Set(this.seenLibraryFiles);
-    for (const draft of activeDrafts(this.library)) {
-      for (const file of visibleFiles(draft)) seen.add(fileIdentity(draft, file));
-    }
-    if (seen.size !== this.seenLibraryFiles.size) this.seenLibraryFiles = seen;
-  }
-
-  resetLibraryActivity() {
-    this.seenLibraryFiles = new Set();
-  }
-
   clearLibraryView() {
+    this.libraryGeneration++;
+    this.imported = new Map();
     for (const draft of this.library) this.clearedLibraryDrafts.set(cloudKey(draft), draft.addedAt);
     this.library = [];
     this.inspect = { running: false, done: 0, total: 0 };
     this.cloud = new Map();
-    this.resetLibraryActivity();
   }
 
   private upsertDraft(draft: Draft) {
@@ -239,12 +217,34 @@ class AppState {
     }
     const same = (d: Draft) => d.provider === draft.provider && d.sourceKey.toLowerCase() === draft.sourceKey.toLowerCase();
     const index = this.library.findIndex(same);
+    if (draft.files.length > 0 && (index < 0 || this.library[index].files.length === 0)) {
+      this.imported = new Map(this.imported).set(key, ++this.importSequence);
+    }
     if (index < 0) this.library = [...this.library, draft];
     else {
       const next = this.library.slice();
       next[index] = draft;
       this.library = next;
     }
+  }
+
+  async refreshLibrary() {
+    const generation = this.libraryGeneration;
+    const before = new Map(this.library.map((draft) => [cloudKey(draft), draft]));
+    const cloudBefore = this.cloud;
+    const inspectBefore = this.inspect;
+    const snapshot = await api.libraryRefresh();
+    if (generation !== this.libraryGeneration) return;
+    // Live events received during the request are newer than the refresh snapshot.
+    const current = new Map(this.library.map((draft) => [cloudKey(draft), draft]));
+    const cloud = this.cloud;
+    for (const draft of snapshot.library) {
+      const key = cloudKey(draft);
+      if (current.get(key) === before.get(key)) {
+        this.upsertDraft(cloud.get(key) !== cloudBefore.get(key) ? { ...draft, cloud: cloud.get(key) ?? null } : draft);
+      }
+    }
+    if (this.inspect === inspectBefore && snapshot.inspect) this.inspect = snapshot.inspect;
   }
 
   private applyMarks(marks: Marks[]) {

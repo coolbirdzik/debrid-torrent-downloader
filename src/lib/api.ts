@@ -26,6 +26,7 @@ export const api = {
   libraryReset: () => call<void>('library_reset'),
   libraryCancelInspect: () => call<void>('library_cancel_inspect'),
   libraryRetry: () => call<void>('library_retry'),
+  libraryRefresh: () => call<Snapshot>('library_refresh'),
   queueAdd: (items: { provider: Provider; sourceKey: string; fileIds: number[]; outputDirectory?: string }[]) => call<string[]>('queue_add', { items }),
   queueStart: (ids?: string[]) => call<void>('queue_start', { ids: ids ?? null }),
   queuePause: () => call<void>('queue_pause'),

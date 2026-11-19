@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
   import { open as pickFiles } from '@tauri-apps/plugin-dialog';
   import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
   import ArrowRight from 'phosphor-svelte/lib/ArrowRight';
@@ -36,6 +35,11 @@
   import CaretDown from 'phosphor-svelte/lib/CaretDown';
   import CaretUp from 'phosphor-svelte/lib/CaretUp';
   import Check from 'phosphor-svelte/lib/Check';
+  import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
+  import CircleHalf from 'phosphor-svelte/lib/CircleHalf';
+  import CircleDashed from 'phosphor-svelte/lib/CircleDashed';
+  import Clock from 'phosphor-svelte/lib/Clock';
+  import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
   import TextAa from 'phosphor-svelte/lib/TextAa';
   import SortAscending from 'phosphor-svelte/lib/SortAscending';
   import SortDescending from 'phosphor-svelte/lib/SortDescending';
@@ -64,10 +68,6 @@
     : app.settings.libraryImportPaused ? t('Import đã tạm dừng')
     : library.importSummary.needsAccount === library.importSummary.pending ? t('Chờ kết nối tài khoản để import')
     : library.importSummary.errors > 0 ? t('Chờ thử lại import') : t('Đang chờ import'));
-  $effect(() => {
-    app.library;
-    untrack(() => app.markLibrarySeen());
-  });
   let listRef: { reveal: (index: number) => void; columns: () => number } | undefined = $state();
   const sourceOptions = $derived<{ value: SourceFilter; label: string }[]>([
     { value: 'all', label: t('Tất cả nguồn') },
@@ -115,10 +115,6 @@
     }
   }
 
-  function mark(entry: Entry): string {
-    return entry.pending ? '…' : isStatusDone(entry) ? '✓' : isStatusPartial(entry) ? '◐' : '○';
-  }
-
   function statusLabel(entry: Entry): string {
     const state = entry.pending ? t('Chờ đọc') : isStatusDone(entry) ? t('Đã tải xong') : isStatusPartial(entry) ? t('Đã tải một phần') : t('Chưa tải');
     if (entry.kind === 'folder' && !entry.pending) return t('{0}/{1} file · {2}', entry.downloaded, entry.total, state);
@@ -126,6 +122,8 @@
   }
 
   const sizeLabel = (entry: Entry) => (entry.kind === 'folder' ? t('{0} file', entry.fileCount) : formatBytes(entry.size));
+  const kindLabel = (entry: Entry) => t(({ folder: 'Thư mục', video: 'Video', audio: 'Âm thanh', image: 'Hình ảnh', archive: 'Tệp nén', document: 'Tài liệu', other: 'File' })[entry.videoKind]);
+  const newlyImported = (entry: Entry) => app.imported.has(draftId(entry.draft));
   const dateLabel = (entry: Entry) => (entry.addedAt ? new Date(entry.addedAt).toLocaleString(languageTag(app.settings.language), { dateStyle: 'short', timeStyle: 'short' }) : '—');
 
   async function paste() {
@@ -255,6 +253,11 @@
 
   function browserKeys(event: KeyboardEvent) {
     if (playing) return; // the player owns the keyboard while it is open
+    if (event.key === 'F5' && !event.ctrlKey && !event.metaKey && !event.altKey && !dialog.open && !destinationDialog.open) {
+      event.preventDefault();
+      void library.refresh();
+      return;
+    }
     if (event.key === 'Escape' && (sortOpen || menu)) { sortOpen = false; menu = null; return; }
     // Shift+D: choose where to save, then queue the selection (same as the "Thêm vào hàng đợi" button).
     if (event.code === 'KeyD' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat && !typing(event.target)) {
@@ -317,12 +320,26 @@
 {#snippet progressCell(view: CloudView, entry: Entry)}
   <span class="status-cell" title={`${view.detail ?? view.label}${view.progress !== null ? ` · ${view.progress.toFixed(0)}%` : ''}`}>
     <span class="status-line">
-      <span class="caption cloud {view.tone}"><CloudArrowDown size={13} weight="bold" /><span class="ell">{view.label}</span></span>
+      <span class="caption cloud {view.tone}">{#if view.tone === 'warn'}<WarningCircle size={15} weight="duotone" />{:else}<CloudArrowDown size={15} weight="duotone" />{/if}<span class="ell">{view.label}</span></span>
       {#if view.progress !== null}<b class="progress-value">{view.progress.toFixed(0)}%</b>{/if}
     </span>
     {#if view.progress !== null || view.tone === 'busy'}
       <span class="bar mini" class:indeterminate={view.progress === null && (!entry.pending || app.inspect.running)} role="progressbar" aria-label={`${entry.name} · ${view.label}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={view.progress ?? undefined} aria-valuetext={`${view.label}${view.progress !== null ? ` · ${view.progress.toFixed(0)}%` : ''}`}><span style:width="{view.progress ?? 0}%"></span></span>
     {/if}
+  </span>
+{/snippet}
+
+{#snippet statusIcon(entry: Entry)}
+  {#if entry.pending}<Clock size={15} weight="duotone" />
+  {:else if isStatusDone(entry)}<CheckCircle size={15} weight="fill" />
+  {:else if isStatusPartial(entry)}<CircleHalf size={15} weight="fill" />
+  {:else if entry.queued}<ListChecks size={15} weight="bold" />
+  {:else}<CircleDashed size={15} weight="bold" />{/if}
+{/snippet}
+
+{#snippet localStatus(entry: Entry)}
+  <span class="local-status" class:done={isStatusDone(entry)} class:partial={isStatusPartial(entry)} class:queued={entry.queued && !isStatusDone(entry) && !isStatusPartial(entry)} title={statusLabel(entry)}>
+    <span class="status-icon" aria-hidden="true">{@render statusIcon(entry)}</span><span class="ell">{statusLabel(entry)}</span>
   </span>
 {/snippet}
 
@@ -393,6 +410,9 @@
         {/each}
         {#if library.location.flat}<span class="sep">›</span><b class="crumb last">{t('Tất cả file')}</b>{/if}
       </nav>
+      <button class="btn outline" disabled={library.refreshing || library.clearing} onclick={() => library.refresh()} title={t('Làm mới thư viện (F5)')} aria-busy={library.refreshing}>
+        <span class="ic blue"><ArrowsClockwise size={16} weight="bold" class={library.refreshing ? 'spin' : ''} /></span>{t(library.refreshing ? 'Đang làm mới…' : 'Làm mới')}
+      </button>
       <div class="sort" bind:this={sortBox}>
         <button class="btn outline sort-btn" onclick={() => (sortOpen = !sortOpen)} aria-haspopup="menu" aria-expanded={sortOpen} aria-label={t('Sắp xếp thư viện')} title={t('Sắp xếp: {0}', library.header ? sortShort : currentSort.label)}>
           <span class="ic blue"><ArrowsDownUp size={16} weight="bold" /></span>{sortShort}<CaretDown size={12} weight="bold" />
@@ -450,13 +470,14 @@
                   <span class="chip kind-{entry.videoKind}" style="width:44px;height:44px">{@render kindIcon(entry, 24)}</span>
                 </Thumb>
                 <span class="tag" title={providerLabel(entry.draft.provider)}>{providerShort(entry.draft.provider)}</span>
+                {#if newlyImported(entry)}<span class="new-badge" title={t('Vừa import xong')}>{t('Mới')}</span>{/if}
               </div>
-              <div class="tile-name"><b>{entry.name}</b><span class="m {isStatusDone(entry) ? 'done' : isStatusPartial(entry) ? 'partial' : ''}">{mark(entry)}</span></div>
+              <div class="tile-name"><b>{entry.name}</b></div>
               <span class="caption">{sizeLabel(entry)}</span>
               {#if cloud}
                 {@render progressCell(cloud, entry)}
               {:else}
-                <span class="caption tiny-text">{statusLabel(entry)}</span>
+                {@render localStatus(entry)}
               {/if}
             </div>
           {/snippet}
@@ -475,18 +496,17 @@
                   </Thumb>
                 </span>
                 <div class="names">
-                  <b class="ell">{entry.name}<span class="m {isStatusDone(entry) ? 'done' : isStatusPartial(entry) ? 'partial' : ''}" title={statusLabel(entry)}>{mark(entry)}</span></b>
+                  <div class="name-line"><b class="ell">{entry.name}</b>{#if newlyImported(entry)}<span class="new-badge" title={t('Vừa import xong')}>{t('Mới')}</span>{/if}</div>
                   <span class="caption ell loc">{entry.location}</span>
                 </div>
               </div>
               <span class="source"><span class="tag">{providerLabel(entry.draft.provider)}</span></span>
               <span>{sizeLabel(entry)}</span>
               <span class="caption">{dateLabel(entry)}</span>
-              {#if cloud}
-                {@render progressCell(cloud, entry)}
-              {:else}
-                <span class="caption ell" title={statusLabel(entry)}>{statusLabel(entry)}</span>
-              {/if}
+              <div class="type-status">
+                {#if cloud}{@render progressCell(cloud, entry)}{:else}{@render localStatus(entry)}{/if}
+                <span class="file-kind"><span class="kind-{entry.videoKind}" aria-hidden="true">{@render kindIcon(entry, 12)}</span>{kindLabel(entry)}</span>
+              </div>
             </div>
           {/snippet}
         </VirtualList>
@@ -587,8 +607,18 @@
   .names { display: flex; flex-direction: column; min-width: 0; }
   .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .loc { font-size: 10px; }
-  .m { margin-left: 8px; font-weight: 600; color: var(--muted); }
-  .m.done { color: var(--success); } .m.partial { color: var(--partial); }
+  .name-line { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .new-badge { flex: none; padding: 1px 6px; border-radius: 999px; background: var(--selected); color: var(--accent); font-size: 9px; font-weight: 700; line-height: 14px; }
+  .preview .new-badge { position: absolute; top: 5px; left: 5px; }
+  .type-status { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .local-status { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 12px; font-weight: 500; }
+  .local-status.done { color: var(--success); }
+  .local-status.partial { color: var(--partial); }
+  .local-status.queued { color: var(--accent); }
+  .status-icon { display: inline-flex; flex: none; }
+  .file-kind { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+  .file-kind > span { display: inline-flex; }
+  .tile .local-status { font-size: 10px; }
   .empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 24px; }
   .tile { position: relative; width: 160px; height: 186px; padding: 12px; border-radius: 20px; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s, box-shadow 0.15s; }
   .tile:hover { background: var(--hover); }
@@ -602,11 +632,10 @@
   /* Two lines of name, never squeezed out by the rows below it. */
   .tile-name { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; font-size: 12px; line-height: 16px; height: 32px; overflow: hidden; }
   .tile-name b { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .tiny-text { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Source: a quiet tag, so the file-type colors stay the loudest thing in a row. */
   .tag { display: inline-block; max-width: 100%; padding: 2px 8px; border-radius: 999px; background: var(--subtle); color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .source { min-width: 0; }
-  .status-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding-right: 8px; }
+  .status-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding-right: 8px; }
   .status-line { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
   .progress-value { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--accent); }
   .tile .status-cell { padding-right: 0; }

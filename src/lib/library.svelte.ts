@@ -29,6 +29,7 @@ class LibraryState {
   input = $state('');
   clearing = $state(false);
   queueing = $state(false);
+  refreshing = $state(false);
   /** Which service's torrents are shown. */
   source = $state<SourceFilter>('all');
 
@@ -40,7 +41,7 @@ class LibraryState {
     this.queueSignature;
     const jobs = untrack(() => app.jobs);
     return buildEntries(app.library, this.source, jobs, {
-      location: this.location, search: this.search, videosOnly: this.videosOnly, sort: app.settings.browserSort, header: this.header
+      location: this.location, search: this.search, videosOnly: this.videosOnly, sort: app.settings.browserSort, header: this.header, imported: app.imported
     });
   });
 
@@ -178,6 +179,16 @@ class LibraryState {
       await api.libraryRetry();
       app.settings = { ...app.settings, libraryImportPaused: false };
     });
+  }
+
+  async refresh() {
+    if (this.refreshing || this.clearing) return;
+    this.refreshing = true;
+    try {
+      await app.run(() => app.refreshLibrary());
+    } finally {
+      this.refreshing = false;
+    }
   }
 
   async pauseImport() {

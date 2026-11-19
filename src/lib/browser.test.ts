@@ -83,6 +83,38 @@ describe('browser entries', () => {
     const loc = { draft: draftId(d), path: '', flat: false };
     expect(buildEntries([d], 'realDebrid', [], query({ location: loc, sort: 'name' })).map((e) => e.name)).toEqual(['Ep 2.mkv', 'Ep 10.mkv']);
   });
+
+  it('brings the latest completed imports ahead of newer pending torrents', () => {
+    const first = draft({ sourceKey: 'btih:FIRST', name: 'First', addedAt: '2024-01-01T00:00:00Z' });
+    const last = draft({ sourceKey: 'btih:LAST', name: 'Last', addedAt: '2024-02-01T00:00:00Z' });
+    const pending = draft({ sourceKey: 'btih:PENDING', name: 'Pending', files: [], addedAt: '2024-06-01T00:00:00Z' });
+    const imported = new Map([[draftId(first), 1], [draftId(last), 2]]);
+    const rows = buildEntries([first, last, pending], 'all', [], query({ sort: 'added-desc', imported }));
+    expect(rows.map((entry) => entry.name)).toEqual(['Last', 'First', 'Pending']);
+  });
+
+  it('uses import completion order for videos, flat files, search and provider filters', () => {
+    const old = draft({ sourceKey: 'btih:OLD', name: 'Old', files: [file(1, '/Old/A.mkv'), file(2, '/Old/notes.txt')] });
+    const fresh = draft({ provider: 'torBox', sourceKey: 'btih:FRESH', name: 'Fresh', files: [file(1, '/Fresh/Z.mkv'), file(2, '/Fresh/B.mkv')] });
+    const imported = new Map([[draftId(fresh), 1]]);
+    for (const mode of [{ videosOnly: true }, { location: { draft: null, path: '', flat: true } }, { search: '.mkv' }]) {
+      const rows = buildEntries([old, fresh], 'all', [], query({ ...mode, sort: 'added-desc', imported }));
+      expect(rows.slice(0, 2).map((entry) => entry.name)).toEqual(['B.mkv', 'Z.mkv']);
+    }
+    expect(buildEntries([old, fresh], 'realDebrid', [], query({ videosOnly: true, sort: 'added-desc', imported })).map((entry) => entry.name)).toEqual(['A.mkv']);
+  });
+
+  it('keeps explicit sorts ahead of import completion order', () => {
+    const a = draft({ sourceKey: 'btih:A', name: 'A', addedAt: '2024-01-01T00:00:00Z' });
+    const z = draft({ sourceKey: 'btih:Z', name: 'Z', addedAt: '2024-06-01T00:00:00Z' });
+    const imported = new Map([[draftId(z), 1]]);
+    for (const sort of ['name', 'added-asc'] as const) {
+      expect(buildEntries([a, z], 'all', [], query({ sort, imported })).map((entry) => entry.name)).toEqual(['A', 'Z']);
+    }
+    for (const column of ['name', 'added'] as const) {
+      expect(buildEntries([a, z], 'all', [], query({ sort: 'added-desc', header: { column, direction: 'asc' }, imported })).map((entry) => entry.name)).toEqual(['A', 'Z']);
+    }
+  });
 });
 
 describe('queueing', () => {

@@ -236,6 +236,7 @@ export interface BrowserQuery {
   videosOnly: boolean;
   sort: SortMode;
   header: HeaderSort;
+  imported?: ReadonlyMap<string, number>;
 }
 
 export function isStatusDone(entry: Entry) {
@@ -305,16 +306,20 @@ export function buildEntries(library: Draft[], source: SourceFilter, jobs: Job[]
   return sortEntries(entries, drafts, query);
 }
 
-export function sortEntries(entries: Entry[], drafts: Draft[], query: Pick<BrowserQuery, 'sort' | 'header'>): Entry[] {
+export function sortEntries(entries: Entry[], drafts: Draft[], query: Pick<BrowserQuery, 'sort' | 'header' | 'imported'>): Entry[] {
   const position = new Map(drafts.map((d, index) => [draftId(d), index]));
   const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
   // Insertion order breaks ties between torrents added in the same instant (or without a date): later entries are newer.
   const added = (left: Entry, right: Entry) => left.addedAt - right.addedAt || (position.get(draftId(left.draft)) ?? 0) - (position.get(draftId(right.draft)) ?? 0);
-  // The chosen order is the primary key: nothing (not even download status) may reorder rows ahead of it. Folders stay
-  // above files, as in a file explorer.
+  // Recent metadata arrivals lead the default newest-first view, including recursive video/search results.
+  // Explicit column, oldest-first and name sorts retain their chosen order.
   return entries.sort((left, right) => {
     const folders = Number(right.kind === 'folder') - Number(left.kind === 'folder');
     if (folders) return folders;
+    if (!query.header && query.sort === 'added-desc') {
+      const recent = (query.imported?.get(draftId(right.draft)) ?? 0) - (query.imported?.get(draftId(left.draft)) ?? 0);
+      if (recent) return recent;
+    }
     if (query.header) {
       const { column, direction } = query.header;
       const value =
