@@ -520,5 +520,13 @@
   "Bỏ các file đã tải xong ({0})": "移除已下载的文件 ({0})",
   "Bỏ các file đã tải xong?": "移除已下载的文件？",
   "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "从库中移除 {0} 个已下载的文件。本地文件、队列和云端数据将保留。可用 Ctrl+Z 撤销。",
-  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "从库中移除所有已下载的文件，包括当前文件夹之外的文件。本地文件将保留。"
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "从库中移除所有已下载的文件，包括当前文件夹之外的文件。本地文件将保留。",
+  "{0} mục": "{0} 项",
+  "Xong {0}/{1}": "已完成 {0}/{1}",
+  "Không tải được": "加载失败",
+  "Tất cả mục": "所有项目",
+  "Kiểu xem cloud": "云端视图",
+  "Nhóm theo dịch vụ": "按服务分组",
+  "Xem phẳng mọi mục": "平铺显示所有项目",
+  "Thư mục dịch vụ": "服务文件夹"
 }

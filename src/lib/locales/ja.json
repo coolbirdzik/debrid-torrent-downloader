@@ -520,5 +520,13 @@
   "Bỏ các file đã tải xong ({0})": "ダウンロード済みのファイルを削除 ({0})",
   "Bỏ các file đã tải xong?": "ダウンロード済みのファイルを削除しますか？",
   "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "ダウンロード済みの {0} 個のファイルをライブラリから削除します。ローカルファイル、キュー、クラウドのデータは保持されます。Ctrl+Z で元に戻せます。",
-  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "表示中のフォルダー外も含め、ダウンロード済みのファイルをすべてライブラリから削除します。ローカルファイルは保持されます。"
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "表示中のフォルダー外も含め、ダウンロード済みのファイルをすべてライブラリから削除します。ローカルファイルは保持されます。",
+  "{0} mục": "{0} 件",
+  "Xong {0}/{1}": "完了 {0}/{1}",
+  "Không tải được": "読み込み失敗",
+  "Tất cả mục": "すべての項目",
+  "Kiểu xem cloud": "クラウドの表示",
+  "Nhóm theo dịch vụ": "サービスごとにグループ化",
+  "Xem phẳng mọi mục": "すべての項目を一覧表示",
+  "Thư mục dịch vụ": "サービスのフォルダー"
 }

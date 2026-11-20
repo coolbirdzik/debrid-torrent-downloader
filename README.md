@@ -48,7 +48,9 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 - Add **magnet links**, **`.torrent` URLs** or **local `.torrent` files** (paste a list, or drag and drop files onto
   the window). With several services connected, choose **one, some or all** for each import, or remember your choice.
 - Duplicates are detected per service. When the same torrent file is available through several services, queue
-  actions avoid downloading that file twice and prefer the cloud copy that is furthest along.
+  actions avoid downloading that file twice and prefer the cloud copy that is furthest along. A file whose job failed
+  or was stopped on one service (for example TorBox) can still be queued from another service and downloads right
+  away; files that job already finished are not queued again.
 
 ### Virtual torrent library
 
@@ -97,7 +99,12 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 
 - **Cloud files** is a separate menu page. Browse torrents on all three services and existing **Web Downloads and
   Usenet downloads on TorBox**, with provider and download-type filters.
-- Items are sorted by **newest added first across providers and types**. Each row identifies the provider, account,
+- **A virtual folder per service:** with All services chosen, Real-Debrid, TorBox and AllDebrid each appear as a folder
+  showing the item count, total size, finished items and newest date added. Double-click or press Enter to open one;
+  Backspace or Up one level goes back. Check or click a folder to select everything in it for copying or deletion.
+  **Flat list of all items** brings back the single list across services.
+- Inside a service folder and in the flat list, items are sorted by **newest added first across types** (and across
+  providers in the flat list). Each row identifies the provider, account,
   type and ID, alongside size, status and date added; the header shows the item count and combined size.
   Click **Name / ID, Size, Status or Date added** to sort ascending, descending, then reset to the default order.
 - **Delete selected items** or **Delete all cloud items** in the current provider/type filter. Both show the exact

@@ -520,5 +520,13 @@
   "Bỏ các file đã tải xong ({0})": "Remove downloaded files ({0})",
   "Bỏ các file đã tải xong?": "Remove downloaded files?",
   "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "Remove {0} downloaded file(s) from the library. Local files, the queue and cloud data are kept. Undo with Ctrl+Z.",
-  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "Remove every downloaded file from the library, including outside the folder being viewed. Local files are kept."
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "Remove every downloaded file from the library, including outside the folder being viewed. Local files are kept.",
+  "{0} mục": "{0} items",
+  "Xong {0}/{1}": "{0}/{1} done",
+  "Không tải được": "Failed to load",
+  "Tất cả mục": "All items",
+  "Kiểu xem cloud": "Cloud view",
+  "Nhóm theo dịch vụ": "Group by service",
+  "Xem phẳng mọi mục": "Flat list of all items",
+  "Thư mục dịch vụ": "Service folders"
 }

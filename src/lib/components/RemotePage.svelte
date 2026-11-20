@@ -11,7 +11,7 @@
   import { formatBytes } from '../browser';
   import { languageTag } from '../languages';
   import { t, tm } from '../i18n.svelte';
-  import { emptyRemoteState, nextRemoteSort, parseRemoteScope, RemoteBrowser, remoteKey, remoteQueuedKeys, sortRemoteRows, type RemoteRow, type RemoteSort, type RemoteSortColumn } from '../remote';
+  import { emptyRemoteState, nextRemoteSort, parseRemoteScope, RemoteBrowser, remoteFolders, remoteKey, remoteQueuedKeys, sortRemoteFolders, sortRemoteRows, type RemoteFolder, type RemoteRow, type RemoteSort, type RemoteSortColumn } from '../remote';
   import { CLOUD_KINDS, cloudKindLabel, providerLabel, type CloudFilter, type Provider, type RemoteTorrent } from '../types';
   import TorBoxAccount from './TorBoxAccount.svelte';
   import RealDebridAccount from './RealDebridAccount.svelte';
@@ -24,6 +24,12 @@
   import Hash from 'phosphor-svelte/lib/Hash';
   import { copyText } from '../clipboard';
   import ListChecks from 'phosphor-svelte/lib/ListChecks';
+  import FolderSimple from 'phosphor-svelte/lib/FolderSimple';
+  import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
+  import ArrowUp from 'phosphor-svelte/lib/ArrowUp';
+  import House from 'phosphor-svelte/lib/House';
+  import ListBullets from 'phosphor-svelte/lib/ListBullets';
+  import { selectionControl } from '../selection';
 
   let view = $state.raw(emptyRemoteState());
   let filter = $state<Provider | 'all'>('all');
@@ -32,6 +38,44 @@
   let listRef: { reveal: (index: number) => void } | undefined = $state();
   const remote = new RemoteBrowser(api, (next) => (view = next));
   const torrents = $derived(sortRemoteRows(view.rows.filter((row) => filter === 'all' || row.provider === filter), sort, languageTag(app.settings.language)));
+
+  // "All services" opens on one virtual folder per service; picking a service opens its folder. The flat view keeps
+  // the single newest-first list across services. The choice is remembered on this device only.
+  const FLAT_KEY = 'cloud.flatView';
+  let flat = $state(recallFlat());
+  function recallFlat() { try { return localStorage.getItem(FLAT_KEY) === '1'; } catch { return false; } }
+  function setFlat(value: boolean) {
+    flat = value;
+    try { localStorage.setItem(FLAT_KEY, value ? '1' : '0'); } catch { /* storage may be blocked */ }
+    listRef?.reveal(0);
+  }
+  const atRoot = $derived(filter === 'all' && !flat);
+  const folders = $derived(atRoot ? sortRemoteFolders(remoteFolders(view.rows, app.usableProviders, kind, view.errors), sort, languageTag(app.settings.language)) : []);
+  let cursor = $state(0);
+  const folderCheck = (folder: RemoteFolder) => {
+    const picked = folder.rows.filter((row) => view.selected.has(remoteKey(row))).length;
+    return { checked: picked > 0 && picked === folder.rows.length, indeterminate: picked > 0 && picked < folder.rows.length };
+  };
+  const busy = $derived(view.loading || view.reviewing !== null || view.deleting);
+
+  function open(provider: Provider) {
+    if (changeFilter(provider)) listRef?.reveal(0);
+  }
+  /** The parent of a service is "All services" in the remembered view: its folder list, or the flat list. */
+  function goUp() {
+    const from = filter;
+    if (from === 'all' || !changeFilter('all')) return;
+    cursor = Math.max(0, folders.findIndex((folder) => folder.provider === from));
+    listRef?.reveal(cursor);
+  }
+  /** House and the first crumb go to the service folders without changing the remembered view. */
+  function goHome() {
+    if (changeFilter('all')) flat = false;
+  }
+  function folderClick(folder: RemoteFolder, index: number, event: MouseEvent) {
+    cursor = index;
+    remote.pickRows(folder.rows, event.ctrlKey || event.metaKey || event.shiftKey ? 'toggle' : 'replace');
+  }
   const queuedKeys = $derived(remoteQueuedKeys(app.jobs));
   const visibleErrors = $derived(Object.entries(view.errors).filter(([scope]) => filter === 'all' || parseRemoteScope(scope).provider === filter));
   const reviewTargets = $derived([...new Set(view.reviewing?.map((row) => `${providerLabel(row.provider)} · ${row.account} · ${cloudKindLabel(row.kind ?? 'torrent')}`) ?? [])].join(', '));
@@ -40,22 +84,34 @@
   const showTorBox = $derived((filter === 'all' || filter === 'torBox') && app.accounts.some((account) => account.provider === 'torBox' && account.hasToken));
 
   // Right-click acts on the selection; a row outside it becomes the only selected row first.
-  let menu: { x: number; y: number } | null = $state(null);
+  let menu: { x: number; y: number; folder?: Provider } | null = $state(null);
   function openMenu(row: RemoteRow, event: MouseEvent) {
     event.preventDefault();
     if (view.loading || view.reviewing || view.deleting) return;
     if (!view.selected.has(remoteKey(row))) remote.pick(row, torrents, {});
     menu = { x: event.clientX, y: event.clientY };
   }
+  function openFolderMenu(folder: RemoteFolder, index: number, event: MouseEvent) {
+    event.preventDefault();
+    if (view.loading || view.reviewing || view.deleting) return;
+    cursor = index;
+    if (!folderCheck(folder).checked) remote.pickRows(folder.rows, 'replace');
+    menu = { x: event.clientX, y: event.clientY, folder: folder.provider };
+  }
   const downloadedCount = $derived(torrents.filter((row) => row.status === 'downloaded').length);
 
   function menuItems(): MenuItem[] {
     const list = torrents.filter((row) => view.selected.has(remoteKey(row)));
+    const folder = menu?.folder;
+    // From a service folder, "select finished" stays inside that service.
+    const scope = folder ? torrents.filter((row) => row.provider === folder) : torrents;
+    const scopeDone = scope.filter((row) => row.status === 'downloaded');
     return [
+      ...(folder ? [{ label: t('Mở'), icon: FolderOpen, tone: 'amber', action: () => open(folder) } as const, 'separator' as const] : []),
       { label: t('Sao chép tên'), icon: Copy, tone: 'teal', action: () => copyText(list.map((row) => row.filename).join('\n'), { key: 'Đã sao chép {0} tên.', args: [String(list.length)] }) },
       { label: t('Sao chép ID'), icon: Hash, tone: 'purple', action: () => copyText(list.map((row) => row.id).join('\n'), { key: 'Đã sao chép {0} ID.', args: [String(list.length)] }) },
       'separator',
-      { label: t('Chọn các mục đã tải xong ({0})', downloadedCount), icon: ListChecks, tone: 'green', disabled: downloadedCount === 0, action: () => remote.selectDownloaded(torrents) },
+      { label: t('Chọn các mục đã tải xong ({0})', scopeDone.length), icon: ListChecks, tone: 'green', disabled: scopeDone.length === 0, action: () => remote.selectDownloaded(scope) },
       'separator',
       { label: t('Xóa mục đã chọn…'), icon: Trash, tone: 'red', danger: true, disabled: list.length === 0, action: () => remote.review() }
     ];
@@ -69,7 +125,39 @@
     listRef?.reveal(0);
   }
 
+  /** Backspace or Alt+Up/Left leaves a service folder; the flat list has no parent. */
+  function leavesFolder(event: KeyboardEvent) {
+    if (filter === 'all' || selectionControl(event)) return false;
+    return (event.key === 'Backspace' && !event.altKey && !event.ctrlKey && !event.metaKey) || (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowLeft'));
+  }
+
+  /** Arrows move between service folders, Enter opens one and Space selects its items; Ctrl+A and Esc act on items. */
+  function folderKeydown(event: KeyboardEvent) {
+    if (event.altKey || selectionControl(event)) return;
+    const ctrl = event.ctrlKey || event.metaKey;
+    if ((ctrl && event.key.toLowerCase() === 'a') || event.key === 'Escape') return keydown(event);
+    const folder = folders[cursor];
+    if (event.key === 'Enter' || event.key === ' ') {
+      if (!folder) return;
+      event.preventDefault();
+      if (event.key === 'Enter') open(folder.provider);
+      else remote.pickRows(folder.rows, 'toggle');
+      return;
+    }
+    const step = ({ ArrowDown: 1, ArrowUp: -1 } as Record<string, number>)[event.key];
+    if (step === undefined && event.key !== 'Home' && event.key !== 'End') return;
+    event.preventDefault();
+    cursor = event.key === 'Home' ? 0 : event.key === 'End' ? folders.length - 1 : Math.max(0, Math.min(folders.length - 1, cursor + step));
+    listRef?.reveal(cursor);
+    (event.currentTarget as HTMLElement).focus();
+  }
+
   function keydown(event: KeyboardEvent) {
+    if (leavesFolder(event)) {
+      event.preventDefault();
+      goUp();
+      return;
+    }
     const result = remote.keydown(torrents, event);
     if (!result) return;
     event.preventDefault();
@@ -91,9 +179,10 @@
   const statusText = (torrent: RemoteTorrent) => `${torrent.status.replaceAll('_', ' ')}${torrent.status === 'downloaded' ? '' : ` ${torrent.progress.toFixed(0)}%`}`;
 
   function changeFilter(value: Provider | 'all') {
-    if (view.deleting || view.reviewing) return;
+    if (view.deleting || view.reviewing) return false;
     filter = value;
     remote.clearSelection();
+    return true;
   }
 
   async function confirmDelete() {
@@ -138,15 +227,51 @@
     {#each visibleErrors as [scope, error]}
       <p class="load-error" role="alert"><b>{providerLabel(parseRemoteScope(scope).provider)} · {cloudKindLabel(parseRemoteScope(scope).kind)}</b> · {tm(error)}</p>
     {/each}
+    <div class="toolbar">
+      <div class="nav">
+        <button class="btn icon" onclick={goUp} disabled={filter === 'all' || view.reviewing !== null || view.deleting} title={t('Lên một cấp (Backspace)')} aria-label={t('Lên một cấp')}><ArrowUp size={16} /></button>
+        <button class="btn icon" onclick={goHome} disabled={atRoot || view.reviewing !== null || view.deleting} title={t('Tất cả dịch vụ')} aria-label={t('Tất cả dịch vụ')}><House size={16} /></button>
+      </div>
+      <nav class="crumbs" aria-label="Path">
+        <button class="crumb" class:last={atRoot} disabled={view.reviewing !== null || view.deleting} onclick={goHome}>{t('Tất cả dịch vụ')}</button>
+        {#if filter !== 'all'}<span class="sep">›</span><b class="crumb last">{providerLabel(filter)}</b>
+        {:else if flat}<span class="sep">›</span><b class="crumb last">{t('Tất cả mục')}</b>{/if}
+      </nav>
+      <div class="seg" role="group" aria-label={t('Kiểu xem cloud')}>
+        <button class="btn icon" class:on={!flat} aria-pressed={!flat} disabled={view.reviewing !== null || view.deleting} onclick={() => setFlat(false)} title={t('Nhóm theo dịch vụ')} aria-label={t('Nhóm theo dịch vụ')}><span class="ic amber"><FolderSimple size={17} weight={flat ? 'regular' : 'fill'} /></span></button>
+        <button class="btn icon" class:on={flat} aria-pressed={flat} disabled={view.reviewing !== null || view.deleting} onclick={() => { if (changeFilter('all')) setFlat(true); }} title={t('Xem phẳng mọi mục')} aria-label={t('Tất cả mục')}><span class="ic blue"><ListBullets size={17} weight={flat ? 'bold' : 'regular'} /></span></button>
+      </div>
+    </div>
     <div class="cols head-row"><span></span>{@render headerCell('name', t('Tên / ID'))}{@render headerCell('size', t('Dung lượng'))}{@render headerCell('status', t('Trạng thái'))}{@render headerCell('added', t('Ngày thêm'))}</div>
     <div class="body">
-      {#if torrents.length === 0}
+      {#if atRoot && folders.length > 0}
+        {#key `root|${kind}`}
+        <VirtualList bind:this={listRef} items={folders} rowHeight={60} key={(folder) => folder.key} onkeydown={folderKeydown} label={t('Thư mục dịch vụ')}>
+          {#snippet row(folder: RemoteFolder, index: number)}
+            {@const check = folderCheck(folder)}
+            <div class="cols item row-glass" class:on={check.checked} class:cursor={index === cursor} role="option" aria-selected={check.checked} tabindex="-1" onmousedown={selectionMouseDown} onclick={(e) => folderClick(folder, index, e)} ondblclick={() => open(folder.provider)} oncontextmenu={(e) => openFolderMenu(folder, index, e)} onkeydown={() => {}}>
+              <input type="checkbox" checked={check.checked} indeterminate={check.indeterminate} disabled={busy || folder.rows.length === 0} onclick={(e) => { e.stopPropagation(); cursor = index; remote.pickRows(folder.rows, 'toggle'); }} aria-label={providerLabel(folder.provider)} />
+              <div class="folder">
+                <span class="ic amber"><FolderSimple size={22} weight="duotone" /></span>
+                <div class="names">
+                  <b class="ell">{providerLabel(folder.provider)}</b>
+                  <span class="line"><span class="account ell">{[...folder.accounts, t('{0} mục', folder.rows.length)].join(' · ')}</span>{#if folder.failed}<span class="pill danger">{t('Không tải được')}</span>{/if}</span>
+                </div>
+              </div>
+              <span>{formatBytes(folder.bytes)}</span>
+              <span>{#if view.loading && folder.rows.length === 0 && !folder.failed}<span class="caption">{t('Đang tải danh sách…')}</span>{:else}<span class="pill {folder.rows.length > 0 && folder.done === folder.rows.length ? 'success' : ''}">{t('Xong {0}/{1}', folder.done, folder.rows.length)}</span>{/if}</span>
+              <span class="caption">{folder.newest ? new Date(folder.newest).toLocaleString(languageTag(app.settings.language), { dateStyle: 'short', timeStyle: 'short' }) : '—'}</span>
+            </div>
+          {/snippet}
+        </VirtualList>
+        {/key}
+      {:else if torrents.length === 0}
         <div class="empty">
           <span class="chip ic purple" style="width:48px;height:48px;border-radius:14px"><CloudArrowDown size={22} weight="duotone" /></span>
           <p class="caption">{view.loading ? t('Đang tải danh sách…') : !app.usableProviders.length ? t('Dán API token để xem torrent trên dịch vụ đã chọn.') : visibleErrors.length ? t('Không tải được danh sách. Bấm Tải lại để thử lại.') : t('Không có mục cloud nào trong bộ lọc này.')}</p>
         </div>
       {:else}
-        {#key `${filter}|${kind}`}
+        {#key `${filter}|${kind}|${flat}`}
         <VirtualList bind:this={listRef} items={torrents} rowHeight={60} key={remoteKey} onkeydown={keydown} label={t('Danh sách dữ liệu cloud')}>
           {#snippet row(torrent: RemoteRow)}
             <div class="cols item row-glass" class:on={view.selected.has(remoteKey(torrent))} role="option" aria-selected={view.selected.has(remoteKey(torrent))} tabindex="-1" onmousedown={selectionMouseDown} onclick={(e) => remote.pick(torrent, torrents, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })} oncontextmenu={(e) => openMenu(torrent, e)} onkeydown={() => {}}>
@@ -193,6 +318,19 @@
   .account-summary.multiple { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .table { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .note { padding: 12px 16px; }
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 0 16px 8px; }
+  .nav { display: flex; }
+  .crumbs { flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden; white-space: nowrap; }
+  .crumb { padding: 4px 9px; border-radius: 999px; color: var(--muted); font-size: 12px; font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+  button.crumb:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+  .crumb.last { color: var(--ink); font-size: 14px; }
+  .sep { color: var(--muted); }
+  .seg { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--subtle); }
+  .seg .btn.icon { min-height: 28px; width: 32px; }
+  .seg .btn.on, .seg .btn.on:hover:not(:disabled) { background: var(--chosen-bg); color: var(--chosen-ink); }
+  .seg .btn.on .ic { color: var(--chosen-icon); }
+  .folder { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  :global(.viewport:focus-within) .item.cursor { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
   .load-error { margin: 0 16px 8px; color: var(--danger); line-height: 1.5; }
   .cols { display: grid; grid-template-columns: 52px minmax(180px, 1fr) 100px 190px 136px; align-items: center; padding-right: 16px; }
   .head-row { height: 36px; margin: 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; }

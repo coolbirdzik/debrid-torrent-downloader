@@ -48,7 +48,8 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 - Thêm **link magnet**, **URL `.torrent`** hoặc **file `.torrent` trên máy** (dán cả danh sách, hoặc kéo thả file vào
   cửa sổ). Khi kết nối nhiều dịch vụ, chọn **một, vài hoặc tất cả** cho mỗi lần import, hoặc nhớ lựa chọn để dùng lại.
 - Phát hiện torrent trùng theo từng dịch vụ. Khi cùng một file của torrent có trên nhiều dịch vụ, thao tác thêm vào
-  hàng đợi tránh tải trùng file và ưu tiên bản cloud đã tải được nhiều hơn.
+  hàng đợi tránh tải trùng file và ưu tiên bản cloud đã tải được nhiều hơn. File đang lỗi hoặc đã dừng trên một dịch
+  vụ (ví dụ TorBox) vẫn thêm được vào hàng đợi từ dịch vụ khác và tải ngay; file đã tải xong thì không.
 
 ### Thư viện torrent ảo
 
@@ -96,7 +97,12 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 
 - **Quản lý cloud** có mục menu riêng. Xem torrent của cả ba dịch vụ và các mục **Web Downloads, Usenet đã có trên
   TorBox**, lọc theo nhà cung cấp và loại dữ liệu.
-- **Ngày thêm mới nhất lên đầu** trên toàn danh sách, xuyên suốt nhà cung cấp và loại dữ liệu. Mỗi dòng hiện dịch vụ,
+- **Thư mục ảo theo dịch vụ:** khi chọn Tất cả dịch vụ, mỗi dịch vụ (Real-Debrid, TorBox, AllDebrid) hiện thành một thư
+  mục với số mục, tổng dung lượng, số mục đã xong và ngày thêm mới nhất. Nhấp đúp hoặc Enter để mở, Backspace hoặc nút
+  Lên một cấp để quay lại. Tick hoặc nhấp một thư mục để chọn mọi mục trong đó để sao chép hay xóa. Nút
+  **Xem phẳng mọi mục** hiện lại một danh sách chung cho mọi dịch vụ.
+- Trong thư mục dịch vụ và danh sách phẳng, **ngày thêm mới nhất lên đầu**, xuyên suốt loại dữ liệu (và nhà cung cấp
+  ở danh sách phẳng). Mỗi dòng hiện dịch vụ,
   tài khoản, loại, ID, dung lượng, trạng thái và ngày thêm; phần đầu hiện số mục và tổng dung lượng.
   Bấm cột **Tên / ID, Dung lượng, Trạng thái hoặc Ngày thêm** để tăng dần, giảm dần, rồi trở về thứ tự mặc định.
 - **Xóa mục đã chọn** hoặc **Xóa tất cả cloud** trong bộ lọc nhà cung cấp/loại dữ liệu hiện tại. Cả hai đều cho xem lại

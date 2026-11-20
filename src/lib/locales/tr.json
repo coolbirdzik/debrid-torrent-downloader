@@ -520,5 +520,13 @@
   "Bỏ các file đã tải xong ({0})": "İndirilen dosyaları kaldır ({0})",
   "Bỏ các file đã tải xong?": "İndirilen dosyalar kaldırılsın mı?",
   "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "İndirilen {0} dosya kitaplıktan kaldırılacak. Yerel dosyalar, kuyruk ve bulut verileri korunur. Ctrl+Z ile geri alınabilir.",
-  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "Görüntülenen klasörün dışındakiler dahil, indirilen tüm dosyaları kitaplıktan kaldırır. Yerel dosyalar korunur."
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "Görüntülenen klasörün dışındakiler dahil, indirilen tüm dosyaları kitaplıktan kaldırır. Yerel dosyalar korunur.",
+  "{0} mục": "{0} öğe",
+  "Xong {0}/{1}": "{0}/{1} tamamlandı",
+  "Không tải được": "Yüklenemedi",
+  "Tất cả mục": "Tüm öğeler",
+  "Kiểu xem cloud": "Bulut görünümü",
+  "Nhóm theo dịch vụ": "Hizmete göre grupla",
+  "Xem phẳng mọi mục": "Tüm öğeleri düz liste olarak göster",
+  "Thư mục dịch vụ": "Hizmet klasörleri"
 }

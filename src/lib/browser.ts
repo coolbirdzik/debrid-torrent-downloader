@@ -127,6 +127,9 @@ function sharedSources(library: Draft[]): Set<string> {
   return shared;
 }
 
+/** A job that will not download anything more unless the user retries it. */
+const givenUp = (job: Job) => !job.isActive && (job.state === 'failed' || job.state === 'stopped');
+
 /** `file` lets a lookup see the same file queued from another service. */
 export type QueuedLookup = (draft: Draft, fileId: number, file?: TorrentFile) => boolean;
 
@@ -149,7 +152,11 @@ export function queuedLookup(jobs: Job[], library: Draft[] = []): QueuedLookup {
     for (const job of jobs) {
       const draft = shared.has(job.sourceKey.toLowerCase()) ? byId.get(draftId(job)) : undefined;
       if (!draft) continue;
-      const wanted = job.selectedFileIds === null ? null : new Set(job.selectedFileIds);
+      // A failed or stopped job on one service must not keep the same file from being queued on another;
+      // only the files it already finished still count.
+      const wanted = givenUp(job)
+        ? new Set(job.files.filter((f) => f.completed && f.torrentFileId !== null).map((f) => f.torrentFileId as number))
+        : job.selectedFileIds === null ? null : new Set(job.selectedFileIds);
       for (const file of draft.files) if (!wanted || wanted.has(file.id)) identities.add(fileIdentity(draft, file));
     }
   }

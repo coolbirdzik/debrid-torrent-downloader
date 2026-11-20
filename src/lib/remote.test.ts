@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { nextRemoteSort, RemoteBrowser, remoteKey, remoteQueuedKeys, sortRemoteRows, type RemoteRow, type RemoteSortColumn } from './remote';
+import { emptyRemoteState, nextRemoteSort, RemoteBrowser, remoteFolders, remoteKey, remoteQueuedKeys, sortRemoteFolders, sortRemoteRows, type RemoteRow, type RemoteSortColumn } from './remote';
 import type { AccountInfo, CloudKind, Job, RemoteTorrent } from './types';
 
 const torrent: RemoteTorrent = { id: 'same-id', filename: 'Movie', bytes: 100, progress: 100, status: 'downloaded', added: null, speed: null, seeders: null };
@@ -287,5 +287,54 @@ describe('remote torrents across accounts', () => {
     expect(remote.state.errors).toEqual({ 'torBox|webDownload': { key: 'webdl unavailable', args: [] } });
     await remote.load(['realDebrid', 'torBox'], 'usenet');
     expect(remote.state.rows.map((row) => [row.provider, row.kind])).toEqual([['torBox', 'usenet']]);
+  });
+});
+
+describe('service folders', () => {
+  const row = (provider: RemoteRow['provider'], id: string, overrides: Partial<RemoteRow> = {}): RemoteRow =>
+    ({ ...torrent, provider, account: provider === 'torBox' ? 'tb' : 'rd', id, ...overrides });
+  const rows = [
+    row('torBox', '1', { bytes: 300, status: 'downloading', added: '2026-11-06T00:00:00Z' }),
+    row('realDebrid', '2', { bytes: 50, added: '2026-11-01T00:00:00Z' }),
+    row('torBox', '3', { bytes: 200, kind: 'usenet', added: '2026-11-08T00:00:00Z' }),
+    row('realDebrid', '4', { bytes: 25, added: null })
+  ];
+
+  it('groups items per service in the usual service order, with totals and the newest date', () => {
+    const folders = remoteFolders(rows, ['torBox', 'realDebrid'], 'all');
+    expect(folders.map((f) => [f.provider, f.rows.map((r) => r.id), f.bytes, f.done, f.newest, f.accounts])).toEqual([
+      ['realDebrid', ['2', '4'], 75, 2, '2026-11-01T00:00:00Z', ['rd']],
+      ['torBox', ['1', '3'], 500, 1, '2026-11-08T00:00:00Z', ['tb']]
+    ]);
+  });
+
+  it('shows a connected service with no items, but not one that cannot hold the chosen type', () => {
+    expect(remoteFolders([], ['realDebrid', 'allDebrid'], 'all').map((f) => [f.provider, f.rows.length])).toEqual([['realDebrid', 0], ['allDebrid', 0]]);
+    expect(remoteFolders([], ['realDebrid', 'torBox'], 'usenet').map((f) => f.provider)).toEqual(['torBox']);
+    const failed = remoteFolders([], ['realDebrid'], 'usenet', { realDebrid: { key: 'boom', args: [] } });
+    expect(failed.map((f) => [f.provider, f.failed])).toEqual([['realDebrid', true]]);
+  });
+
+  it('sorts folders by the column headers and keeps the service order without a sort', () => {
+    const folders = remoteFolders(rows, ['realDebrid', 'torBox'], 'all');
+    expect(sortRemoteFolders(folders, null)).toBe(folders);
+    expect(sortRemoteFolders(folders, { column: 'size', direction: 'desc' }).map((f) => f.provider)).toEqual(['torBox', 'realDebrid']);
+    expect(sortRemoteFolders(folders, { column: 'status', direction: 'asc' }).map((f) => f.provider)).toEqual(['torBox', 'realDebrid']);
+    expect(sortRemoteFolders(folders, { column: 'added', direction: 'asc' }).map((f) => f.provider)).toEqual(['realDebrid', 'torBox']);
+    expect(sortRemoteFolders(folders, { column: 'name', direction: 'desc' }).map((f) => f.provider)).toEqual(['torBox', 'realDebrid']);
+  });
+
+  it('selects or clears a whole folder without touching other selected items', () => {
+    let state = emptyRemoteState();
+    const browser = new RemoteBrowser({ remoteList: vi.fn(), remoteDelete: vi.fn() }, (next) => (state = next));
+    const [rd, tb] = remoteFolders(rows, ['realDebrid', 'torBox'], 'all');
+    browser.pickRows(rd.rows, 'replace');
+    browser.pickRows(tb.rows.slice(0, 1), 'toggle');
+    browser.pickRows(tb.rows, 'toggle');
+    expect(state.selected).toEqual(new Set(rows.map(remoteKey)));
+    browser.pickRows(tb.rows, 'toggle');
+    expect(state.selected).toEqual(new Set(rd.rows.map(remoteKey)));
+    browser.pickRows(tb.rows, 'replace');
+    expect(state.selected).toEqual(new Set(tb.rows.map(remoteKey)));
   });
 });

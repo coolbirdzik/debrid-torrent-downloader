@@ -1,4 +1,4 @@
-import { CLOUD_KINDS, type AccountInfo, type CloudFilter, type CloudKind, type DeleteOutcome, type Job, type Msg, type Provider, type RemoteTorrent } from './types';
+import { CLOUD_KINDS, PROVIDERS, providerLabel, type AccountInfo, type CloudFilter, type CloudKind, type DeleteOutcome, type Job, type Msg, type Provider, type RemoteTorrent } from './types';
 import { emptySelection, reconcileSelection, selectAll, selectItem, selectionKey, type Selection } from './selection';
 
 export interface RemoteRow extends RemoteTorrent {
@@ -48,6 +48,64 @@ export const parseRemoteScope = (key: string) => {
   const [provider, kind = 'torrent'] = key.split('|');
   return { provider: provider as Provider, kind: kind as CloudKind };
 };
+
+/** The lists one load asks for: TorBox also has Web Downloads and Usenet; the others hold torrents only. */
+export const remoteScopes = (providers: Provider[], filter: CloudFilter): { provider: Provider; kind: CloudKind }[] =>
+  providers.flatMap((provider) => (filter === 'all' ? provider === 'torBox' ? CLOUD_KINDS : ['torrent' as const] : provider === 'torBox' || filter === 'torrent' ? [filter] : []).map((kind) => ({ provider, kind })));
+
+/** A virtual folder holding every cloud item of one service. */
+export interface RemoteFolder {
+  provider: Provider;
+  key: string;
+  accounts: string[];
+  rows: RemoteRow[];
+  bytes: number;
+  done: number;
+  newest: string | null;
+  failed: boolean;
+}
+
+const time = (value: string | null) => {
+  const parsed = value ? Date.parse(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : -Infinity;
+};
+
+/**
+ * One folder per service that the current type filter can list, that returned items or that failed to load, in
+ * the services' usual order. A service that cannot hold the chosen type (Real-Debrid and Usenet) gets no folder.
+ */
+export function remoteFolders(rows: RemoteRow[], providers: Provider[], filter: CloudFilter, errors: Partial<Record<string, Msg>> = {}): RemoteFolder[] {
+  const failed = new Set(Object.keys(errors).map((scope) => parseRemoteScope(scope).provider));
+  const shown = new Set([...remoteScopes(providers, filter).map((scope) => scope.provider), ...rows.map((row) => row.provider), ...failed]);
+  return PROVIDERS.filter(({ id }) => shown.has(id)).map(({ id }) => {
+    const own = rows.filter((row) => row.provider === id);
+    const newest = own.reduce<RemoteRow | null>((best, row) => (time(row.added) > time(best?.added ?? null) ? row : best), null);
+    return {
+      provider: id,
+      key: `folder:${id}`,
+      accounts: [...new Set(own.map((row) => row.account))],
+      rows: own,
+      bytes: own.reduce((sum, row) => sum + row.bytes, 0),
+      done: own.filter((row) => row.status === 'downloaded').length,
+      newest: newest?.added ?? null,
+      failed: failed.has(id)
+    };
+  });
+}
+
+/** Folder headers sort like rows: name, total size, share finished, newest item; no sort keeps the services' order. */
+export function sortRemoteFolders(folders: RemoteFolder[], sort: RemoteSort, locale?: string): RemoteFolder[] {
+  if (!sort) return folders;
+  const collator = new Intl.Collator(locale, { numeric: true, sensitivity: 'base' });
+  const share = (folder: RemoteFolder) => (folder.rows.length ? folder.done / folder.rows.length : -1);
+  return [...folders].sort((left, right) => {
+    const value = sort.column === 'size' ? left.bytes - right.bytes
+      : sort.column === 'status' ? share(left) - share(right)
+      : sort.column === 'added' ? (time(left.newest) === time(right.newest) ? 0 : time(left.newest) < time(right.newest) ? -1 : 1)
+      : collator.compare(providerLabel(left.provider), providerLabel(right.provider));
+    return (sort.direction === 'desc' ? -value : value) || PROVIDERS.findIndex((p) => p.id === left.provider) - PROVIDERS.findIndex((p) => p.id === right.provider);
+  });
+}
 
 export const remoteQueuedKeys = (jobs: Job[]) => new Set(jobs.flatMap((job) =>
   job.torrentId && job.remoteAccount ? [remoteKey({ provider: job.provider, account: job.remoteAccount, id: job.torrentId })] : []));
@@ -103,7 +161,7 @@ export class RemoteBrowser {
   async load(providers: Provider[], filter: CloudFilter = this.filter) {
     const generation = ++this.generation;
     this.filter = filter;
-    const scopes = providers.flatMap((provider) => (filter === 'all' ? provider === 'torBox' ? CLOUD_KINDS : ['torrent' as const] : provider === 'torBox' || filter === 'torrent' ? [filter] : []).map((kind) => ({ provider, kind })));
+    const scopes = remoteScopes(providers, filter);
     this.update({ ...emptyRemoteState(), loading: scopes.length > 0 });
     await Promise.all(scopes.map(async ({ provider, kind }) => {
       try {
@@ -145,6 +203,20 @@ export class RemoteBrowser {
     const result = selectionKey(this.state, rows.map(remoteKey), event);
     if (result) this.update(result.selection);
     return result;
+  }
+
+  /**
+   * Select a folder's rows: `replace` makes them the whole selection; `toggle` adds them, or removes them when every
+   * one is already selected. Other rows stay as they are, so folders combine like rows do.
+   */
+  pickRows(rows: RemoteRow[], mode: 'replace' | 'toggle') {
+    if (this.state.loading || this.state.reviewing || this.state.deleting) return;
+    const keys = rows.map(remoteKey);
+    if (mode === 'replace') return this.update(selectAll(keys));
+    const all = keys.length > 0 && keys.every((key) => this.state.selected.has(key));
+    const selected = new Set(this.state.selected);
+    for (const key of keys) all ? selected.delete(key) : selected.add(key);
+    this.update({ ...emptySelection(), selected });
   }
 
   /** Selects exactly the given rows that the service has finished fetching. */

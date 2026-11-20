@@ -233,4 +233,21 @@ describe('several services', () => {
     expect(queuedFileCount(entries, lookup)).toBe(1);
     expect(queuedFileCount(entries.filter((entry) => entry.draft.provider === 'torBox'), lookup)).toBe(1);
   });
+
+  it('lets a file that failed or was stopped on one service be queued on another', () => {
+    const library = [draft(), onTorBox()];
+    const done = { torrentFileId: 12, linkIndex: 0, link: '', relativePath: 'ep2.mkv', expectedBytes: 100, downloadedBytes: 100, completed: true };
+    for (const state of ['failed', 'stopped'] as const) {
+      const jobs = [job({ provider: 'torBox', selectedFileIds: [11, 12], state, files: [done] })];
+      const lookup = queuedLookup(jobs, library);
+      expect(lookup(library[0], 1, library[0].files[0])).toBe(false);
+      // A file the job already finished still counts, and the same service still sees its own job.
+      expect(lookup(library[0], 2, library[0].files[1])).toBe(true);
+      expect(lookup(library[1], 11, library[1].files[0])).toBe(true);
+      expect(queueRequests(buildEntries(library, 'realDebrid', [], query()), lookup)).toEqual([{ provider: 'realDebrid', sourceKey: 'btih:AAA', fileIds: [1, 3, 4] }]);
+    }
+    for (const state of ['queued', 'waiting', 'downloading', 'paused'] as const) {
+      expect(queuedLookup([job({ provider: 'torBox', selectedFileIds: [11], state })], library)(library[0], 1, library[0].files[0])).toBe(true);
+    }
+  });
 });

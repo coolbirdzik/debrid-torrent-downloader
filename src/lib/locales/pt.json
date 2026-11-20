@@ -520,5 +520,13 @@
   "Bỏ các file đã tải xong ({0})": "Remover arquivos baixados ({0})",
   "Bỏ các file đã tải xong?": "Remover os arquivos baixados?",
   "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "Remover {0} arquivo(s) baixado(s) da biblioteca. Arquivos locais, fila e dados na nuvem são mantidos. Desfaça com Ctrl+Z.",
-  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "Remove da biblioteca todos os arquivos baixados, inclusive fora da pasta atual. Os arquivos locais são mantidos."
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "Remove da biblioteca todos os arquivos baixados, inclusive fora da pasta atual. Os arquivos locais são mantidos.",
+  "{0} mục": "{0} itens",
+  "Xong {0}/{1}": "{0}/{1} concluídos",
+  "Không tải được": "Falha ao carregar",
+  "Tất cả mục": "Todos os itens",
+  "Kiểu xem cloud": "Visualização da nuvem",
+  "Nhóm theo dịch vụ": "Agrupar por serviço",
+  "Xem phẳng mọi mục": "Lista plana de todos os itens",
+  "Thư mục dịch vụ": "Pastas dos serviços"
 }

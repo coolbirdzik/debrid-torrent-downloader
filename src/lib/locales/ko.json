@@ -520,5 +520,13 @@
   "Bỏ các file đã tải xong ({0})": "다운로드 완료 파일 제거 ({0})",
   "Bỏ các file đã tải xong?": "다운로드 완료 파일을 제거할까요?",
   "Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.": "다운로드 완료된 파일 {0}개를 라이브러리에서 제거합니다. 로컬 파일, 대기열, 클라우드 데이터는 유지됩니다. Ctrl+Z로 되돌릴 수 있습니다.",
-  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "현재 보고 있는 폴더 밖까지 포함해 다운로드 완료된 모든 파일을 라이브러리에서 제거합니다. 로컬 파일은 유지됩니다."
+  "Bỏ khỏi thư viện mọi file đã tải xong, kể cả ngoài thư mục đang xem. Giữ file trên máy.": "현재 보고 있는 폴더 밖까지 포함해 다운로드 완료된 모든 파일을 라이브러리에서 제거합니다. 로컬 파일은 유지됩니다.",
+  "{0} mục": "{0}개 항목",
+  "Xong {0}/{1}": "완료 {0}/{1}",
+  "Không tải được": "불러오기 실패",
+  "Tất cả mục": "모든 항목",
+  "Kiểu xem cloud": "클라우드 보기",
+  "Nhóm theo dịch vụ": "서비스별로 묶기",
+  "Xem phẳng mọi mục": "모든 항목을 한 목록으로 보기",
+  "Thư mục dịch vụ": "서비스 폴더"
 }
