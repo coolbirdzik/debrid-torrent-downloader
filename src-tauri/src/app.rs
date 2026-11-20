@@ -598,7 +598,18 @@ impl App {
             for source in parsed.sources {
                 let mut known = true;
                 for &provider in &chosen {
-                    if data.library.iter().any(|d| d.provider == provider && same_key(&d.source_key, &source.key)) {
+                    if let Some(existing) = data.library.iter_mut().find(|d| d.provider == provider && same_key(&d.source_key, &source.key)) {
+                        // A torrent removed from view stays stored; adding it again brings it back instead of
+                        // reporting a duplicate of something the Library no longer shows.
+                        let removed = existing.is_hidden || (!existing.files.is_empty() && existing.files.iter().all(|f| existing.excluded_file_ids.contains(&f.id)));
+                        if !removed {
+                            continue;
+                        }
+                        existing.is_hidden = false;
+                        existing.excluded_file_ids.clear();
+                        existing.added_at = Some(now);
+                        known = false;
+                        fresh.push(existing.clone());
                         continue;
                     }
                     known = false;
