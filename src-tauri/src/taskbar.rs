@@ -1,4 +1,4 @@
-//! Native download count, independent of the webview and still updated while the window is minimized.
+//! Native count of downloads finished this session, independent of the webview and still updated while minimized.
 
 use tauri::{AppHandle, Manager};
 

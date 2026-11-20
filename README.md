@@ -123,8 +123,8 @@ unrestricting every link and feeding the links to a download manager. DebridDock
   independently. Turn off **Independent parallel downloads per cloud** in Settings to share one total limit.
   Limit and mode changes apply once the queue has no active jobs; Pause all, then Resume to apply them immediately.
 - Progress shows both sides: the service's progress and the download to your computer, with speed and file count.
-- The **Windows taskbar icon** shows the number of torrents downloading to your computer, even while minimized.
-  Paused, stopped, waiting and finished jobs do not count; the badge disappears when no transfers remain.
+- The **Windows taskbar icon** shows how many torrents finished downloading successfully since the app started, even
+  while minimized. Removing finished rows keeps the count; it resets when the app restarts.
 
 ### Fast, private, cross-platform
 

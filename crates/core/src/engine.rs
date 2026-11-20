@@ -11,6 +11,7 @@ use crate::provider::{Debrid, Timing};
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{watch, Semaphore};
 use tokio_util::sync::CancellationToken;
@@ -29,13 +30,15 @@ pub struct Queue {
     jobs: Mutex<Vec<Job>>,
     on_change: ChangeSink,
     on_persist: PersistSink,
+    /// Jobs that reached `Completed` since this queue was created; jobs loaded already finished do not count.
+    completed: AtomicUsize,
 }
 
 impl Queue {
     /// `on_change` fires after every mutation (the app coalesces it); `on_persist` is called when the state must
     /// reach disk immediately, such as right after a remote torrent ID is obtained.
     pub fn new(jobs: Vec<Job>, on_change: impl Fn(Job, bool) + Send + Sync + 'static, on_persist: impl Fn() + Send + Sync + 'static) -> Arc<Queue> {
-        Arc::new(Queue { jobs: Mutex::new(jobs), on_change: Box::new(on_change), on_persist: Box::new(on_persist) })
+        Arc::new(Queue { jobs: Mutex::new(jobs), on_change: Box::new(on_change), on_persist: Box::new(on_persist), completed: AtomicUsize::new(0) })
     }
     pub fn snapshot(&self) -> Vec<Job> {
         self.jobs.lock().unwrap().clone()
@@ -65,7 +68,11 @@ impl Queue {
         let (result, snapshot) = {
             let mut jobs = self.jobs.lock().unwrap();
             let job = jobs.iter_mut().find(|job| job.id == id)?;
+            let was_completed = job.state == JobState::Completed;
             let result = change(job);
+            if !was_completed && job.state == JobState::Completed {
+                self.completed.fetch_add(1, Ordering::Relaxed);
+            }
             (result, job.clone())
         };
         (self.on_change)(snapshot, durable);
@@ -85,6 +92,10 @@ impl Queue {
         self.jobs.lock().unwrap().iter().filter(|job| {
             job.state == JobState::Downloading && job.is_active && !job.is_stopping && !job.is_removing
         }).count()
+    }
+    /// Successful downloads in this session, kept after their rows are removed.
+    pub fn completed_count(&self) -> usize {
+        self.completed.load(Ordering::Relaxed)
     }
 }
 

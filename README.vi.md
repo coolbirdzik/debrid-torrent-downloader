@@ -122,8 +122,8 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
   **Tải song song độc lập giữa các cloud** trong Cài đặt để dùng chung một giới hạn tổng.
   Thay đổi giới hạn và chế độ áp dụng khi hàng đợi hết tác vụ đang chạy; Pause tất cả rồi Resume để áp dụng ngay.
 - Tiến độ hiện cả hai phía: tiến độ trên dịch vụ và tiến độ tải về máy, kèm tốc độ và số file.
-- **Icon trên taskbar Windows** hiện số torrent đang tải về máy, kể cả khi thu nhỏ cửa sổ. Không tính tác vụ
-  tạm dừng, đã dừng, đang chờ hoặc hoàn tất; badge tự ẩn khi không còn lượt tải.
+- **Icon trên taskbar Windows** hiện số torrent đã tải về thành công từ lúc mở app, kể cả khi thu nhỏ cửa sổ.
+  Xóa dòng đã xong khỏi hàng đợi vẫn giữ số đếm; số đếm về 0 khi mở lại app.
 
 ### Nhanh, riêng tư, đa nền tảng
 

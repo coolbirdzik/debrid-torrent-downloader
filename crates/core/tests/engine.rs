@@ -54,6 +54,36 @@ fn download_badge_tracks_transfers_across_providers_and_lifecycle_changes() {
     assert_eq!(queue.downloading_count(), 0);
 }
 
+#[test]
+fn completed_count_tracks_successful_downloads_this_session_only() {
+    let mut loaded = Job::new(Provider::RealDebrid, "magnet:old", "old", "old");
+    loaded.state = JobState::Completed;
+    let loaded_id = loaded.id.clone();
+    let queue = Queue::new(vec![loaded], |_, _| {}, || {});
+    assert_eq!(queue.completed_count(), 0, "jobs finished in an earlier session do not count");
+    queue.mutate(&loaded_id, |job| job.is_active = false);
+    assert_eq!(queue.completed_count(), 0);
+
+    let mut ids = Vec::new();
+    for provider in [Provider::RealDebrid, Provider::TorBox] {
+        let job = Job::new(provider, "magnet:test", "test", "test");
+        ids.push(job.id.clone());
+        queue.push(job);
+    }
+    queue.mutate(&ids[0], |job| job.state = JobState::Downloading);
+    queue.mutate(&ids[1], |job| job.state = JobState::Failed);
+    assert_eq!(queue.completed_count(), 0);
+    queue.mutate(&ids[0], |job| job.state = JobState::Completed);
+    assert_eq!(queue.completed_count(), 1);
+    queue.mutate(&ids[0], |job| job.is_active = false);
+    queue.mutate_progress(&ids[0], |job| job.local_progress = 100.0);
+    assert_eq!(queue.completed_count(), 1, "later updates of a finished job do not count twice");
+    queue.remove(&ids[..1]);
+    assert_eq!(queue.completed_count(), 1, "removing the row keeps the session total");
+    queue.mutate(&ids[1], |job| job.state = JobState::Completed);
+    assert_eq!(queue.completed_count(), 2);
+}
+
 async fn fixture(account: Option<&str>) -> Fixture {
     let server = MockServer::start().await;
     let persisted = Arc::new(AtomicUsize::new(0));

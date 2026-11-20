@@ -324,7 +324,7 @@ impl App {
             tokio::time::sleep(Duration::from_millis(250)).await;
             tick += 1;
             self.flush_jobs();
-            taskbar.update(&self.handle, self.queue.downloading_count());
+            taskbar.update(&self.handle, self.queue.completed_count());
             // State changes are saved within ~1.5 s; progress alone at most every 20 s (it is rebuilt from the .part files).
             let progress_due = tick % 80 == 0 && self.notifier.progress_dirty.load(Ordering::SeqCst);
             if (tick % 6 == 0 && self.notifier.dirty.load(Ordering::SeqCst)) || progress_due {
