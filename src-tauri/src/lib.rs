@@ -4,7 +4,7 @@ mod theme;
 mod taskbar;
 mod thumbs;
 
-use app::{AddResult, App, DeleteOutcome, LibraryPatch, QueueItem, RemoteList, SettingsPatch, Snapshot};
+use app::{AddResult, App, DeleteOutcome, LibraryPatch, LibraryRemoval, QueueItem, RemoteList, RemoteQueueItem, RemoteQueueResult, SettingsPatch, Snapshot};
 use rdbatch_core::error::Error;
 use rdbatch_core::stream::{StreamList, StreamSource};
 use rdbatch_core::models::{CloudKind, Msg, Provider, Settings, TorBoxAccount, User};
@@ -54,6 +54,11 @@ fn library_add(app: Shared, text: String, providers: Vec<rdbatch_core::models::P
 #[tauri::command]
 fn library_update(app: Shared, patches: Vec<LibraryPatch>) {
     app.library_update(patches)
+}
+
+#[tauri::command]
+async fn library_remove(app: Shared<'_>, patches: Vec<LibraryPatch>, delete_cloud: bool, purge: bool) -> Cmd<LibraryRemoval> {
+    Ok(app.library_remove(patches, delete_cloud, purge).await)
 }
 
 #[tauri::command]
@@ -116,6 +121,11 @@ async fn torbox_account(app: Shared<'_>) -> Cmd<TorBoxAccount> {
 #[tauri::command]
 async fn remote_list(app: Shared<'_>, provider: Provider, kind: Option<CloudKind>) -> Cmd<RemoteList> {
     Ok(app.remote_list(provider, kind.unwrap_or_default()).await?)
+}
+
+#[tauri::command]
+async fn remote_queue(app: Shared<'_>, items: Vec<RemoteQueueItem>, directory: String) -> Cmd<RemoteQueueResult> {
+    Ok(app.remote_queue(items, directory).await?)
 }
 
 #[tauri::command]
@@ -204,7 +214,15 @@ fn open_release(handle: tauri::AppHandle, url: String) -> Cmd<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let revealed = std::sync::atomic::AtomicBool::new(false);
     tauri::Builder::default()
+        .on_page_load(move |webview, payload| {
+            if webview.label() == "main" && payload.event() == tauri::webview::PageLoadEvent::Finished
+                && payload.url().scheme() != "about" && !revealed.swap(true, std::sync::atomic::Ordering::Relaxed)
+            {
+                let _ = webview.window().show();
+            }
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -260,6 +278,7 @@ pub fn run() {
             connect,
             library_add,
             library_update,
+            library_remove,
             library_reset,
             library_cancel_inspect,
             library_retry,
@@ -271,6 +290,7 @@ pub fn run() {
             queue_remove,
             queue_clear,
             remote_list,
+            remote_queue,
             remote_delete,
             torbox_account,
             stream_files,

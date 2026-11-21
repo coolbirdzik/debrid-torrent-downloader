@@ -75,8 +75,9 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 - Select ranges with **Shift+click** or **Shift+arrow keys** across Library lists/grids, Queue and Cloud files.
   Ctrl/Cmd+click toggles individual items; Shift+click on a checkbox checks or unchecks a range. Ctrl/Cmd+A selects
   all items in the current view, including rows outside the visible scroll area.
-- **Clear entire library** confirms removal of all providers' library entries, including pending imports, and resets
-  the input and browser filters. It keeps the download queue, local files and cloud data.
+- **Delete from cloud when removing from Library** is on by default in Settings. Removing a whole torrent or all its
+  files also deletes its linked cloud copies and removes related queue tasks after confirmation. Local files are kept.
+- **Clear entire library** applies the same setting to Library entries across all providers, including pending imports.
 
 ### Stream videos from the cloud
 
@@ -154,8 +155,7 @@ unrestricting every link and feeding the links to a download manager. DebridDock
    videos, then select the files or folders you want. Double-click a video to stream it first.
 4. **Download.** Click **Add to queue**, choose a destination and confirm. New queue entries start immediately;
    DebridDock waits for cloud preparation, gets direct links and downloads your selected files with resume and retry.
-5. **Manage cloud separately.** Open **Cloud files** to inspect or delete remote items. Clearing Library keeps those
-   cloud items and your existing queue.
+5. **Manage cloud.** Open **Cloud files** to inspect and delete remote items across your accounts.
 
 DebridDock never connects to torrent peers itself: your computer only downloads over HTTPS from your debrid service.
 
@@ -237,9 +237,9 @@ import, filter Library by provider, and manage remote items in Cloud files. Each
 provider and account; it is never resumed with another account.
 
 **What is the difference between clearing Library and deleting cloud items?**
-**Clear entire library** removes virtual entries across every provider and keeps the queue, local files and cloud
-items. **Delete all cloud items** targets the current Cloud files filter, shows the exact items for confirmation,
-then deletes them on the service and stops/removes linked queue tasks. Local files remain in both cases.
+**Clear entire library** removes entries across every provider and deletes their linked cloud copies when the
+Library setting is enabled. **Delete all cloud items** applies to the current Cloud files filter, including items
+outside the Library. Both keep local files.
 
 **What do the two Library badges mean?**
 The clock counts torrents still waiting for a file list. The file-plus badge counts new unseen files and clears when

@@ -1,7 +1,7 @@
 //! The queue engine end to end against a mock provider and mock file host.
 
 use rdbatch_core::engine::{wait_done, Allocator, DownloadSlots, Engine, Queue};
-use rdbatch_core::models::{Job, JobState, Provider};
+use rdbatch_core::models::{CloudKind, Job, JobState, Provider};
 use rdbatch_core::provider::{self, Timing};
 use serde_json::json;
 use std::path::Path;
@@ -347,6 +347,41 @@ async fn requests_to(f: &Fixture, route: &str) -> usize {
     f.server.received_requests().await.unwrap().iter().filter(|r| r.url.path() == route).count()
 }
 
+#[tokio::test]
+async fn direct_cloud_jobs_download_available_files_and_keep_missing_items_identifiable() {
+    let f = fixture(Some("me")).await;
+    Mock::given(method("GET")).and(path("/torrents/info/READY"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id":"READY", "status":"downloaded", "progress":100, "bytes":5,
+            "files":[{"id":1,"path":"/a.bin","bytes":5,"selected":1},{"id":2,"path":"/b.bin","bytes":4,"selected":0}],
+            "links":["ready-link"]
+        }))).mount(&f.server).await;
+    Mock::given(method("POST")).and(path("/unrestrict/link")).and(body_string_contains("link=ready-link"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"filename":"a.bin","filesize":5,"download":format!("{}/dl/a", f.server.uri())}))).mount(&f.server).await;
+    Mock::given(method("GET")).and(path("/dl/a")).respond_with(ResponseTemplate::new(200).set_body_bytes(b"alpha".to_vec())).mount(&f.server).await;
+    Mock::given(method("GET")).and(path("/torrents/info/MISSING")).respond_with(ResponseTemplate::new(404)).mount(&f.server).await;
+
+    let target = tempfile::tempdir().unwrap();
+    let jobs = ["READY", "MISSING"].map(|id| {
+        let mut job = Job::new(Provider::RealDebrid, "", "", id);
+        job.cloud_kind = Some(CloudKind::Torrent);
+        job.torrent_id = Some(id.into());
+        job.remote_account = Some("me".into());
+        job.target_directory = Some(target.path().to_string_lossy().into_owned());
+        job
+    });
+    let done = run(&f, &target.path().join("default"), jobs.into()).await;
+    assert_eq!(done[0].state, JobState::Completed);
+    assert_eq!(std::fs::read(target.path().join("a.bin")).unwrap(), b"alpha");
+    assert!(!target.path().join("default").exists());
+    assert!(!target.path().join("b.bin").exists());
+    assert_eq!(done[1].state, JobState::Failed);
+    assert_eq!(done[1].torrent_id.as_deref(), Some("MISSING"));
+    assert_eq!(done[1].detail.key, "Mục cloud không còn trên {0}.");
+    assert_eq!(requests_to(&f, "/torrents/addMagnet").await, 0);
+    assert_eq!(requests_to(&f, "/torrents/selectFiles/READY").await, 0);
+}
+
 /// Retry on a row that says "no longer on the service" adds the source again and finishes in the same run.
 #[tokio::test]
 async fn retrying_a_torrent_deleted_from_the_service_adds_it_again_and_downloads() {
@@ -439,6 +474,33 @@ async fn inspection_reports_live_progress_while_waiting_for_metadata_without_sel
     }).await.unwrap();
     assert_eq!((info.filename.as_str(), info.files.len()), ("Ready", 1));
     assert_eq!(*snapshots.lock().unwrap(), vec![("magnet_conversion".into(), 37.0, 0), ("magnet_conversion".into(), 37.0, 0), ("waiting_files_selection".into(), 0.0, 1)]);
+}
+
+#[tokio::test]
+async fn one_inspection_returns_pending_metadata_and_progress_without_polling_again() {
+    let f = fixture(None).await;
+    Mock::given(method("GET")).and(path("/torrents/info/PENDING")).respond_with(ResponseTemplate::new(200).set_body_json(json!({
+        "id":"PENDING","status":"downloading","progress":29,"files":[],"links":[]
+    }))).expect(1).mount(&f.server).await;
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let updates = std::sync::Mutex::new(Vec::new());
+    let info = f.engine.inspect_once("PENDING", &cancel, |info| updates.lock().unwrap().push(info.progress)).await.unwrap();
+    assert!(info.files.is_empty());
+    assert_eq!(*updates.lock().unwrap(), vec![29.0]);
+}
+
+#[tokio::test]
+async fn waiting_for_metadata_beyond_the_inspection_window_is_not_a_connection_failure() {
+    let f = fixture(None).await;
+    Mock::given(method("GET")).and(path("/torrents/info/PENDING")).respond_with(ResponseTemplate::new(200).set_body_json(json!({
+        "id":"PENDING","status":"downloading","progress":29,"files":[],"links":[]
+    }))).mount(&f.server).await;
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let outcome = f.engine.inspect_with_progress("PENDING", &cancel, |_| {
+        tokio::time::pause();
+        tokio::spawn(tokio::time::advance(std::time::Duration::from_secs(181)));
+    }).await;
+    assert!(matches!(outcome, Err(rdbatch_core::error::Error::MetadataPending)));
 }
 
 #[tokio::test]

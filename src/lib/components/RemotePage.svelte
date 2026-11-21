@@ -4,14 +4,16 @@
   import CheckSquare from 'phosphor-svelte/lib/CheckSquare';
   import CaretUp from 'phosphor-svelte/lib/CaretUp';
   import CaretDown from 'phosphor-svelte/lib/CaretDown';
+  import DownloadSimple from 'phosphor-svelte/lib/DownloadSimple';
   import Trash from 'phosphor-svelte/lib/Trash';
   import { onDestroy, untrack } from 'svelte';
   import { api } from '../api';
   import { app } from '../app.svelte';
   import { formatBytes } from '../browser';
+  import { askDestination } from '../destination.svelte';
   import { languageTag } from '../languages';
   import { t, tm } from '../i18n.svelte';
-  import { emptyRemoteState, nextRemoteSort, parseRemoteScope, RemoteBrowser, remoteFolders, remoteKey, remoteQueuedKeys, sortRemoteFolders, sortRemoteRows, type RemoteFolder, type RemoteRow, type RemoteSort, type RemoteSortColumn } from '../remote';
+  import { emptyRemoteState, nextRemoteSort, parseRemoteScope, queueableRemoteRows, RemoteBrowser, remoteFolders, remoteKey, remoteQueuedKeys, sortRemoteFolders, sortRemoteRows, type RemoteFolder, type RemoteRow, type RemoteSort, type RemoteSortColumn } from '../remote';
   import { CLOUD_KINDS, cloudKindLabel, providerLabel, type CloudFilter, type Provider, type RemoteTorrent } from '../types';
   import TorBoxAccount from './TorBoxAccount.svelte';
   import RealDebridAccount from './RealDebridAccount.svelte';
@@ -77,6 +79,10 @@
     remote.pickRows(folder.rows, event.ctrlKey || event.metaKey || event.shiftKey ? 'toggle' : 'replace');
   }
   const queuedKeys = $derived(remoteQueuedKeys(app.jobs));
+  const selectedRows = $derived(torrents.filter((row) => view.selected.has(remoteKey(row))));
+  const queueable = $derived(queueableRemoteRows(selectedRows, queuedKeys));
+  let queueing = $state(false);
+  let disposed = false;
   const visibleErrors = $derived(Object.entries(view.errors).filter(([scope]) => filter === 'all' || parseRemoteScope(scope).provider === filter));
   const reviewTargets = $derived([...new Set(view.reviewing?.map((row) => `${providerLabel(row.provider)} · ${row.account} · ${cloudKindLabel(row.kind ?? 'torrent')}`) ?? [])].join(', '));
   const totalBytes = $derived(torrents.reduce((sum, row) => sum + row.bytes, 0));
@@ -101,13 +107,15 @@
   const downloadedCount = $derived(torrents.filter((row) => row.status === 'downloaded').length);
 
   function menuItems(): MenuItem[] {
-    const list = torrents.filter((row) => view.selected.has(remoteKey(row)));
+    const list = selectedRows;
     const folder = menu?.folder;
     // From a service folder, "select finished" stays inside that service.
     const scope = folder ? torrents.filter((row) => row.provider === folder) : torrents;
     const scopeDone = scope.filter((row) => row.status === 'downloaded');
     return [
       ...(folder ? [{ label: t('Mở'), icon: FolderOpen, tone: 'amber', action: () => open(folder) } as const, 'separator' as const] : []),
+      { label: t('Thêm vào hàng đợi'), icon: DownloadSimple, tone: 'blue', disabled: queueing || queueable.length === 0, action: queueSelected },
+      'separator',
       { label: t('Sao chép tên'), icon: Copy, tone: 'teal', action: () => copyText(list.map((row) => row.filename).join('\n'), { key: 'Đã sao chép {0} tên.', args: [String(list.length)] }) },
       { label: t('Sao chép ID'), icon: Hash, tone: 'purple', action: () => copyText(list.map((row) => row.id).join('\n'), { key: 'Đã sao chép {0} ID.', args: [String(list.length)] }) },
       'separator',
@@ -173,7 +181,7 @@
     const currentKind = kind;
     untrack(() => { void remote.syncAccounts(accounts, currentKind); });
   });
-  onDestroy(() => remote.invalidate());
+  onDestroy(() => { disposed = true; remote.invalidate(); });
 
   const tone = (status: string) => (status === 'downloaded' ? 'success' : ['error', 'magnet_error', 'virus', 'dead'].includes(status) ? 'danger' : ['downloading', 'queued', 'magnet_conversion', 'compressing', 'uploading', 'waiting_files_selection'].includes(status) ? 'info' : '');
   const statusText = (torrent: RemoteTorrent) => `${torrent.status.replaceAll('_', ' ')}${torrent.status === 'downloaded' ? '' : ` ${torrent.progress.toFixed(0)}%`}`;
@@ -190,6 +198,32 @@
     const count = await remote.confirmDelete();
     if (count) app.toast({ key: 'Đã xóa {0} mục cloud trên {1}.', args: [String(count), targets] }, 'success');
     if (count) void app.refreshTorboxAccount(true);
+  }
+
+  async function queueSelected() {
+    if (busy || queueing || !queueable.length) return;
+    const selected = new Set(queueable.map(remoteKey));
+    queueing = true;
+    try {
+      const directory = await askDestination({ directory: app.settings.outputDirectory });
+      if (directory === null || disposed) return;
+      const rows = queueableRemoteRows(view.rows.filter((row) => selected.has(remoteKey(row))), remoteQueuedKeys(app.jobs));
+      if (rows.length === 0) {
+        app.toast({ key: 'Không có file mới được thêm vào hàng đợi.', args: [] }, 'warning');
+        return;
+      }
+      const result = await app.run(() => api.remoteQueue(rows.map(({ provider, account, kind = 'torrent', id, filename, bytes, progress }) => ({ provider, account, kind, id, filename, bytes, progress })), directory));
+      if (!result) return;
+      for (const error of result.errors) app.toast(error, 'error');
+      if (result.created.length) {
+        app.toast({ key: 'Đã thêm {0} mục cloud vào hàng đợi.', args: [String(result.created.length)] }, 'success');
+        await app.run(() => api.queueStart(result.created));
+      } else if (!result.errors.length) {
+        app.toast({ key: 'Không có file mới được thêm vào hàng đợi.', args: [] }, 'warning');
+      }
+    } finally {
+      queueing = false;
+    }
   }
 </script>
 
@@ -295,6 +329,7 @@
       <button class="btn" disabled={view.loading || downloadedCount === 0 || view.reviewing !== null || view.deleting} onclick={() => remote.selectDownloaded(torrents)} title={t('Chọn các mục dịch vụ đã tải xong')}><span class="ic green"><ListChecks size={16} weight="duotone" /></span>{t('Chọn các mục đã tải xong ({0})', downloadedCount)}</button>
       </div>
       <div class="actions">
+        <button class="btn primary" disabled={busy || queueing || queueable.length === 0} onclick={queueSelected}><DownloadSimple size={16} weight="bold" />{t('Thêm vào hàng đợi')}</button>
         <button class="btn danger" disabled={view.loading || view.deleting || view.selected.size === 0} onclick={() => remote.review()}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Xóa mục đã chọn…')}</button>
         <button class="btn danger" disabled={view.loading || view.deleting || torrents.length === 0 || visibleErrors.length > 0} onclick={() => remote.reviewAll(torrents)}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Xóa tất cả cloud…')}</button>
       </div>

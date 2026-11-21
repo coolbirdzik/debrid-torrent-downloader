@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CloudUpdate, Draft, Snapshot } from './types';
+import type { CloudUpdate, Draft, Job, Snapshot } from './types';
 import { draftId } from './browser';
 
-const mocks = vi.hoisted(() => ({ bootstrap: vi.fn(), libraryRefresh: vi.fn(), on: vi.fn() }));
+const mocks = vi.hoisted(() => ({ bootstrap: vi.fn(), libraryRefresh: vi.fn(), libraryRemove: vi.fn(), libraryUpdate: vi.fn(), on: vi.fn() }));
 vi.mock('./api', () => ({ api: mocks, on: mocks.on, toMsg: (error: unknown) => ({ key: String(error), args: [] }) }));
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: () => Promise.resolve('test') }));
 import { app } from './app.svelte';
 import { library } from './library.svelte';
+import { answer, dialog } from './confirm.svelte';
 
 const draft = (overrides: Partial<Draft> = {}): Draft => ({
   provider: 'realDebrid', sourceKey: 'btih:AAA', source: '', name: 'Show', addedAt: '2026-01-01T00:00:00Z',
@@ -35,6 +36,40 @@ beforeEach(async () => {
   library.clearing = false;
   app.page = 'library';
   await app.init();
+});
+
+describe('Library removal', () => {
+  it('requires confirmation for a cloud removal and sends only the selected provider', async () => {
+    const rd = ready();
+    app.apply({ ...snapshot([rd, ready({ provider: 'torBox' })]), settings: { ...app.settings, deleteCloudOnLibraryRemove: true } });
+    library.select(library.entries.find(entry => entry.draft.provider === 'torBox')!, { ctrl: false, shift: false });
+    const cancelled = library.removeSelected();
+    expect(dialog.open).toBe(true);
+    answer(false);
+    await cancelled;
+    expect(mocks.libraryRemove).not.toHaveBeenCalled();
+
+    mocks.libraryRemove.mockResolvedValue({ undo: [], errors: [], deletedCloud: true, purged: [] });
+    const approved = library.removeSelected();
+    answer(true);
+    await approved;
+    expect(mocks.libraryRemove).toHaveBeenCalledWith([{
+      provider: 'torBox', sourceKey: rd.sourceKey, isHidden: true, excludedFileIds: []
+    }], true);
+    expect(library.undoStack).toHaveLength(0);
+  });
+
+  it('keeps cloud files when the setting is off and offers undo', async () => {
+    app.apply({ ...snapshot([ready()]), settings: { ...app.settings, deleteCloudOnLibraryRemove: false } });
+    const undo = { provider: 'realDebrid', sourceKey: draft().sourceKey, isHidden: false, excludedFileIds: [] };
+    mocks.libraryRemove.mockResolvedValue({ undo: [undo], errors: [], deletedCloud: false, purged: [] });
+    library.select(library.entries[0], { ctrl: false, shift: false });
+    await library.removeSelected();
+    expect(dialog.open).toBe(false);
+    expect(mocks.libraryRemove).toHaveBeenCalledWith([{ ...undo, isHidden: true }], false);
+    await library.undo();
+    expect(mocks.libraryUpdate).toHaveBeenCalledWith([undo]);
+  });
 });
 
 describe('Library import activity', () => {
@@ -91,6 +126,37 @@ describe('Library import activity', () => {
     expect(app.imported.size).toBe(1);
     app.clearLibraryView();
     expect(app.imported.size).toBe(0);
+  });
+});
+
+describe('Library cloud progress', () => {
+  it('uses the job that owns the selected file after queueing', () => {
+    const source = ready();
+    const first: Job = {
+      id: 'j1', provider: source.provider, source: source.source, sourceKey: source.sourceKey, name: source.name,
+      torrentId: 'r1', remoteAccount: 'user', selectedFileIds: [1], outputDirectory: null, targetDirectory: null,
+      flattenFiles: null, files: [], state: 'waiting', detail: { key: '', args: [] }, remoteProgress: 29,
+      localProgress: 0, totalBytes: 0, isActive: true, isStopping: false, isRemoving: false
+    };
+    app.apply({ ...snapshot([source]), jobs: [first, { ...first, id: 'j2', torrentId: 'r2', selectedFileIds: [2], state: 'downloading', remoteProgress: 100 }] });
+    expect(library.cloudView(source, 1)?.progress).toBe(29);
+    expect(library.cloudView(source, 2)).toMatchObject({ tone: 'ready', progress: 100 });
+    expect(library.cloudView(source, 3)).toBeUndefined();
+  });
+
+  it('shows live progress during import backoff and isolates copies of the same torrent by provider', () => {
+    const rd = draft({ torrentId: '1', inspectionError: { key: 'Retry later', args: [] } });
+    const tb = ready({ provider: 'torBox', torrentId: '1' });
+    app.apply(snapshot([rd, tb]));
+    const cloud = { status: 'downloading', progress: 29, speed: null, seeders: null };
+    emitCloud([{ ...rd, cloud }, { ...tb, cloud: { ...cloud, status: 'downloaded', progress: 100 } }]);
+    expect(library.entries).toHaveLength(2);
+    expect(library.cloudView(rd)).toMatchObject({ tone: 'busy', progress: 29 });
+    expect(library.cloudView(tb)).toMatchObject({ tone: 'ready', progress: 100 });
+    emitCloud([{ ...rd, cloud: { ...cloud, progress: 52 } }]);
+    expect(library.cloudView(rd)?.progress).toBe(52);
+    library.setSource('torBox');
+    expect(library.entries.map(entry => library.cloudView(entry.draft)?.progress)).toEqual([100]);
   });
 });
 

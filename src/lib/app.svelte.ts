@@ -10,7 +10,7 @@ export type Page = 'library' | 'queue' | 'remote' | 'settings';
 const defaults: Settings = {
   provider: 'realDebrid', language: 'en', appearance: 'system', browserView: 'list', browserSort: 'added-desc',
   outputDirectory: '', flattenFiles: true, concurrency: 3, independentCloudDownloads: true, rememberToken: true, libraryImportPaused: false, checkUpdates: true,
-  libraryProviders: [], rememberLibraryProviders: false
+  libraryProviders: [], rememberLibraryProviders: false, deleteCloudOnLibraryRemove: true
 };
 
 const cloudKey = (draft: { provider: Provider; sourceKey: string }) => `${draft.provider}|${draft.sourceKey.toLowerCase()}`;
@@ -97,6 +97,7 @@ class AppState {
       on('cloud', (updates) => {
         const next = new Map(this.cloud);
         for (const update of updates) {
+          if (this.clearedLibraryDrafts.has(cloudKey(update))) continue;
           if (update.cloud) next.set(cloudKey(update), update.cloud);
           else next.delete(cloudKey(update));
         }
@@ -194,12 +195,19 @@ class AppState {
   }
 
   clearLibraryView() {
-    this.libraryGeneration++;
-    this.imported = new Map();
-    for (const draft of this.library) this.clearedLibraryDrafts.set(cloudKey(draft), draft.addedAt);
-    this.library = [];
+    this.forgetLibraryDrafts(this.library);
     this.inspect = { running: false, done: 0, total: 0 };
-    this.cloud = new Map();
+  }
+
+  forgetLibraryDrafts(drafts: Pick<Draft, 'provider' | 'sourceKey'>[]) {
+    const removed = new Set(drafts.map(cloudKey));
+    this.libraryGeneration++;
+    for (const draft of this.library) {
+      if (removed.has(cloudKey(draft))) this.clearedLibraryDrafts.set(cloudKey(draft), draft.addedAt);
+    }
+    this.library = this.library.filter(draft => !removed.has(cloudKey(draft)));
+    this.imported = new Map([...this.imported].filter(([key]) => !removed.has(key)));
+    this.cloud = new Map([...this.cloud].filter(([key]) => !removed.has(key)));
   }
 
   private upsertDraft(draft: Draft) {

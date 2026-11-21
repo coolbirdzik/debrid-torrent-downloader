@@ -108,7 +108,10 @@ export function sortRemoteFolders(folders: RemoteFolder[], sort: RemoteSort, loc
 }
 
 export const remoteQueuedKeys = (jobs: Job[]) => new Set(jobs.flatMap((job) =>
-  job.torrentId && job.remoteAccount ? [remoteKey({ provider: job.provider, account: job.remoteAccount, id: job.torrentId })] : []));
+  job.torrentId && job.remoteAccount ? [remoteKey({ provider: job.provider, account: job.remoteAccount, kind: job.cloudKind, id: job.torrentId })] : []));
+
+export const queueableRemoteRows = (rows: RemoteRow[], queued: ReadonlySet<string>) => rows.filter((row) =>
+  row.id && !['error', 'magnet_error', 'virus', 'dead'].includes(row.status) && !queued.has(remoteKey(row)));
 
 interface RemoteApi {
   remoteList(provider: Provider, kind?: CloudKind): Promise<{ account: string; torrents: RemoteTorrent[] }>;

@@ -1,4 +1,7 @@
 {
+  "Đã thêm {0} mục cloud vào hàng đợi.": "Added {0} cloud items to the queue.",
+  "Tài khoản {0} đã thay đổi. Tải lại danh sách cloud rồi thử lại.": "The {0} account changed. Reload the cloud list and try again.",
+  "Mục cloud không còn trên {0}.": "This cloud item is no longer on {0}.",
   "Tải song song độc lập giữa các cloud": "Independent parallel downloads per cloud",
   "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "Each cloud downloads up to {0} torrents at once. For example: {0} Real-Debrid and {0} TorBox.",
   "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "All clouds share a total limit of {0} torrents at once.",
@@ -528,5 +531,12 @@
   "Kiểu xem cloud": "Cloud view",
   "Nhóm theo dịch vụ": "Group by service",
   "Xem phẳng mọi mục": "Flat list of all items",
-  "Thư mục dịch vụ": "Service folders"
+  "Thư mục dịch vụ": "Service folders",
+  "Xóa trên cloud khi bỏ khỏi thư viện": "Delete from cloud when removing from Library",
+  "Áp dụng khi bỏ cả torrent hoặc bỏ hết các file của torrent. File trên máy được giữ lại.": "Applies when you remove a whole torrent or all its files. Local files are kept.",
+  "Bỏ khỏi thư viện?": "Remove from Library?",
+  "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Delete the cloud copies of the {0} torrents being fully removed from the Library. Related downloads will stop and be removed from the queue. Local files are kept. Cloud deletion cannot be undone.",
+  "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Remove {0} items from the Library and delete the cloud copies of visible torrents. Related downloads will stop and be removed from the queue. Local files are kept. Cloud deletion cannot be undone.",
+  "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "{0} is being added to {1}. Retry deletion when the job has a cloud ID.",
+  "Không xác định được tài khoản cloud của torrent.": "The cloud account for this torrent is unknown."
 }

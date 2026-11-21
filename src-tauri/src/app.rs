@@ -124,15 +124,25 @@ pub struct SettingsPatch {
     pub check_updates: Option<bool>,
     pub library_providers: Option<Vec<Provider>>,
     pub remember_library_providers: Option<bool>,
+    pub delete_cloud_on_library_remove: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryPatch {
     pub provider: Provider,
     pub source_key: String,
     pub excluded_file_ids: Vec<i32>,
     pub is_hidden: bool,
+}
+
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryRemoval {
+    undo: Vec<LibraryPatch>,
+    errors: Vec<Msg>,
+    deleted_cloud: bool,
+    purged: Vec<LibraryPatch>,
 }
 
 #[derive(Deserialize)]
@@ -151,6 +161,24 @@ pub struct QueueItem {
 pub struct RemoteList {
     pub account: String,
     pub torrents: Vec<RemoteTorrent>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteQueueItem {
+    provider: Provider,
+    kind: CloudKind,
+    account: String,
+    id: String,
+    filename: String,
+    bytes: u64,
+    progress: f64,
+}
+
+#[derive(Default, Serialize)]
+pub struct RemoteQueueResult {
+    created: Vec<String>,
+    errors: Vec<Msg>,
 }
 
 #[derive(Serialize)]
@@ -177,6 +205,7 @@ pub struct App {
     inspect_running: AtomicBool,
     inspect_status: Mutex<InspectStatus>,
     inspect_cancel: Mutex<CancellationToken>,
+    library_cloud_action: tokio::sync::Mutex<()>,
     cloud_running: AtomicBool,
     timing: Timing,
     pub thumbs: Thumbs,
@@ -245,6 +274,7 @@ impl App {
             inspect_running: AtomicBool::new(false),
             inspect_status: Mutex::new(InspectStatus::default()),
             inspect_cancel: Mutex::new(CancellationToken::new()),
+            library_cloud_action: tokio::sync::Mutex::new(()),
             cloud_running: AtomicBool::new(false),
             timing: test_timing(),
             thumbs,
@@ -461,6 +491,7 @@ impl App {
                 s.library_providers = unique;
             }
             if let Some(v) = patch.remember_library_providers { s.remember_library_providers = v }
+            if let Some(v) = patch.delete_cloud_on_library_remove { s.delete_cloud_on_library_remove = v }
             (s.clone(), remembered && !s.remember_token)
         };
         if forget_tokens {
@@ -647,6 +678,86 @@ impl App {
         self.mark_dirty();
     }
 
+    pub async fn library_remove(&self, patches: Vec<LibraryPatch>, delete_cloud: bool, purge: bool) -> LibraryRemoval {
+        // Wait for an in-flight create to record its remote ID before finding the deletion targets.
+        let _guard = self.library_cloud_action.lock().await;
+        let delete_cloud = delete_cloud && self.data.lock().unwrap().settings.delete_cloud_on_library_remove;
+        let mut result = LibraryRemoval::default();
+        for patch in patches {
+            let Some(draft) = self.data.lock().unwrap().library.iter()
+                .find(|d| d.provider == patch.provider && same_key(&d.source_key, &patch.source_key))
+                .cloned() else { continue };
+            let removes_torrent = patch.is_hidden || (!draft.files.is_empty()
+                && draft.files.iter().all(|file| patch.excluded_file_ids.contains(&file.id)));
+            let removes_cloud = delete_cloud && removes_torrent && !draft.is_hidden
+                && (draft.files.is_empty() || draft.files.iter().any(|file| !draft.excluded_file_ids.contains(&file.id)));
+            if removes_cloud && self.queue.snapshot().iter().any(|job| job.provider == draft.provider
+                && same_key(&job.source_key, &draft.source_key) && job.is_active && job.torrent_id.is_none())
+            {
+                result.errors.push(Msg::new("{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.", &[&draft.name, &draft.provider.label()]));
+                continue;
+            }
+            let targets = if removes_cloud {
+                self.library_cloud_targets(&draft)
+            } else { HashMap::new() };
+            let had_targets = !targets.is_empty();
+            let mut failed = false;
+            for (id, account) in targets {
+                let error = match account {
+                    Some(account) => match self.delete_remote_items(draft.provider, CloudKind::Torrent, vec![id.clone()], account, true).await {
+                        Ok(outcomes) => outcomes.into_iter().find_map(|outcome| outcome.message),
+                        Err(error) => Some(error.friendly()),
+                    },
+                    None => Some(Msg::plain("Không xác định được tài khoản cloud của torrent.")),
+                };
+                if let Some(error) = error {
+                    failed = true;
+                    result.errors.push(Msg::new("{0} · {1} · {2}: {3}", &[&draft.provider.label(), &draft.name, &id, &error.render()]));
+                } else {
+                    result.deleted_cloud = true;
+                }
+            }
+            if failed { continue; }
+            if purge {
+                self.data.lock().unwrap().library.retain(|d| d.provider != patch.provider || !same_key(&d.source_key, &patch.source_key));
+                result.purged.push(patch);
+            } else {
+                if !had_targets {
+                    result.undo.push(LibraryPatch {
+                        provider: draft.provider, source_key: draft.source_key,
+                        excluded_file_ids: draft.excluded_file_ids.into_iter().collect(), is_hidden: draft.is_hidden,
+                    });
+                }
+                self.library_update(vec![patch]);
+            }
+        }
+        self.mark_dirty();
+        self.save_now();
+        result
+    }
+
+    fn library_cloud_targets(&self, draft: &Draft) -> HashMap<String, Option<String>> {
+        let mut targets = HashMap::new();
+        let mut add = |id: &str, account: Option<&str>| {
+            let owner = targets.entry(id.to_string()).or_insert(None);
+            if owner.is_none() { *owner = account.map(str::to_string); }
+        };
+        if let Some(id) = &draft.torrent_id {
+            add(id, draft.remote_account.as_deref());
+        }
+        for reference in &self.data.lock().unwrap().remote_refs {
+            if reference.provider == draft.provider && same_key(&reference.source_key, &draft.source_key) {
+                add(&reference.id, reference.account.as_deref());
+            }
+        }
+        for job in self.queue.snapshot() {
+            if job.provider == draft.provider && same_key(&job.source_key, &draft.source_key) {
+                if let Some(id) = &job.torrent_id { add(id, job.remote_account.as_deref()); }
+            }
+        }
+        targets
+    }
+
     /// "New batch": forget the virtual library but keep queue work, local files and remote torrents.
     pub fn library_reset(&self) {
         self.inspect_cancel.lock().unwrap().cancel();
@@ -688,7 +799,7 @@ impl App {
         if self.data.lock().unwrap().settings.library_import_paused || self.inspect_running.swap(true, Ordering::SeqCst) {
             return;
         }
-        let total = self.pending_drafts().len();
+        let total = self.pending_drafts(Utc::now()).len();
         if total == 0 {
             self.inspect_running.store(false, Ordering::SeqCst);
             return;
@@ -699,6 +810,10 @@ impl App {
             let status = self.inspect_status.lock().unwrap().clone();
             self.report_inspect(false, status.done, status.total);
             self.inspect_running.store(false, Ordering::SeqCst);
+            // An add or retry can arrive after the last scan while this pass still owns the worker.
+            if !self.pending_drafts(Utc::now()).is_empty() {
+                self.start_inspection();
+            }
         });
     }
 
@@ -709,13 +824,16 @@ impl App {
     }
 
     /// Unread torrents of every service that has a token (read before the data lock: `token_for` takes it too).
-    fn pending_drafts(&self) -> Vec<(Provider, String)> {
+    fn pending_drafts(&self, due: chrono::DateTime<Utc>) -> Vec<(Provider, String)> {
         let usable = self.providers_with_tokens();
         let data = self.data.lock().unwrap();
-        let now = Utc::now();
-        data.library
-            .iter()
-            .filter(|d| usable.contains(&d.provider) && d.files.is_empty() && !d.is_hidden && d.next_inspection_at.map(|t| t <= now).unwrap_or(true))
+        if data.settings.library_import_paused { return Vec::new(); }
+        let mut pending: Vec<_> = data.library.iter()
+            .filter(|d| usable.contains(&d.provider) && d.files.is_empty() && !d.is_hidden && d.next_inspection_at.is_none_or(|t| t <= due))
+            .collect();
+        // Send new torrents before polling the ones the provider already has.
+        pending.sort_by_key(|d| d.torrent_id.is_some());
+        pending.into_iter()
             .map(|d| (d.provider, d.source_key.clone()))
             .collect()
     }
@@ -739,8 +857,9 @@ impl App {
             }
             guard.clone()
         };
+        let due = Utc::now();
         loop {
-            let pending = self.pending_drafts();
+            let pending = self.pending_drafts(due);
             if pending.is_empty() || cancel.is_cancelled() {
                 return;
             }
@@ -762,6 +881,8 @@ impl App {
                             if cancel.is_cancelled() {
                                 return;
                             }
+                            let _guard = self.library_cloud_action.lock().await;
+                            if cancel.is_cancelled() { return; }
                             if !self.inspect_one(&engine, provider, &key, &account.user.username, &cancel).await {
                                 return;
                             }
@@ -806,9 +927,9 @@ impl App {
         Ok(id)
     }
 
-    /// Wait for a torrent's file list, showing its live service progress on the draft meanwhile.
+    /// Check the current file list and cloud progress without waiting for metadata to become available.
     async fn inspect_remote(&self, engine: &Engine, provider: Provider, key: &str, torrent_id: &str, cancel: &CancellationToken) -> Result<TorrentInfo> {
-        engine.inspect_with_progress(torrent_id, cancel, |info| {
+        engine.inspect_once(torrent_id, cancel, |info| {
             if cancel.is_cancelled() { return; }
             let cloud = CloudState { status: info.status.clone(), progress: info.progress, speed: info.speed, seeders: info.seeders };
             let changed = {
@@ -827,19 +948,18 @@ impl App {
         }).await
     }
 
-    /// Add one torrent to its service (once) and wait for its file list. Returns false when cancelled.
+    /// Add one torrent to its service (once) and check its file list. Returns false when cancelled.
     async fn inspect_one(&self, engine: &Engine, provider: Provider, key: &str, username: &str, cancel: &CancellationToken) -> bool {
-        let existing = self.with_draft(provider, key, |d| {
+        let Some((source, existing_id)) = self.with_draft(provider, key, |d| {
             d.inspection_error = None;
             d.next_inspection_at = None;
-            d.cloud = None;
             (d.source.clone(), d.torrent_id.clone())
-        }).unwrap_or_default();
+        }) else { return true; };
         let outcome = async {
-            let stored = existing.1.is_some();
-            let mut torrent_id = match existing.1 {
+            let stored = existing_id.is_some();
+            let mut torrent_id = match existing_id {
                 Some(id) => id,
-                None => self.add_for_draft(engine, provider, key, username, &existing.0).await?,
+                None => self.add_for_draft(engine, provider, key, username, &source).await?,
             };
             match self.inspect_remote(engine, provider, key, &torrent_id, cancel).await {
                 // The torrent was deleted on the service before it could be read: add the source again, once, instead of
@@ -851,7 +971,7 @@ impl App {
                         d.cloud = None;
                     });
                     self.data.lock().unwrap().remote_refs.retain(|r| !(r.provider == provider && r.id == torrent_id));
-                    torrent_id = self.add_for_draft(engine, provider, key, username, &existing.0).await?;
+                    torrent_id = self.add_for_draft(engine, provider, key, username, &source).await?;
                     self.inspect_remote(engine, provider, key, &torrent_id, cancel).await
                 }
                 other => other,
@@ -859,6 +979,9 @@ impl App {
         }
         .await;
         match outcome {
+            Ok(info) if info.files.is_empty() => {
+                self.with_draft(provider, key, defer_metadata);
+            }
             Ok(info) => {
                 self.with_draft(provider, key, |d| {
                     if !info.filename.trim().is_empty() {
@@ -892,9 +1015,9 @@ impl App {
         });
     }
 
-    /// A read torrent whose service copy may still change.
+    /// Cloud transfers continue while import waits or backs off for metadata.
     fn needs_cloud(draft: &Draft) -> bool {
-        !draft.is_hidden && draft.torrent_id.is_some() && !draft.files.is_empty() && draft.cloud.as_ref().map(|c| !c.is_settled()).unwrap_or(true)
+        !draft.is_hidden && draft.torrent_id.is_some() && draft.cloud.as_ref().map(|c| !c.is_settled()).unwrap_or(true)
     }
 
     /// One list request per service that still has torrents on their way to the cloud. Changes travel on their own
@@ -906,7 +1029,13 @@ impl App {
             usable.into_iter().filter(|p| data.library.iter().any(|d| d.provider == *p && Self::needs_cloud(d))).collect()
         };
         for provider in wanted {
-            let Ok((_, api)) = self.verified(provider).await else { continue };
+            let Ok((account, api)) = self.verified(provider).await else { continue };
+            // A torrent can be added or inspected while the paginated request is in flight.
+            let candidates: HashMap<_, _> = self.data.lock().unwrap().library.iter()
+                .filter(|d| d.provider == provider && Self::needs_cloud(d) && d.remote_account.as_deref().is_none_or(|a| a.eq_ignore_ascii_case(&account.user.username)))
+                .map(|d| (d.source_key.clone(), (d.torrent_id.clone(), d.cloud.clone())))
+                .collect();
+            if candidates.is_empty() { continue; }
             let Ok(list) = api.list().await else { continue };
             let by_id: HashMap<&str, &RemoteTorrent> = list.iter().map(|t| (t.id.as_str(), t)).collect();
             let (updates, forgotten) = {
@@ -914,8 +1043,12 @@ impl App {
                 let (mut updates, mut forgotten) = (Vec::new(), Vec::new());
                 for draft in data.library.iter_mut().filter(|d| d.provider == provider && Self::needs_cloud(d)) {
                     let id = draft.torrent_id.clone().unwrap_or_default();
+                    let Some((requested_id, previous)) = candidates.get(&draft.source_key) else { continue };
+                    if draft.torrent_id != *requested_id || draft.cloud != *previous { continue; }
                     let next = match by_id.get(id.as_str()) {
                         Some(t) => CloudState { status: t.status.clone(), progress: t.progress, speed: t.speed, seeders: t.seeders },
+                        // Pending imports verify missing IDs by looking them up directly before re-adding.
+                        None if draft.files.is_empty() => continue,
                         None => CloudState { status: "missing".into(), ..Default::default() },
                     };
                     if next.status == "missing" {
@@ -971,8 +1104,14 @@ impl App {
                     continue;
                 }
                 let mut job = Job::new(draft.provider, &draft.source, &draft.source_key, &draft.name);
-                job.torrent_id = draft.torrent_id.clone();
-                job.remote_account = if draft.torrent_id.is_none() { None } else { draft.remote_account.clone() };
+                let used_by_cloud_job = draft.torrent_id.as_deref().is_some_and(|id| jobs.iter().any(|j|
+                    j.cloud_kind == Some(CloudKind::Torrent) && j.provider == draft.provider && j.torrent_id.as_deref() == Some(id)
+                        && draft.remote_account.as_deref().is_none_or(|account| j.remote_account.as_deref().is_some_and(|owner| owner.eq_ignore_ascii_case(account)))
+                ));
+                if !used_by_cloud_job {
+                    job.torrent_id = draft.torrent_id.clone();
+                    job.remote_account = draft.remote_account.clone().filter(|_| job.torrent_id.is_some());
+                }
                 job.selected_file_ids = Some(files.iter().map(|f| f.id).collect());
                 job.target_directory = target.clone();
                 job.total_bytes = files.iter().map(|f| f.bytes).sum();
@@ -982,10 +1121,12 @@ impl App {
                 self.queue.push(job);
                 // A later selection needs its own remote torrent; an active selection cannot be changed. The job now
                 // owns the remote torrent, so its own progress is what the Library shows from here on.
-                draft.torrent_id = None;
-                draft.remote_account = None;
-                draft.cloud = None;
-                touched.push(draft.clone());
+                if !used_by_cloud_job {
+                    draft.torrent_id = None;
+                    draft.remote_account = None;
+                    draft.cloud = None;
+                    touched.push(draft.clone());
+                }
             }
         }
         for draft in touched {
@@ -995,19 +1136,21 @@ impl App {
         Ok(created)
     }
 
-    fn output_root(&self) -> Result<(PathBuf, usize, bool, bool)> {
+    fn output_root(&self, uses_default: bool) -> Result<(PathBuf, usize, bool, bool)> {
         let (dir, concurrency, flatten, independent) = {
             let data = self.data.lock().unwrap();
             (data.settings.output_directory.trim().to_string(), data.settings.concurrency as usize, data.settings.flatten_files, data.settings.independent_cloud_downloads)
         };
         let path = PathBuf::from(&dir);
-        if dir.is_empty() || !path.is_absolute() {
-            return Err(Error::Operation(Msg::plain("Chọn một đường dẫn lưu đầy đủ.")));
+        if uses_default {
+            if !path.is_absolute() {
+                return Err(Error::Operation(Msg::plain("Chọn một đường dẫn lưu đầy đủ.")));
+            }
+            std::fs::create_dir_all(&path)?;
+            let probe = path.join(format!(".rd-write-test-{}", uuid_like()));
+            std::fs::write(&probe, b"")?;
+            let _ = std::fs::remove_file(&probe);
         }
-        std::fs::create_dir_all(&path)?;
-        let probe = path.join(format!(".rd-write-test-{}", uuid_like()));
-        std::fs::write(&probe, b"")?;
-        let _ = std::fs::remove_file(&probe);
         Ok((path, concurrency, flatten, independent))
     }
 
@@ -1031,7 +1174,8 @@ impl App {
             if mine.is_empty() {
                 continue;
             }
-            match self.ensure_session(provider).await {
+            let uses_default = mine.iter().any(|job| job.target_directory.as_deref().is_none_or(|dir| dir.trim().is_empty()));
+            match self.ensure_session(provider, uses_default).await {
                 Ok(session) => {
                     for job in mine {
                         session.enqueue(&job.id);
@@ -1069,13 +1213,13 @@ impl App {
         Ok(())
     }
 
-    async fn ensure_session(&self, provider: Provider) -> Result<Arc<Session>> {
+    async fn ensure_session(&self, provider: Provider, uses_default: bool) -> Result<Arc<Session>> {
         if let Some(session) = self.sessions.lock().await.get(&provider).filter(|s| s.active_count() > 0) {
             return Ok(session.clone());
         }
         // The disk probe and the account check (a network call on the first start) run without holding the session
         // lock, so Stop, Pause and Remove never wait behind them.
-        let (root, concurrency, flatten, independent) = self.output_root()?;
+        let (root, concurrency, flatten, independent) = self.output_root(uses_default)?;
         let (account, api) = self.verified(provider).await?;
         if !account.user.can_download() {
             return Err(Error::operation("Cần tài khoản có quyền tải torrent trên {0}.", &[&provider.label()]));
@@ -1174,6 +1318,60 @@ impl App {
         let (account, api) = self.verified(provider).await?;
         let torrents = api.cloud_list(kind).await?;
         Ok(RemoteList { account: account.user.username, torrents })
+    }
+
+    pub async fn remote_queue(&self, items: Vec<RemoteQueueItem>, directory: String) -> Result<RemoteQueueResult> {
+        let directory = directory.trim();
+        if !std::path::Path::new(directory).is_absolute() {
+            return Err(Error::Operation(Msg::plain("Chọn một đường dẫn lưu đầy đủ.")));
+        }
+        let _guard = self.library_cloud_action.lock().await;
+        let mut result = RemoteQueueResult::default();
+        let mut approved = Vec::new();
+        for provider in ALL_PROVIDERS {
+            let group: Vec<_> = items.iter().filter(|item| item.provider == provider).collect();
+            if group.is_empty() { continue; }
+            let account = match self.verified(provider).await {
+                Ok((account, _)) => account.user.username,
+                Err(error) => {
+                    result.errors.push(error.friendly());
+                    continue;
+                }
+            };
+            if group.iter().any(|item| !item.account.eq_ignore_ascii_case(&account)) {
+                result.errors.push(Msg::new("Tài khoản {0} đã thay đổi. Tải lại danh sách cloud rồi thử lại.", &[&provider.label()]));
+            }
+            approved.extend(group.into_iter().filter(|item| item.account.eq_ignore_ascii_case(&account)));
+        }
+        {
+            // Serialize duplicate checks with Library queue creation as well as other cloud additions.
+            let _data = self.data.lock().unwrap();
+            let mut queued = HashSet::new();
+            for job in self.queue.snapshot() {
+                if let Some(id) = job.torrent_id {
+                    queued.insert((job.provider, job.cloud_kind.unwrap_or_default(), job.remote_account.map(|a| a.to_ascii_lowercase()), id));
+                }
+            }
+            for item in approved {
+                if item.id.trim().is_empty() || (item.kind != CloudKind::Torrent && item.provider != Provider::TorBox) { continue; }
+                if queued.contains(&(item.provider, item.kind, None, item.id.clone()))
+                    || !queued.insert((item.provider, item.kind, Some(item.account.to_ascii_lowercase()), item.id.clone())) { continue; }
+                let mut job = Job::new(item.provider, "", "", if item.filename.is_empty() { &item.id } else { &item.filename });
+                job.cloud_kind = Some(item.kind);
+                job.torrent_id = Some(item.id.clone());
+                job.remote_account = Some(item.account.clone());
+                job.target_directory = Some(directory.to_owned());
+                job.total_bytes = item.bytes;
+                job.remote_progress = item.progress.clamp(0.0, 100.0);
+                result.created.push(job.id.clone());
+                self.queue.push(job);
+            }
+        }
+        if !result.created.is_empty() {
+            self.flush_jobs();
+            self.mark_dirty();
+        }
+        Ok(result)
     }
 
     /// The verified account must still be the one the list was loaded for, so a token swap can't play another account's file.
@@ -1290,6 +1488,11 @@ impl App {
     /// Delete exact IDs on the service. The account must still be the one the list was loaded for, and an ID known to
     /// belong to another account is never deleted. Ambiguous failures are reported, never replayed.
     pub async fn remote_delete(&self, provider: Provider, kind: CloudKind, ids: Vec<String>, list_account: String) -> Result<Vec<DeleteOutcome>> {
+        let _guard = self.library_cloud_action.lock().await;
+        self.delete_remote_items(provider, kind, ids, list_account, false).await
+    }
+
+    async fn delete_remote_items(&self, provider: Provider, kind: CloudKind, ids: Vec<String>, list_account: String, allow_missing: bool) -> Result<Vec<DeleteOutcome>> {
         let (account, api) = self.verified(provider).await?;
         if !account.user.username.eq_ignore_ascii_case(&list_account) {
             return Err(Error::operation("Token hiện tại thuộc tài khoản {0}, không phải {1}. Tải lại danh sách trước khi xóa.", &[&account.user.username, &list_account]));
@@ -1306,17 +1509,21 @@ impl App {
                 continue;
             }
             // Only tasks linked to this exact ID are stopped, and their writers are awaited before the DELETE.
-            let linked: Vec<String> = self.queue.snapshot().into_iter().filter(|j| kind == CloudKind::Torrent && j.provider == provider && j.torrent_id.as_deref() == Some(id.as_str()) && j.remote_account.as_deref().map(|a| a.eq_ignore_ascii_case(&account.user.username)).unwrap_or(true)).map(|j| j.id).collect();
+            let linked: Vec<String> = self.queue.snapshot().into_iter().filter(|j| j.cloud_kind.unwrap_or_default() == kind && j.provider == provider && j.torrent_id.as_deref() == Some(id.as_str()) && j.remote_account.as_deref().map(|a| a.eq_ignore_ascii_case(&account.user.username)).unwrap_or(true)).map(|j| j.id).collect();
             for job_id in &linked {
                 self.queue.mutate(job_id, |j| j.is_removing = true);
                 if let Some(session) = &session {
                     session.stop(job_id).await;
                 }
             }
-            match api.cloud_delete(kind, &id).await {
+            let deletion = api.cloud_delete(kind, &id).await.or_else(|error| {
+                if allow_missing && error.is_gone() { Ok(()) } else { Err(error) }
+            });
+            match deletion {
                 Ok(()) => {
                     self.queue.remove(&linked);
                     if !linked.is_empty() {
+                        self.notifier.pending.lock().unwrap().retain(|id, _| !linked.contains(id));
                         self.emit("jobs-removed", linked);
                     }
                     let cleared: Vec<Draft> = {
@@ -1355,6 +1562,13 @@ fn back_off(draft: &mut Draft, error: Msg) {
     draft.next_inspection_at = Some(Utc::now() + chrono::Duration::seconds(wait as i64));
 }
 
+/// A healthy torrent can report progress before it has any files to import. Recheck on a later background pass.
+fn defer_metadata(draft: &mut Draft) {
+    draft.inspection_error = None;
+    draft.inspection_attempts = 0;
+    draft.next_inspection_at = Some(Utc::now() + chrono::Duration::seconds(10));
+}
+
 fn uuid_like() -> String {
     format!("{:x}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0))
 }
@@ -1362,4 +1576,24 @@ fn uuid_like() -> String {
 #[allow(dead_code)]
 fn _search_is_used_by_the_ui(_: &str) -> bool {
     search::is_video("x.mkv")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cloud_polling_continues_during_metadata_backoff() {
+        let mut draft = Draft {
+            torrent_id: Some("1".into()),
+            cloud: Some(CloudState { status: "downloading".into(), progress: 29.0, ..Default::default() }),
+            ..Default::default()
+        };
+        defer_metadata(&mut draft);
+        assert!(draft.next_inspection_at.is_some());
+        assert!(draft.inspection_error.is_none());
+        assert!(App::needs_cloud(&draft));
+        draft.is_hidden = true;
+        assert!(!App::needs_cloud(&draft));
+    }
 }

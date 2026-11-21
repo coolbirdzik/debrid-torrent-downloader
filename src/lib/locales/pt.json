@@ -1,4 +1,7 @@
 {
+  "Đã thêm {0} mục cloud vào hàng đợi.": "Foram adicionados {0} itens da nuvem à fila.",
+  "Tài khoản {0} đã thay đổi. Tải lại danh sách cloud rồi thử lại.": "A conta de {0} mudou. Recarregue a lista da nuvem e tente novamente.",
+  "Mục cloud không còn trên {0}.": "Este item da nuvem já não está em {0}.",
   "Tải song song độc lập giữa các cloud": "Downloads paralelos independentes por cloud",
   "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "Cada cloud descarrega até {0} torrents em simultâneo. Por exemplo: {0} Real-Debrid e {0} TorBox.",
   "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "Todas as clouds partilham um limite total de {0} torrents em simultâneo.",
@@ -528,5 +531,12 @@
   "Kiểu xem cloud": "Visualização da nuvem",
   "Nhóm theo dịch vụ": "Agrupar por serviço",
   "Xem phẳng mọi mục": "Lista plana de todos os itens",
-  "Thư mục dịch vụ": "Pastas dos serviços"
+  "Thư mục dịch vụ": "Pastas dos serviços",
+  "Xóa trên cloud khi bỏ khỏi thư viện": "Excluir da nuvem ao remover da biblioteca",
+  "Áp dụng khi bỏ cả torrent hoặc bỏ hết các file của torrent. File trên máy được giữ lại.": "Aplica-se ao remover um torrent inteiro ou todos os seus arquivos. Os arquivos locais são mantidos.",
+  "Bỏ khỏi thư viện?": "Remover da biblioteca?",
+  "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Excluir as cópias na nuvem dos {0} torrents removidos por completo da biblioteca. Os downloads relacionados serão interrompidos e removidos da fila. Os arquivos locais são mantidos. A exclusão na nuvem não pode ser desfeita.",
+  "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Remover {0} itens da biblioteca e excluir as cópias na nuvem dos torrents visíveis. Os downloads relacionados serão interrompidos e removidos da fila. Os arquivos locais são mantidos. A exclusão na nuvem não pode ser desfeita.",
+  "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "{0} está sendo adicionado a {1}. Tente excluir novamente quando a tarefa tiver um ID na nuvem.",
+  "Không xác định được tài khoản cloud của torrent.": "A conta na nuvem deste torrent é desconhecida."
 }

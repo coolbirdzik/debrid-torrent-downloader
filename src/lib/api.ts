@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import type { AccountInfo, AddResult, CloudKind, CloudUpdate, DeleteOutcome, Draft, Job, LibraryPatch, Marks, Msg, Provider, RemoteTorrent, Settings, Snapshot, StreamList, StreamSource, TorBoxAccount, UpdateInfo, User } from './types';
+import type { AccountInfo, AddResult, CloudKind, CloudUpdate, DeleteOutcome, Draft, Job, LibraryPatch, LibraryRemoval, Marks, Msg, Provider, RemoteTorrent, Settings, Snapshot, StreamList, StreamSource, TorBoxAccount, UpdateInfo, User } from './types';
 
 /** The backend rejects with `{ key, args }`; anything else (a runtime failure) becomes a plain message. */
 export function toMsg(error: unknown): Msg {
@@ -23,6 +23,7 @@ export const api = {
   connect: (provider?: Provider) => call<User>('connect', { provider: provider ?? null }),
   libraryAdd: (text: string, providers: Provider[]) => call<AddResult>('library_add', { text, providers }),
   libraryUpdate: (patches: LibraryPatch[]) => call<void>('library_update', { patches }),
+  libraryRemove: (patches: LibraryPatch[], deleteCloud: boolean, purge = false) => call<LibraryRemoval>('library_remove', { patches, deleteCloud, purge }),
   libraryReset: () => call<void>('library_reset'),
   libraryCancelInspect: () => call<void>('library_cancel_inspect'),
   libraryRetry: () => call<void>('library_retry'),
@@ -35,6 +36,8 @@ export const api = {
   queueClear: (onlyCompleted: boolean) => call<string[]>('queue_clear', { onlyCompleted }),
   torboxAccount: () => call<TorBoxAccount>('torbox_account'),
   remoteList: (provider: Provider, kind: CloudKind = 'torrent') => call<{ account: string; torrents: RemoteTorrent[] }>('remote_list', { provider, kind }),
+  remoteQueue: (items: (Pick<RemoteTorrent, 'id' | 'filename' | 'bytes' | 'progress'> & { provider: Provider; kind: CloudKind; account: string })[], directory: string) =>
+    call<{ created: string[]; errors: Msg[] }>('remote_queue', { items, directory }),
   remoteDelete: (provider: Provider, ids: string[], listAccount: string, kind: CloudKind = 'torrent') => call<DeleteOutcome[]>('remote_delete', { provider, kind, ids, listAccount }),
   streamFiles: (provider: Provider, id: string, listAccount: string | null, select = false) => call<StreamList>('stream_files', { provider, id, listAccount, select }),
   streamUrl: (provider: Provider, id: string, linkIndex: number, listAccount: string | null) => call<StreamSource>('stream_url', { provider, id, linkIndex, listAccount }),

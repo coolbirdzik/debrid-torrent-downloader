@@ -1,4 +1,7 @@
 {
+  "Đã thêm {0} mục cloud vào hàng đợi.": "クラウドの項目 {0} 件をキューに追加しました。",
+  "Tài khoản {0} đã thay đổi. Tải lại danh sách cloud rồi thử lại.": "{0} のアカウントが変更されました。クラウドの一覧を再読み込みしてもう一度お試しください。",
+  "Mục cloud không còn trên {0}.": "このクラウドの項目は {0} に存在しません。",
   "Tải song song độc lập giữa các cloud": "クラウドごとに独立して並列ダウンロード",
   "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "各クラウドで最大{0}件のトレントを同時にダウンロードします。例：Real-Debridで{0}件、TorBoxで{0}件。",
   "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "すべてのクラウドで同時に最大{0}件のトレントを共有します。",
@@ -528,5 +531,12 @@
   "Kiểu xem cloud": "クラウドの表示",
   "Nhóm theo dịch vụ": "サービスごとにグループ化",
   "Xem phẳng mọi mục": "すべての項目を一覧表示",
-  "Thư mục dịch vụ": "サービスのフォルダー"
+  "Thư mục dịch vụ": "サービスのフォルダー",
+  "Xóa trên cloud khi bỏ khỏi thư viện": "ライブラリから除くときにクラウドからも削除",
+  "Áp dụng khi bỏ cả torrent hoặc bỏ hết các file của torrent. File trên máy được giữ lại.": "トレント全体またはすべてのファイルを除くときに適用されます。ローカルファイルは保持されます。",
+  "Bỏ khỏi thư viện?": "ライブラリから除きますか？",
+  "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "ライブラリから完全に除く {0} 件のトレントのクラウドコピーを削除します。関連するダウンロードは停止し、キューから削除されます。ローカルファイルは保持されます。クラウドからの削除は元に戻せません。",
+  "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "ライブラリから {0} 件を除き、表示中のトレントのクラウドコピーを削除します。関連するダウンロードは停止し、キューから削除されます。ローカルファイルは保持されます。クラウドからの削除は元に戻せません。",
+  "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "{0} を {1} に追加中です。タスクにクラウド ID が付与されてから削除を再試行してください。",
+  "Không xác định được tài khoản cloud của torrent.": "このトレントのクラウドアカウントを特定できません。"
 }

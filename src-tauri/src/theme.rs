@@ -8,9 +8,7 @@
 use tauri::WebviewWindow;
 
 /// Must match `--titlebar` in src/app.css (light and dark).
-#[cfg(windows)]
 const LIGHT_CAPTION: (u8, u8, u8) = (0xf5, 0xf6, 0xf8);
-#[cfg(windows)]
 const DARK_CAPTION: (u8, u8, u8) = (0x08, 0x09, 0x0c);
 #[cfg(windows)]
 const LIGHT_TEXT: (u8, u8, u8) = (0x0b, 0x0d, 0x12);
@@ -24,16 +22,15 @@ pub fn apply(window: &WebviewWindow, appearance: &str) {
         "light" => Some(false),
         _ => None,
     };
-    #[cfg(windows)]
-    {
-        // "system": the OS theme, which the window still reports because it is never forced.
-        let dark = dark.unwrap_or_else(|| matches!(window.theme(), Ok(tauri::Theme::Dark)));
-        paint(window, dark);
-    }
     #[cfg(not(windows))]
     {
         let _ = window.set_theme(dark.map(|dark| if dark { tauri::Theme::Dark } else { tauri::Theme::Light }));
     }
+    let dark = dark.unwrap_or_else(|| matches!(window.theme(), Ok(tauri::Theme::Dark)));
+    let (r, g, b) = if dark { DARK_CAPTION } else { LIGHT_CAPTION };
+    let _ = window.set_background_color(Some(tauri::window::Color(r, g, b, 255)));
+    #[cfg(windows)]
+    paint(window, dark);
 }
 
 #[cfg(windows)]

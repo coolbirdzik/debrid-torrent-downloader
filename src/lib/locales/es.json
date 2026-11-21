@@ -1,4 +1,7 @@
 {
+  "Đã thêm {0} mục cloud vào hàng đợi.": "Se añadieron {0} elementos de la nube a la cola.",
+  "Tài khoản {0} đã thay đổi. Tải lại danh sách cloud rồi thử lại.": "La cuenta de {0} cambió. Vuelve a cargar la lista de la nube e inténtalo de nuevo.",
+  "Mục cloud không còn trên {0}.": "Este elemento de la nube ya no está en {0}.",
   "Tải song song độc lập giữa các cloud": "Descargas paralelas independientes por nube",
   "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "Cada nube descarga hasta {0} torrents a la vez. Por ejemplo: {0} de Real-Debrid y {0} de TorBox.",
   "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "Todas las nubes comparten un límite total de {0} torrents simultáneos.",
@@ -528,5 +531,12 @@
   "Kiểu xem cloud": "Vista de la nube",
   "Nhóm theo dịch vụ": "Agrupar por servicio",
   "Xem phẳng mọi mục": "Lista plana de todos los elementos",
-  "Thư mục dịch vụ": "Carpetas de servicios"
+  "Thư mục dịch vụ": "Carpetas de servicios",
+  "Xóa trên cloud khi bỏ khỏi thư viện": "Eliminar de la nube al retirar de la biblioteca",
+  "Áp dụng khi bỏ cả torrent hoặc bỏ hết các file của torrent. File trên máy được giữ lại.": "Se aplica al retirar un torrent completo o todos sus archivos. Se conservan los archivos locales.",
+  "Bỏ khỏi thư viện?": "¿Retirar de la biblioteca?",
+  "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Eliminar las copias en la nube de los {0} torrents que se retirarán por completo de la biblioteca. Las descargas asociadas se detendrán y saldrán de la cola. Se conservan los archivos locales. La eliminación en la nube no se puede deshacer.",
+  "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Retirar {0} elementos de la biblioteca y eliminar las copias en la nube de los torrents visibles. Las descargas asociadas se detendrán y saldrán de la cola. Se conservan los archivos locales. La eliminación en la nube no se puede deshacer.",
+  "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "Se está añadiendo {0} a {1}. Vuelve a intentar eliminarlo cuando la tarea tenga un ID en la nube.",
+  "Không xác định được tài khoản cloud của torrent.": "Se desconoce la cuenta en la nube de este torrent."
 }

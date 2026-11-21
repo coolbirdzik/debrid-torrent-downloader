@@ -12,6 +12,8 @@ pub enum Error {
     Network(String),
     #[error("timeout")]
     Timeout,
+    #[error("Dịch vụ chưa trả danh sách file. Đang chờ lượt sau.")]
+    MetadataPending,
     #[error("{0}")]
     InvalidData(String),
     /// A user-facing, already localizable failure (the C# InvalidOperationException).

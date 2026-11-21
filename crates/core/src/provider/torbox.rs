@@ -73,8 +73,13 @@ fn state(item: &Value) -> String {
     }
 }
 
-fn reference(torrent: &str, file: i32) -> String {
-    format!("torbox:{torrent}:{file}")
+fn reference(kind: CloudKind, id: &str, file: i32) -> String {
+    let prefix = match kind {
+        CloudKind::Torrent => "torbox",
+        CloudKind::WebDownload => "torbox-webdl",
+        CloudKind::Usenet => "torbox-usenet",
+    };
+    format!("{prefix}:{id}:{file}")
 }
 
 fn remote(item: &Value) -> RemoteTorrent {
@@ -118,13 +123,18 @@ impl Debrid for TorBox {
     }
 
     async fn info(&self, id: &str) -> Result<TorrentInfo> {
-        let data = self.api.send(Method::GET, &format!("torrents/mylist?bypass_cache=true&id={}", escape(id)), &|r| r, true).await?;
+        self.cloud_info(CloudKind::Torrent, id).await
+    }
+
+    async fn cloud_info(&self, kind: CloudKind, id: &str) -> Result<TorrentInfo> {
+        let (group, _, _) = cloud_paths(kind);
+        let data = self.api.send(Method::GET, &format!("{group}/mylist?bypass_cache=true&id={}", escape(id)), &|r| r, true).await?;
         let Some(item) = items(&data).into_iter().find(|item| str_of(item, "id") == id) else {
             return Err(Error::Api {
                 provider: Provider::TorBox,
                 status: 404,
                 code: "ITEM_NOT_FOUND".into(),
-                message: "TorBox: ITEM_NOT_FOUND · Torrent not found.".into(),
+                message: "TorBox: ITEM_NOT_FOUND · Cloud item not found.".into(),
                 error_code: None,
             });
         };
@@ -143,7 +153,7 @@ impl Debrid for TorBox {
         if unique.len() != files.len() {
             return Err(Error::invalid("TorBox: duplicate file IDs."));
         }
-        let links: Vec<String> = files.iter().map(|file| reference(id, file.id)).collect();
+        let links: Vec<String> = files.iter().map(|file| reference(kind, id, file.id)).collect();
         {
             let mut cache = self.files.lock().unwrap();
             for (link, file) in links.iter().zip(&files) {
@@ -158,7 +168,7 @@ impl Debrid for TorBox {
             bytes: num(item, "size").max(0) as u64,
             files,
             links,
-            seeders: Some(num(item, "seeds")),
+            seeders: (kind == CloudKind::Torrent).then(|| num(item, "seeds")),
             speed: Some(num(item, "download_speed").max(0) as u64),
         })
     }
@@ -195,25 +205,28 @@ impl Debrid for TorBox {
 
     async fn unrestrict(&self, link: &str) -> Result<Unrestricted> {
         let parts: Vec<&str> = link.split(':').collect();
-        if parts.len() != 3 || parts[0] != "torbox" {
+        let [prefix, id, file_id] = parts.as_slice() else {
             return Err(Error::invalid("TorBox: invalid file reference."));
-        }
+        };
+        let kind = match *prefix {
+            "torbox" => CloudKind::Torrent,
+            "torbox-webdl" => CloudKind::WebDownload,
+            "torbox-usenet" => CloudKind::Usenet,
+            _ => return Err(Error::invalid("TorBox: invalid file reference.")),
+        };
         let cached = self.files.lock().unwrap().get(link).cloned();
         let file = match cached {
             Some(file) => file,
             None => {
-                self.info(parts[1]).await?;
+                self.cloud_info(kind, id).await?;
                 self.files.lock().unwrap().get(link).cloned().ok_or_else(|| Error::invalid("TorBox: missing file metadata."))?
             }
         };
         // TorBox requires the token as a query parameter for requestdl. It exists only in this request, never in queue
         // references, settings, status messages or persisted download links.
-        let path = format!(
-            "torrents/requestdl?token={}&torrent_id={}&file_id={}&zip_link=false&redirect=false",
-            escape(&self.token),
-            escape(parts[1]),
-            escape(parts[2])
-        );
+        let (group, _, id_key) = cloud_paths(kind);
+        let id_key = if kind == CloudKind::WebDownload { "web_id" } else { id_key };
+        let path = format!("{group}/requestdl?token={}&{id_key}={}&file_id={}&zip_link=false&redirect=false", escape(&self.token), escape(id), escape(file_id));
         let data = self.api.send(Method::GET, &path, &|r| r, true).await?;
         let url = data.as_str().unwrap_or_default().to_string();
         match url::Url::parse(&url) {

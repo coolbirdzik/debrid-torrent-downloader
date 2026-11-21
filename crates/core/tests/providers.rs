@@ -39,6 +39,37 @@ async fn torbox_cloud_types_delete_only_the_exact_ids_and_never_use_all() {
 }
 
 #[tokio::test]
+async fn torbox_resolves_files_with_the_same_item_and_file_ids_in_each_cloud_type() {
+    let server = MockServer::start().await;
+    let api = client(Provider::TorBox, &server, "secret");
+    let mut files = Vec::new();
+    for (kind, group, id_key) in [
+        (CloudKind::Torrent, "torrents", "torrent_id"),
+        (CloudKind::WebDownload, "webdl", "web_id"),
+        (CloudKind::Usenet, "usenet", "usenet_id"),
+    ] {
+        let name = format!("{group}.bin");
+        Mock::given(method("GET")).and(path(format!("/v1/api/{group}/mylist"))).and(query_param("id", "77"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":{
+                "id":77,"name":group,"download_finished":true,"download_present":true,
+                "files":[{"id":0,"name":&name,"size":9}]
+            }}))).mount(&server).await;
+        Mock::given(method("GET")).and(path(format!("/v1/api/{group}/requestdl")))
+            .and(query_param(id_key, "77")).and(query_param("file_id", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":format!("https://cdn.example/{name}")}))).expect(1).mount(&server).await;
+        let info = api.cloud_info(kind, "77").await.unwrap();
+        assert_eq!(info.status, "downloaded");
+        files.push((info.links[0].clone(), name));
+    }
+    for (reference, name) in files {
+        let fresh_client = client(Provider::TorBox, &server, "secret");
+        let file = fresh_client.unrestrict(&reference).await.unwrap();
+        assert_eq!(file.filename, name);
+        assert_eq!(file.download, format!("https://cdn.example/{name}"));
+    }
+}
+
+#[tokio::test]
 async fn torbox_account_uses_actual_airlock_quota_and_keeps_bandwidth_separate() {
     let server = MockServer::start().await;
     Mock::given(method("GET")).and(path("/v1/api/user/me"))

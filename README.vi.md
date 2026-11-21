@@ -72,8 +72,9 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 - **Shift+click** hoặc **Shift+phím mũi tên** chọn theo khoảng ở Thư viện (danh sách/lưới), Hàng đợi và Quản lý cloud.
   Ctrl/Cmd+click chọn từng mục; Shift+click checkbox chọn hoặc bỏ chọn cả khoảng. Ctrl/Cmd+A chọn tất cả mục trong
   chế độ xem hiện tại, kể cả các dòng nằm ngoài vùng cuộn đang hiển thị.
-- **Xóa toàn bộ thư viện** xác nhận xóa mục của tất cả nhà cung cấp, kể cả mục đang chờ đọc, rồi đặt lại ô nhập và
-  bộ lọc. Giữ nguyên hàng đợi tải, file trên máy và dữ liệu cloud.
+- **Xóa trên cloud khi bỏ khỏi thư viện** mặc định bật trong Cài đặt. Khi bỏ cả torrent hoặc bỏ hết file của torrent,
+  app hỏi xác nhận rồi xóa các bản cloud và tác vụ tải liên quan. File trên máy được giữ lại.
+- **Xóa toàn bộ thư viện** áp dụng cùng tùy chọn cho các mục của mọi nhà cung cấp, kể cả mục đang chờ đọc.
 
 ### Xem video trực tiếp từ cloud
 
@@ -152,8 +153,7 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
    chọn những file/thư mục cần tải. Nhấp đúp vào video để xem thử trước.
 4. **Tải về.** Bấm **Thêm vào hàng đợi**, chọn nơi lưu và xác nhận. Các tác vụ mới bắt đầu ngay; DebridDock chờ cloud
    chuẩn bị xong, lấy link trực tiếp và tải file đã chọn về máy, có resume và tự thử lại.
-5. **Quản lý cloud riêng.** Mở **Quản lý cloud** để xem hoặc xóa mục trên dịch vụ. Xóa Thư viện vẫn giữ các mục cloud
-   và hàng đợi hiện có.
+5. **Quản lý cloud.** Mở **Quản lý cloud** để xem và xóa mục trên các tài khoản dịch vụ.
 
 DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ tải qua HTTPS từ dịch vụ debrid.
 
@@ -235,9 +235,8 @@ Thư viện theo nhà cung cấp và quản lý mục từ xa trong Quản lý c
 tài khoản gốc và không tiếp tục bằng tài khoản khác.
 
 **Xóa Thư viện khác gì xóa cloud?**
-**Xóa toàn bộ thư viện** bỏ mục ảo của tất cả nhà cung cấp, giữ hàng đợi, file trên máy và các mục cloud.
-**Xóa tất cả cloud** áp dụng bộ lọc hiện tại của Quản lý cloud, cho xem lại danh sách rồi xóa trên dịch vụ và
-dừng/bỏ tác vụ tải liên quan khỏi hàng đợi. Cả hai đều giữ file trên máy.
+**Xóa toàn bộ thư viện** bỏ các mục của tất cả nhà cung cấp và xóa bản cloud liên quan khi tùy chọn Thư viện được bật.
+**Xóa tất cả cloud** áp dụng bộ lọc hiện tại của Quản lý cloud, gồm cả mục ngoài Thư viện. Cả hai đều giữ file trên máy.
 
 **Hai badge ở menu Thư viện có ý nghĩa gì?**
 Đồng hồ đếm torrent đang chờ danh sách file. Badge file có dấu cộng đếm file mới chưa xem và tự hết khi mở Thư viện.

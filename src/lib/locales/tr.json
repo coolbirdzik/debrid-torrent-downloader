@@ -1,4 +1,7 @@
 {
+  "Đã thêm {0} mục cloud vào hàng đợi.": "{0} bulut öğesi kuyruğa eklendi.",
+  "Tài khoản {0} đã thay đổi. Tải lại danh sách cloud rồi thử lại.": "{0} hesabı değişti. Bulut listesini yenileyip tekrar deneyin.",
+  "Mục cloud không còn trên {0}.": "Bu bulut öğesi artık {0} üzerinde yok.",
   "Tải song song độc lập giữa các cloud": "Her bulut için bağımsız paralel indirmeler",
   "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "Her bulut aynı anda en fazla {0} torrent indirir. Örneğin: {0} Real-Debrid ve {0} TorBox.",
   "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "Tüm bulutlar aynı anda toplam {0} torrent sınırını paylaşır.",
@@ -528,5 +531,12 @@
   "Kiểu xem cloud": "Bulut görünümü",
   "Nhóm theo dịch vụ": "Hizmete göre grupla",
   "Xem phẳng mọi mục": "Tüm öğeleri düz liste olarak göster",
-  "Thư mục dịch vụ": "Hizmet klasörleri"
+  "Thư mục dịch vụ": "Hizmet klasörleri",
+  "Xóa trên cloud khi bỏ khỏi thư viện": "Kitaplıktan kaldırırken buluttan da sil",
+  "Áp dụng khi bỏ cả torrent hoặc bỏ hết các file của torrent. File trên máy được giữ lại.": "Torrentin tamamını veya tüm dosyalarını kaldırırken uygulanır. Yerel dosyalar korunur.",
+  "Bỏ khỏi thư viện?": "Kitaplıktan kaldırılsın mı?",
+  "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Kitaplıktan tamamen kaldırılan {0} torrentin bulut kopyalarını sil. İlgili indirmeler durdurulup kuyruktan kaldırılır. Yerel dosyalar korunur. Buluttan silme geri alınamaz.",
+  "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Kitaplıktan {0} öğeyi kaldır ve görünen torrentlerin bulut kopyalarını sil. İlgili indirmeler durdurulup kuyruktan kaldırılır. Yerel dosyalar korunur. Buluttan silme geri alınamaz.",
+  "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "{0}, {1} hizmetine ekleniyor. Göreve bir bulut kimliği atandığında silmeyi tekrar dene.",
+  "Không xác định được tài khoản cloud của torrent.": "Bu torrentin bulut hesabı bilinmiyor."
 }

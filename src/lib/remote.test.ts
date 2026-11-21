@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { emptyRemoteState, nextRemoteSort, RemoteBrowser, remoteFolders, remoteKey, remoteQueuedKeys, sortRemoteFolders, sortRemoteRows, type RemoteRow, type RemoteSortColumn } from './remote';
+import { emptyRemoteState, nextRemoteSort, queueableRemoteRows, RemoteBrowser, remoteFolders, remoteKey, remoteQueuedKeys, sortRemoteFolders, sortRemoteRows, type RemoteRow, type RemoteSortColumn } from './remote';
 import type { AccountInfo, CloudKind, Job, RemoteTorrent } from './types';
 
 const torrent: RemoteTorrent = { id: 'same-id', filename: 'Movie', bytes: 100, progress: 100, status: 'downloaded', added: null, speed: null, seeders: null };
@@ -9,6 +9,18 @@ const deferred = <T>() => {
   const promise = new Promise<T>((done) => { resolve = done; });
   return { promise, resolve };
 };
+
+it('adds eligible cloud items while distinguishing queued copies by service, account and cloud type', () => {
+  const row = { ...torrent, provider: 'torBox', account: 'alice' } as const;
+  const web = { ...row, kind: 'webDownload' } as const;
+  const usenet = { ...row, kind: 'usenet', status: 'downloading' } as const;
+  const otherAccount = { ...row, account: 'bob' };
+  const otherService = { ...row, provider: 'realDebrid' } as const;
+  const failed = { ...row, id: 'failed', status: 'error' };
+  const queued = { provider: 'torBox', remoteAccount: 'ALICE', torrentId: row.id } as Job;
+  const keys = remoteQueuedKeys([queued, { ...queued, cloudKind: 'webDownload' }]);
+  expect(queueableRemoteRows([row, web, usenet, otherAccount, otherService, failed], keys)).toEqual([usenet, otherAccount, otherService]);
+});
 
 describe('cloud column sorting', () => {
   const rows: RemoteRow[] = [

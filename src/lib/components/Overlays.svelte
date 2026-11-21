@@ -32,7 +32,7 @@
   const validDirectory = $derived(isAbsolutePath(destinationDialog.directory));
 
   async function browse() {
-    const picked = await pickFolder({ directory: true, multiple: false, title: t('Chọn nơi lưu toàn bộ torrent'), defaultPath: destinationDialog.directory.trim() || undefined });
+    const picked = await pickFolder({ directory: true, multiple: false, title: t('Chọn thư mục'), defaultPath: destinationDialog.directory.trim() || undefined });
     if (typeof picked === 'string') destinationDialog.directory = picked;
   }
 
@@ -64,7 +64,7 @@
     <div class="dialog card" role="dialog" aria-modal="true" aria-labelledby="destination-title">
     <form class="form" onsubmit={(event) => { event.preventDefault(); answerDestination(true); }}>
       <h2 id="destination-title" class="section">{t('Thêm vào hàng đợi')}</h2>
-      <p>{t('Lưu {0} file vào thư mục:', destinationDialog.files)}</p>
+      <p>{destinationDialog.files === null ? t('Thư mục lưu') : t('Lưu {0} file vào thư mục:', destinationDialog.files)}</p>
       <div class="pair">
         <input type="text" bind:value={destinationDialog.directory} aria-label={t('Thư mục lưu')} aria-invalid={!validDirectory} spellcheck="false" />
         <button type="button" class="btn outline icon" onclick={browse} title={t('Chọn thư mục')} aria-label={t('Chọn thư mục')}><span class="ic amber"><FolderSimple size={17} weight="duotone" /></span></button>

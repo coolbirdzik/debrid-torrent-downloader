@@ -90,6 +90,9 @@ pub struct Job {
     pub source_key: String,
     pub torrent_id: Option<String>,
     pub remote_account: Option<String>,
+    /// A job created directly from a cloud item, without a source to upload again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cloud_kind: Option<CloudKind>,
     /// `None` keeps the all-files behavior of queues created before file selection existed.
     pub selected_file_ids: Option<Vec<i32>>,
     pub output_directory: Option<String>,
@@ -124,6 +127,7 @@ impl Job {
             source_key: source_key.to_string(),
             torrent_id: None,
             remote_account: None,
+            cloud_kind: None,
             selected_file_ids: None,
             output_directory: None,
             target_directory: None,
@@ -198,7 +202,7 @@ pub struct RemoteTorrent {
     pub seeders: Option<i64>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CloudKind {
     #[default]
@@ -327,6 +331,7 @@ pub struct Settings {
     pub independent_cloud_downloads: bool,
     pub remember_token: bool,
     pub library_import_paused: bool,
+    pub delete_cloud_on_library_remove: bool,
     /// Look for a newer GitHub release when the app starts.
     pub check_updates: bool,
     /// Services the last Library import used; offered first next time.
@@ -349,6 +354,7 @@ impl Default for Settings {
             independent_cloud_downloads: true,
             remember_token: true,
             library_import_paused: false,
+            delete_cloud_on_library_remove: true,
             check_updates: true,
             library_providers: Vec::new(),
             remember_library_providers: false,

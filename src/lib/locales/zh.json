@@ -1,4 +1,7 @@
 {
+  "Đã thêm {0} mục cloud vào hàng đợi.": "已将 {0} 个云端项目加入队列。",
+  "Tài khoản {0} đã thay đổi. Tải lại danh sách cloud rồi thử lại.": "{0} 账号已更改。请刷新云端列表后重试。",
+  "Mục cloud không còn trên {0}.": "此云端项目已不在 {0} 上。",
   "Tải song song độc lập giữa các cloud": "各云端独立并行下载",
   "Mỗi cloud tải tối đa {0} torrent cùng lúc. Ví dụ: {0} Real-Debrid và {0} TorBox.": "每个云端最多同时下载 {0} 个种子。例如：Real-Debrid {0} 个，TorBox {0} 个。",
   "Tất cả cloud dùng chung giới hạn {0} torrent cùng lúc.": "所有云端共用最多同时下载 {0} 个种子的总限制。",
@@ -528,5 +531,12 @@
   "Kiểu xem cloud": "云端视图",
   "Nhóm theo dịch vụ": "按服务分组",
   "Xem phẳng mọi mục": "平铺显示所有项目",
-  "Thư mục dịch vụ": "服务文件夹"
+  "Thư mục dịch vụ": "服务文件夹",
+  "Xóa trên cloud khi bỏ khỏi thư viện": "从资料库移除时同时删除云端副本",
+  "Áp dụng khi bỏ cả torrent hoặc bỏ hết các file của torrent. File trên máy được giữ lại.": "移除整个种子或其所有文件时生效。本地文件会保留。",
+  "Bỏ khỏi thư viện?": "从资料库移除？",
+  "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "同时删除这 {0} 个从资料库完整移除的种子的云端副本。相关下载将停止并移出队列。本地文件会保留。云端删除无法撤销。",
+  "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "从资料库移除 {0} 项，并删除可见种子的云端副本。相关下载将停止并移出队列。本地文件会保留。云端删除无法撤销。",
+  "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "正在将 {0} 添加到 {1}。请在任务获得云端 ID 后重试删除。",
+  "Không xác định được tài khoản cloud của torrent.": "无法确定此种子的云端账户。"
 }

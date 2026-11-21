@@ -67,6 +67,10 @@ pub trait Debrid: Send + Sync {
     async fn select_files(&self, id: &str, file_ids: &[i32]) -> Result<()>;
     async fn unrestrict(&self, link: &str) -> Result<Unrestricted>;
     async fn delete(&self, id: &str) -> Result<()>;
+    async fn cloud_info(&self, kind: CloudKind, id: &str) -> Result<TorrentInfo> {
+        if kind == CloudKind::Torrent { self.info(id).await }
+        else { Err(crate::error::Error::invalid("Unsupported cloud download type.")) }
+    }
     async fn cloud_list(&self, kind: CloudKind) -> Result<Vec<RemoteTorrent>> {
         if kind == CloudKind::Torrent { self.list().await }
         else { Err(crate::error::Error::invalid("Unsupported cloud download type.")) }

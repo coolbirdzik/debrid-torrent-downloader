@@ -82,6 +82,14 @@
       <TorBoxAccount />
 
       <div class="card block">
+        <h2 class="section">{t('Thư viện')}</h2>
+        <label class="check">
+          <input type="checkbox" checked={app.settings.deleteCloudOnLibraryRemove} onchange={(e) => app.setSettings({ deleteCloudOnLibraryRemove: e.currentTarget.checked })} />{t('Xóa trên cloud khi bỏ khỏi thư viện')}
+        </label>
+        <p class="caption">{t('Áp dụng khi bỏ cả torrent hoặc bỏ hết các file của torrent. File trên máy được giữ lại.')}</p>
+      </div>
+
+      <div class="card block">
         <h2 class="section">{t('Thư mục tải xuống')}</h2>
         <div class="pair">
           <input type="text" bind:value={folder} aria-label={t('Thư mục lưu')} onchange={() => app.setSettings({ outputDirectory: folder })} />

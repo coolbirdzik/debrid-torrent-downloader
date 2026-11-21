@@ -37,6 +37,7 @@ export interface Job {
   sourceKey: string;
   torrentId: string | null;
   remoteAccount: string | null;
+  cloudKind?: CloudKind;
   selectedFileIds: number[] | null;
   outputDirectory: string | null;
   /** Folder chosen when the job was queued; `null` means the Settings folder. */
@@ -107,6 +108,7 @@ export interface Settings {
   independentCloudDownloads: boolean;
   rememberToken: boolean;
   libraryImportPaused: boolean;
+  deleteCloudOnLibraryRemove: boolean;
   checkUpdates: boolean;
   /** Services the last Library import used. */
   libraryProviders: Provider[];
@@ -212,6 +214,13 @@ export interface LibraryPatch {
   sourceKey: string;
   excludedFileIds: number[];
   isHidden: boolean;
+}
+
+export interface LibraryRemoval {
+  undo: LibraryPatch[];
+  errors: Msg[];
+  deletedCloud: boolean;
+  purged: LibraryPatch[];
 }
 
 export const canRetry = (job: Job) => !job.isRemoving && !job.isActive && !job.isStopping && job.state === 'failed';

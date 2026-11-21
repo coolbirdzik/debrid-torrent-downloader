@@ -228,22 +228,40 @@ impl Engine {
         self.inspect_with_progress(torrent_id, ct, |_| {}).await
     }
 
+    /// Read the current cloud state once so a pending torrent does not hold up a batch import.
+    pub async fn inspect_once(&self, torrent_id: &str, ct: &CancellationToken, progress: impl Fn(&TorrentInfo) + Send + Sync) -> Result<TorrentInfo> {
+        guard(ct, self.inspect_status(torrent_id, &progress)).await
+    }
+
+    async fn inspect_status(&self, torrent_id: &str, progress: &(impl Fn(&TorrentInfo) + Send + Sync)) -> Result<TorrentInfo> {
+        let info = self.api.info(torrent_id).await?;
+        progress(&info);
+        if failed_status(&info.status) {
+            return Err(Error::operation("Torrent không tải được trên {0}: {1}", &[&self.api.provider().label(), &info.status]));
+        }
+        Ok(info)
+    }
+
     /// Forward each provider snapshot while waiting for metadata, so pending Library rows can show live progress.
     pub async fn inspect_with_progress(&self, torrent_id: &str, ct: &CancellationToken, progress: impl Fn(&TorrentInfo) + Send + Sync) -> Result<TorrentInfo> {
-        let work = async {
-            loop {
-                let info = self.api.info(torrent_id).await?;
-                progress(&info);
-                if failed_status(&info.status) {
-                    return Err(Error::operation("Torrent không tải được trên {0}: {1}", &[&self.api.provider().label(), &info.status]));
+        guard(ct, async {
+            let mut waiting_for_files = false;
+            let work = async {
+                loop {
+                    let info = self.inspect_status(torrent_id, &progress).await?;
+                    if !info.files.is_empty() {
+                        return Ok(info);
+                    }
+                    waiting_for_files = true;
+                    tokio::time::sleep(self.timing.inspect_poll).await;
                 }
-                if !info.files.is_empty() {
-                    return Ok(info);
-                }
-                tokio::time::sleep(self.timing.inspect_poll).await;
+            };
+            match tokio::time::timeout(std::time::Duration::from_secs(180), work).await {
+                Ok(result) => result,
+                Err(_) if waiting_for_files => Err(Error::MetadataPending),
+                Err(_) => Err(Error::Timeout),
             }
-        };
-        guard(ct, async { tokio::time::timeout(std::time::Duration::from_secs(180), work).await.map_err(|_| Error::Timeout)? }).await
+        }).await
     }
 
     pub fn session(self: &Arc<Self>, root: PathBuf, concurrency: usize, flatten: bool) -> Arc<Session> {
@@ -317,6 +335,9 @@ impl Engine {
         // A folder chosen when the job was queued replaces the session-wide download folder for this job.
         let target = job.target_directory.as_deref().map(str::trim).filter(|dir| !dir.is_empty()).map(PathBuf::from);
         let root = target.as_deref().unwrap_or(root);
+        if !root.is_absolute() {
+            return Err(Error::Operation(Msg::plain("Chọn một đường dẫn lưu đầy đủ.")));
+        }
         let label = self.api.provider().label();
         if job.provider != self.api.provider() {
             return Err(Error::operation("Chọn dịch vụ {0} để tiếp tục torrent này.", &[&job.provider.label()]));
@@ -338,6 +359,7 @@ impl Engine {
         let mut stored_id = job.torrent_id.is_some();
         let mut torrent_id = match job.torrent_id.clone() {
             Some(existing) => existing,
+            None if job.cloud_kind.is_some() => return Err(Error::operation("Mục cloud không còn trên {0}.", &[&label])),
             None => self.add_for_job(id, &job.source, ct).await?,
         };
 
@@ -348,7 +370,10 @@ impl Engine {
                 return Err(Error::Cancelled);
             }
             let first_look = std::mem::take(&mut stored_id);
-            let info = match guard(ct, self.api.info(&torrent_id)).await {
+            let info = match guard(ct, self.api.cloud_info(job.cloud_kind.unwrap_or_default(), &torrent_id)).await {
+                Err(error) if job.cloud_kind.is_some() && error.is_gone() => {
+                    return Err(Error::operation("Mục cloud không còn trên {0}.", &[&label]));
+                }
                 // The torrent was removed from the service since the last run (Retry after "no longer on the service"):
                 // add the source again instead of failing. Rows, partial files and the file selection are kept, and the
                 // links of the new torrent are matched back to the rows below.
@@ -393,7 +418,7 @@ impl Engine {
                 selected = true;
                 self.set(id, JobState::Waiting, Msg::plain("Đã chọn file · chờ dịch vụ…"));
             } else if info.status == "downloaded" {
-                if selected_ids.is_none() && info.files.iter().any(|f| f.selected != 1) {
+                if job.cloud_kind.is_none() && selected_ids.is_none() && info.files.iter().any(|f| f.selected != 1) {
                     return Err(Error::Operation(Msg::plain(
                         "Torrent trên tài khoản chỉ chọn một phần file. Hãy thêm lại torrent trên dịch vụ với toàn bộ file được chọn.",
                     )));
@@ -591,9 +616,8 @@ impl Engine {
             None => {
                 // RD can return split archives instead of one link per file. Keep torrent directories only when every
                 // selected file maps to one link.
-                let source_path = &source_files[index].path;
-                let relative = if flatten_files != Some(true) && source_files.len() == info.links.len() && basename(source_path).eq_ignore_ascii_case(&resolved.filename) {
-                    paths::relative(source_path)?
+                let relative = if flatten_files != Some(true) && source_files.len() == info.links.len() && basename(&source_files[index].path).eq_ignore_ascii_case(&resolved.filename) {
+                    paths::relative(&source_files[index].path)?
                 } else {
                     paths::segment(&basename(&resolved.filename))
                 };

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { getCurrentWebview } from '@tauri-apps/api/webview';
   import { onMount } from 'svelte';
+  import { toMsg } from '$lib/api';
+  import type { Msg } from '$lib/types';
   import { app } from '$lib/app.svelte';
   import { library } from '$lib/library.svelte';
   import { t, tm } from '$lib/i18n.svelte';
@@ -18,10 +20,17 @@
   }
 
   const filesDone = $derived(app.jobs.reduce((sum, job) => sum + job.files.filter((file) => file.completed).length, 0));
+  let startupError = $state<Msg | null>(null);
+  $effect(() => {
+    if (app.ready || startupError) document.getElementById('startup')?.remove();
+  });
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
-    app.init().catch((error) => app.toast({ key: String(error?.key ?? error), args: [] }, 'error'));
+    app.init().catch((error) => {
+      if (app.ready) app.toast(toMsg(error), 'error');
+      else startupError = toMsg(error);
+    });
     // Dropping .torrent files anywhere fills the Library input, which only lives on the Library page.
     getCurrentWebview()
       .onDragDropEvent((event) => {
@@ -56,9 +65,15 @@
     </footer>
   </div>
   <Overlays />
+{:else if startupError}
+  <div class="startup-error">
+    <p role="alert">{tm(startupError)}</p>
+    <button class="btn outline" onclick={() => window.location.reload()}>{t('Thử lại')}</button>
+  </div>
 {/if}
 
 <style>
+  .startup-error { height: 100vh; display: grid; place-content: center; justify-items: center; gap: 12px; }
   .shell { display: grid; grid-template-columns: 248px 1fr; grid-template-rows: 1fr 34px; height: 100vh; }
   aside { grid-row: 1; }
   main { grid-row: 1; padding: 24px 24px 0 8px; min-width: 0; min-height: 0; display: flex; flex-direction: column; }

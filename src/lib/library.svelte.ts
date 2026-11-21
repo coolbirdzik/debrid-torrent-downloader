@@ -1,10 +1,11 @@
 import { untrack } from 'svelte';
 import { api } from './api';
 import { app } from './app.svelte';
+import { confirmAction } from './confirm.svelte';
 import { askDestination } from './destination.svelte';
 import { activeDrafts, buildEntries, downloadedRemoval, draftId, isStatusDone, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
 import { chooseProviders } from './providers.svelte';
-import { PROVIDERS, type LibraryPatch, type Provider } from './types';
+import { PROVIDERS, type Draft, type Job, type LibraryPatch, type Provider } from './types';
 import { emptySelection, selectAll, selectItem, selectionKey } from './selection';
 
 /** Distinct magnets, links and .torrent paths in the add box. */
@@ -14,6 +15,13 @@ export function countSources(text: string): number {
 }
 
 const HOME: Location = { draft: null, path: '', flat: false };
+
+export interface CloudView {
+  label: string;
+  progress: number | null;
+  tone: 'busy' | 'ready' | 'warn' | 'idle';
+  speed?: number | null;
+}
 
 class LibraryState {
   location = $state<Location>({ ...HOME });
@@ -53,16 +61,49 @@ class LibraryState {
     this.queueSignature;
     return remainingCount(app.library, this.source, untrack(() => app.jobs));
   });
-  /** Remote progress of queued torrents still being fetched by their service, per Library torrent. */
-  jobCloud = $derived.by(() => {
-    const map = new Map<string, number>();
+  /** Queue jobs take ownership of a draft's remote torrent when files are queued. */
+  private cloudJobs = $derived.by(() => {
+    const map = new Map<string, Job[]>();
     for (const job of app.jobs) {
-      if (job.state !== 'adding' && job.state !== 'waiting') continue;
+      if (!job.torrentId) continue;
       const id = draftId(job);
-      map.set(id, Math.max(map.get(id) ?? 0, job.remoteProgress));
+      const jobs = map.get(id);
+      if (jobs) jobs.push(job);
+      else map.set(id, [job]);
     }
     return map;
   });
+
+  cloudView(draft: Draft, fileId?: number): CloudView | undefined {
+    const cloud = app.cloudOf(draft);
+    if (!cloud) {
+      if (draft.torrentId) return;
+      const jobs = this.cloudJobs.get(draftId(draft))?.filter(job =>
+        fileId === undefined || job.selectedFileIds === null || job.selectedFileIds.includes(fileId));
+      if (!jobs?.length) return;
+      const waiting = jobs.filter(job => job.state === 'adding' || job.state === 'waiting');
+      if (waiting.length) {
+        const progress = waiting.reduce((highest, job) => Math.max(highest, job.remoteProgress), 0);
+        return { label: 'Dịch vụ đang tải', progress: Math.min(100, progress), tone: 'busy' };
+      }
+      if (jobs.some(job => job.state === 'downloading' || job.state === 'completed'))
+        return { label: 'Sẵn sàng', progress: 100, tone: 'ready' };
+      return;
+    }
+    const progress = Number.isFinite(cloud.progress) ? Math.max(0, Math.min(100, cloud.progress)) : null;
+    switch (cloud.status) {
+      case 'downloaded': return { label: 'Sẵn sàng', progress: 100, tone: 'ready' };
+      case 'waiting_files_selection': return { label: 'Chờ chọn file', progress: null, tone: 'idle' };
+      case 'missing': return { label: 'Không còn trên dịch vụ', progress: null, tone: 'warn' };
+      case 'magnet_error': case 'error': case 'virus': case 'dead':
+        return { label: 'Lỗi trên dịch vụ', progress: null, tone: 'warn' };
+      case 'queued': return { label: 'Đang xếp hàng trên dịch vụ', progress, tone: 'busy' };
+      case 'magnet_conversion': return { label: 'Đang lấy metadata', progress, tone: 'busy' };
+      case 'compressing': return { label: 'Đang đóng gói', progress, tone: 'busy' };
+      case 'uploading': return { label: 'Đang chuẩn bị link', progress, tone: 'busy' };
+      default: return { label: cloud.status === 'downloading' ? 'Dịch vụ đang tải' : cloud.status, progress, speed: cloud.speed, tone: 'busy' };
+    }
+  }
 
   /** Prefer the service whose cloud copy is furthest along when the same file is on several services. */
   private rank: Rank = (draft) => {
@@ -70,7 +111,7 @@ class LibraryState {
     if (!cloud) return draft.torrentId ? 0 : -1;
     return cloud.status === 'downloaded' ? 1000 : cloud.progress;
   };
-  canQueue = $derived(!this.queueing && this.selectedEntries.some((entry) => entry.kind === 'file' || entry.fileCount > 0));
+  canQueue = $derived(!this.queueing && !this.clearing && this.selectedEntries.some((entry) => entry.kind === 'file' || entry.fileCount > 0));
   selectedBytes = $derived(this.selectedEntries.reduce((sum, entry) => sum + entry.size, 0));
   pendingCount = $derived(this.drafts.filter((d) => d.files.length === 0).length);
   /** Import is shared across services even when the browser is filtered to only one. */
@@ -227,25 +268,13 @@ class LibraryState {
 
   async removeSelected() {
     this.flush();
-    if (this.selectedEntries.length === 0) return;
-    const { apply, undo } = removalPatches(this.selectedEntries);
-    this.undoStack = [...this.undoStack, undo];
-    this.clearSelection();
-    await app.run(() => api.libraryUpdate(apply));
+    await this.removeEntries(this.selectedEntries);
   }
 
-  /** Removes every finished file from the Library (the files on disk are kept); one Ctrl+Z restores them all. */
   async removeDownloaded() {
     this.flush();
     const { entries } = this.downloaded;
-    if (entries.length === 0) return;
-    const { apply, undo } = removalPatches(entries);
-    this.undoStack = [...this.undoStack, undo];
-    this.clearSelection();
-    // A torrent hidden while it is open would leave the browser pointing at a torrent that no longer exists.
-    const hidden = new Set(entries.filter((e) => e.kind === 'folder').map((e) => draftId(e.draft)));
-    if (this.location.draft && hidden.has(this.location.draft)) this.navigate({ ...HOME });
-    await app.run(() => api.libraryUpdate(apply));
+    await this.removeEntries(entries, true);
   }
 
   async removeFolder() {
@@ -253,13 +282,49 @@ class LibraryState {
     const target = this.drafts.find((d) => `${d.provider}|${d.sourceKey.toLowerCase()}` === draft);
     if (!target) return;
     const entry = { kind: 'folder', draft: target, folderPath: this.location.path } as Entry;
-    const { apply, undo } = removalPatches([entry]);
-    this.undoStack = [...this.undoStack, undo];
-    this.navigate(this.location.path ? { draft, path: this.location.path.split('/').slice(0, -1).join('/'), flat: false } : HOME);
-    await app.run(() => api.libraryUpdate(apply));
+    const location = this.location;
+    if (await this.removeEntries([entry]) && this.location === location)
+      this.navigate(location.path ? { draft, path: location.path.split('/').slice(0, -1).join('/'), flat: false } : HOME);
+  }
+
+  private async removeEntries(entries: Entry[], downloaded = false) {
+    if (!entries.length || this.clearing || this.queueing) return false;
+    this.clearing = true;
+    try {
+      const { apply } = removalPatches(entries);
+      const deleteCloud = app.settings.deleteCloudOnLibraryRemove;
+      const drafts = new Map(entries.map(entry => [draftId(entry.draft), entry.draft]));
+      const cloudCount = deleteCloud ? apply.filter(patch => {
+        const draft = drafts.get(draftId(patch))!;
+        const excluded = new Set(patch.excludedFileIds);
+        return patch.isHidden || (draft.files.length > 0 && draft.files.every(file => excluded.has(file.id)));
+      }).length : 0;
+      if (cloudCount || downloaded) {
+        const confirmed = await confirmAction({
+          title: { key: downloaded ? 'Bỏ các file đã tải xong?' : 'Bỏ khỏi thư viện?', args: [] },
+          body: cloudCount
+            ? { key: 'Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.', args: [String(cloudCount)] }
+            : { key: 'Bỏ {0} file đã tải xong khỏi thư viện. Giữ file trên máy, hàng đợi và dữ liệu cloud. Có thể hoàn tác bằng Ctrl+Z.', args: [String(this.downloaded.files)] },
+          confirm: { key: 'Bỏ khỏi thư viện', args: [] },
+          danger: true
+        });
+        if (!confirmed) return false;
+      }
+      const result = await app.run(() => api.libraryRemove(apply, deleteCloud));
+      if (!result) return false;
+      if (result.deletedCloud) this.undoStack = [];
+      if (result.undo.length) this.undoStack = [...this.undoStack, result.undo];
+      result.errors.forEach(error => app.toast(error, 'error'));
+      this.clearSelection();
+      if (this.location.draft && !this.drafts.some(draft => draftId(draft) === this.location.draft)) this.navigate({ ...HOME });
+      return result.errors.length === 0;
+    } finally {
+      this.clearing = false;
+    }
   }
 
   async undo() {
+    if (this.clearing) return;
     const patches = this.undoStack.at(-1);
     if (!patches) return;
     this.undoStack = this.undoStack.slice(0, -1);
@@ -267,7 +332,7 @@ class LibraryState {
   }
 
   async queueSelected() {
-    if (this.queueing) return;
+    if (this.queueing || this.clearing) return;
     this.queueing = true;
     try {
       this.flush();
@@ -296,7 +361,7 @@ class LibraryState {
   }
 
   async queueRemaining() {
-    if (this.queueing) return;
+    if (this.queueing || this.clearing) return;
     this.queueing = true;
     try {
       this.flush();
@@ -344,12 +409,37 @@ class LibraryState {
   }
 
   async newBatch() {
-    if (this.clearing) return;
+    if (this.clearing || this.queueing) return;
     this.clearing = true;
     try {
-      const cleared = await app.run(async () => { await api.libraryReset(); return true; });
-      if (!cleared) return;
-      app.clearLibraryView();
+      const deleteCloud = app.settings.deleteCloudOnLibraryRemove;
+      const patches = app.library.map(draft => ({
+        provider: draft.provider, sourceKey: draft.sourceKey, excludedFileIds: draft.excludedFileIds, isHidden: true
+      }));
+      const confirmed = await confirmAction({
+        title: { key: 'Xóa toàn bộ thư viện?', args: [] },
+        body: {
+          key: deleteCloud
+            ? 'Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.'
+            : 'Xóa {0} mục khỏi thư viện của tất cả nhà cung cấp, kể cả mục đang chờ đọc. Giữ hàng đợi, file trên máy và dữ liệu cloud.',
+          args: [String(patches.length)]
+        },
+        confirm: { key: 'Xóa toàn bộ thư viện', args: [] },
+        danger: true
+      });
+      if (!confirmed) return;
+      if (deleteCloud) {
+        const result = await app.run(() => api.libraryRemove(patches, true, true));
+        if (!result) return;
+        app.forgetLibraryDrafts(result.purged);
+        if (result.deletedCloud || result.purged.length) this.undoStack = [];
+        result.errors.forEach(error => app.toast(error, 'error'));
+        if (result.errors.length) return;
+      } else {
+        const cleared = await app.run(async () => { await api.libraryReset(); return true; });
+        if (!cleared) return;
+        app.clearLibraryView();
+      }
       this.input = '';
       this.source = 'all';
       this.resetNavigation();
@@ -359,6 +449,7 @@ class LibraryState {
   }
 
   async add() {
+    if (this.clearing) return;
     const text = this.input;
     if (!text.trim()) return;
     const { settings } = app;
