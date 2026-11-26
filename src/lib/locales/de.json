@@ -538,5 +538,19 @@
   "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Cloud-Kopien der {0} vollständig aus der Bibliothek entfernten Torrents löschen. Zugehörige Downloads werden gestoppt und aus der Warteschlange entfernt. Lokale Dateien bleiben erhalten. Das Löschen in der Cloud kann nicht rückgängig gemacht werden.",
   "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "{0} Elemente aus der Bibliothek entfernen und Cloud-Kopien sichtbarer Torrents löschen. Zugehörige Downloads werden gestoppt und aus der Warteschlange entfernt. Lokale Dateien bleiben erhalten. Das Löschen in der Cloud kann nicht rückgängig gemacht werden.",
   "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "{0} wird gerade zu {1} hinzugefügt. Erneut versuchen, sobald eine Cloud-ID vorhanden ist.",
-  "Không xác định được tài khoản cloud của torrent.": "Das Cloud-Konto dieses Torrents ist unbekannt."
+  "Không xác định được tài khoản cloud của torrent.": "Das Cloud-Konto dieses Torrents ist unbekannt.",
+  "Thử lại import ({0})": "Import wiederholen ({0})",
+  "Thử lại import torrent này ngay": "Import dieses Torrents jetzt wiederholen",
+  "Thử lại import": "Import wiederholen",
+  "Thử lại import các torrent bị lỗi đã chọn": "Import der ausgewählten fehlgeschlagenen Torrents wiederholen",
+  "Lưu làm thư mục tải về mặc định": "Als Standard-Downloadordner speichern",
+  "{0} file đã tải về máy. Bấm Force download để tải lại thành file mới.": "{0} Dateien sind bereits heruntergeladen. Klicke auf Force download, um sie erneut als neue Dateien herunterzuladen.",
+  "Bỏ qua {0} file đã tải về máy. Bấm Force download để tải cả các file này thành file mới.": "{0} bereits heruntergeladene Dateien werden übersprungen. Klicke auf Force download, um auch diese erneut als neue Dateien herunterzuladen.",
+  "Tải lại cả file đã có trên máy; bản mới được lưu thành file khác, không ghi đè.": "Auch Dateien erneut herunterladen, die schon auf diesem Computer sind; die neuen Kopien werden als eigene Dateien gespeichert, nichts wird überschrieben.",
+  "Đang thử lại import {0} torrent.": "Import von {0} Torrents wird wiederholt.",
+  "Bỏ qua {0} file đã tải về máy.": "{0} bereits heruntergeladene Dateien übersprungen.",
+  "{0} đang xếp hàng torrent này · chờ lượt tải đồng thời…": "{0} hat diesen Torrent in die Warteschlange gestellt · warte auf einen freien aktiven Slot…",
+  "{0} đang giữ torrent trong hàng chờ vì tài khoản hết lượt tải đồng thời. App sẽ tự kiểm tra lại.": "{0} hält den Torrent in seiner Warteschlange, weil das Konto keinen freien aktiven Download-Slot hat. Die App prüft automatisch erneut.",
+  "Tiến độ dịch vụ tải về cloud": "Download des Dienstes in seine Cloud",
+  "{0}/{1} đã tải": "{0}/{1} geladen"
 }

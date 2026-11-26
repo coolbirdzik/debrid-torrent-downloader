@@ -16,6 +16,10 @@ pub enum Error {
     MetadataPending,
     #[error("{0}")]
     InvalidData(String),
+    /// The service accepted the torrent into its own waiting list (no free active slot) instead of adding it, so there
+    /// is no torrent ID yet. Never replayed automatically: adding again only reports it as already queued.
+    #[error("queued by the service")]
+    Queued(Provider),
     /// A user-facing, already localizable failure (the C# InvalidOperationException).
     #[error("{}", .0.render())]
     Operation(Msg),
@@ -61,6 +65,9 @@ impl Error {
             Error::Network(_) => Msg::plain("Lỗi kết nối hoặc link tải không khả dụng. Bấm Thử lại để tiếp tục."),
             Error::Timeout => Msg::plain("Kết nối quá thời gian chờ. Bấm Thử lại để tiếp tục."),
             Error::Operation(message) => message.clone(),
+            Error::Queued(provider) => {
+                Msg::new("{0} đang giữ torrent trong hàng chờ vì tài khoản hết lượt tải đồng thời. App sẽ tự kiểm tra lại.", &[&provider.label()])
+            }
             other => Msg::plain(&other.to_string()),
         }
     }

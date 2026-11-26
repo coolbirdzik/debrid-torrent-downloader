@@ -283,3 +283,54 @@ async fn torrent_upload_sends_the_raw_bytes_and_the_token_only_to_the_api() {
     let id = client(Provider::RealDebrid, &server, "secret-token").add_torrent(bytes).await.unwrap();
     assert_eq!(id, "UP1");
 }
+
+#[tokio::test]
+async fn torbox_reports_a_torrent_it_queued_instead_of_added_and_keeps_other_diff_issues_as_errors() {
+    let magnet = "magnet:?xt=urn:btih:EAFB312774E83343993FAD09E12A6196DBC17D37";
+    for (status, body, queued) in [
+        (200, json!({"success":true,"detail":"Torrent queued successfully.","data":{"hash":"eafb","name":"x","queued_id":5}}), true),
+        (400, json!({"success":false,"error":"DIFF_ISSUE","detail":"Download already queued.","data":null}), true),
+        (400, json!({"success":false,"error":"DIFF_ISSUE","detail":"You have reached the maximum queued downloads limit of 1000.","data":null}), false),
+    ] {
+        let server = MockServer::start().await;
+        Mock::given(method("POST")).and(path("/v1/api/torrents/createtorrent"))
+            .respond_with(ResponseTemplate::new(status).set_body_json(body)).expect(1).mount(&server).await;
+        let result = client(Provider::TorBox, &server, "secret").add_magnet(magnet).await;
+        match result {
+            Err(Error::Queued(Provider::TorBox)) => assert!(queued),
+            Err(Error::Api { code, .. }) => assert!(!queued && code == "DIFF_ISSUE"),
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn torbox_finds_a_queued_torrent_by_hash_without_adding_it_again() {
+    use rdbatch_core::provider::QueuedState;
+    let hash = "eafb312774e83343993fad09e12a6196dbc17d37";
+    let server = MockServer::start().await;
+    Mock::given(method("POST")).and(path("/v1/api/torrents/createtorrent")).respond_with(ResponseTemplate::new(500)).expect(0).mount(&server).await;
+    let queued = Mock::given(method("GET")).and(path("/v1/api/queued/getqueued")).and(query_param("type", "torrent"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":[{"id":5,"hash":hash,"name":"x"}]}))).mount_as_scoped(&server).await;
+    let api = client(Provider::TorBox, &server, "secret");
+    assert_eq!(api.queued_state(&hash.to_uppercase()).await.unwrap(), QueuedState::Waiting);
+    drop(queued);
+
+    // A drained queue answers 404 ITEM_NOT_FOUND with success true: an empty list, not a failure.
+    Mock::given(method("GET")).and(path("/v1/api/queued/getqueued"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"success":true,"error":"ITEM_NOT_FOUND","detail":"No queued downloads found for this user of this type.","data":null}))).mount(&server).await;
+    let started = Mock::given(method("GET")).and(path("/v1/api/torrents/mylist"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"data":[{"id":7,"hash":"other"},{"id":42,"hash":hash}]}))).mount_as_scoped(&server).await;
+    assert_eq!(api.queued_state(hash).await.unwrap(), QueuedState::Started("42".into()));
+    drop(started);
+
+    let empty = Mock::given(method("GET")).and(path("/v1/api/torrents/mylist"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"success":true,"error":"ITEM_NOT_FOUND","detail":"No torrents found.","data":null}))).mount_as_scoped(&server).await;
+    assert_eq!(api.queued_state(hash).await.unwrap(), QueuedState::Missing);
+    drop(empty);
+
+    // Any other failure stays an error, so a broken endpoint never looks like "add it again".
+    Mock::given(method("GET")).and(path("/v1/api/torrents/mylist"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"success":false,"error":"ENDPOINT_NOT_FOUND","detail":"Endpoint not found.","data":null}))).mount(&server).await;
+    assert!(api.queued_state(hash).await.is_err());
+}

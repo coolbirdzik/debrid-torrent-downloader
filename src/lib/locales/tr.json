@@ -538,5 +538,19 @@
   "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Kitaplıktan tamamen kaldırılan {0} torrentin bulut kopyalarını sil. İlgili indirmeler durdurulup kuyruktan kaldırılır. Yerel dosyalar korunur. Buluttan silme geri alınamaz.",
   "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Kitaplıktan {0} öğeyi kaldır ve görünen torrentlerin bulut kopyalarını sil. İlgili indirmeler durdurulup kuyruktan kaldırılır. Yerel dosyalar korunur. Buluttan silme geri alınamaz.",
   "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "{0}, {1} hizmetine ekleniyor. Göreve bir bulut kimliği atandığında silmeyi tekrar dene.",
-  "Không xác định được tài khoản cloud của torrent.": "Bu torrentin bulut hesabı bilinmiyor."
+  "Không xác định được tài khoản cloud của torrent.": "Bu torrentin bulut hesabı bilinmiyor.",
+  "Thử lại import ({0})": "İçe aktarmayı yeniden dene ({0})",
+  "Thử lại import torrent này ngay": "Bu torrentin içe aktarımını şimdi yeniden dene",
+  "Thử lại import": "İçe aktarmayı yeniden dene",
+  "Thử lại import các torrent bị lỗi đã chọn": "Seçili hatalı torrentlerin içe aktarımını yeniden dene",
+  "Lưu làm thư mục tải về mặc định": "Varsayılan indirme klasörü olarak kaydet",
+  "{0} file đã tải về máy. Bấm Force download để tải lại thành file mới.": "{0} dosya zaten indirildi. Yeni dosya olarak yeniden indirmek için Force download'a tıklayın.",
+  "Bỏ qua {0} file đã tải về máy. Bấm Force download để tải cả các file này thành file mới.": "Zaten indirilmiş {0} dosya atlanıyor. Bunları da yeni dosya olarak yeniden indirmek için Force download'a tıklayın.",
+  "Tải lại cả file đã có trên máy; bản mới được lưu thành file khác, không ghi đè.": "Bu bilgisayarda zaten olan dosyaları da yeniden indir; yeni kopyalar ayrı dosya olarak kaydedilir, hiçbir şeyin üzerine yazılmaz.",
+  "Đang thử lại import {0} torrent.": "{0} torrentin içe aktarımı yeniden deneniyor.",
+  "Bỏ qua {0} file đã tải về máy.": "Zaten indirilmiş {0} dosya atlandı.",
+  "{0} đang xếp hàng torrent này · chờ lượt tải đồng thời…": "{0} bu torrenti sıraya aldı · boş bir etkin yuva bekleniyor…",
+  "{0} đang giữ torrent trong hàng chờ vì tài khoản hết lượt tải đồng thời. App sẽ tự kiểm tra lại.": "Hesapta boş etkin indirme yuvası olmadığı için {0} torrenti kendi sırasında tutuyor. Uygulama otomatik olarak yeniden kontrol edecek.",
+  "Tiến độ dịch vụ tải về cloud": "Hizmetin buluta indirme ilerlemesi",
+  "{0}/{1} đã tải": "{0}/{1} indirildi"
 }

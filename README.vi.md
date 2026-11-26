@@ -61,11 +61,16 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 - **Thanh tiến độ import** hiện số đã xử lý và phần trăm của lượt đang chạy, kèm số đã đọc, còn chờ và lỗi trên tất
   cả dịch vụ. Có thể dừng import, thử lại mục còn chờ và xem trạng thái chờ tài khoản hoặc chờ thử lại. Mục pending
   được lưu qua lần khởi động lại và tự thử lại khi import không bị tạm dừng; bấm Thử lại để tiếp tục phần đã dừng.
-  Cột **Loại / Trạng thái** hiện phần trăm và thanh tiến độ riêng của từng torrent theo dữ liệu dịch vụ, cập nhật
-  cả lúc chờ metadata; khi chưa có số liệu, hiển thị trạng thái chờ. Chế độ lưới hiển thị tương tự.
+  Torrent import lỗi có **nút thử lại** ngay trên dòng; chọn nhiều torrent rồi bấm **Thử lại import** ở chân trang hoặc
+  menu chuột phải để thử lại cùng lúc. Torrent bị dịch vụ báo lỗi hẳn (ví dụ lỗi magnet) sẽ được thêm lại lên dịch vụ
+  thay vì đọc lại bản đã hỏng.
+  Cột **Trạng thái** hiện trạng thái trên máy của từng file và, bên dưới, thanh cho biết dịch vụ đã tải torrent về
+  cloud được bao nhiêu (xanh dương: đang tải, xanh lá: sẵn sàng, đỏ: lỗi, xám: đang chờ hoặc tạm dừng). Rê chuột để
+  xem chi tiết. Mục chờ import cho biết dịch vụ đang làm gì, ví dụ đang xếp hàng. Chế độ lưới hiển thị cùng thanh này.
 - Hai **badge riêng ở menu Thư viện**: số torrent chờ đọc metadata và số file mới chưa xem. Mở Thư viện sẽ xóa badge
   chưa xem; badge pending vẫn còn đến khi có danh sách file. Cùng một file trên nhiều dịch vụ chỉ tính một lần trong
-  badge file mới.
+  badge file mới. File đã đưa vào hàng đợi hoặc đã tải sẽ không còn nhãn **Mới**, và torrent không còn được tính là mới
+  khi mọi file của nó đã vào hàng đợi hoặc đã tải.
 - Mỗi file cho biết **đã tải xong, tải một phần hay đã có trong hàng đợi**, và giữ dấu đó kể cả khi xóa hàng đợi
   hay mở lại app.
 - Bỏ file hoặc thư mục khỏi thư viện mà không đụng tới ổ đĩa hay dịch vụ, có hoàn tác (Ctrl+Z).
@@ -121,6 +126,10 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
 
 - **Thêm file đã chọn, hoặc mọi file còn lại** trong thư viện vào hàng đợi chỉ với một cú bấm. Tải bắt đầu ngay.
   Thêm lại file đã có trong hàng đợi sẽ hiện toast cảnh báo số file trùng; chỉ thêm những file mới.
+- **File đã tải về máy được bỏ qua** theo mặc định, kể cả khi dòng hoàn tất của nó vẫn còn trong hàng đợi; nút
+  **Thêm tất cả còn lại** cũng bỏ qua các file này. Muốn tải lại, bấm **Force download** trong hộp chọn nơi lưu: file
+  được lưu thành file mới cạnh file cũ (ví dụ `name (2).mkv`), không ghi đè.
+- Hộp chọn nơi lưu có tùy chọn **lưu làm thư mục tải về mặc định**, không cần vào Cài đặt.
 - **Tải có resume** (`Range` + `If-Range`): dừng, tạm dừng hoặc tắt app, lần sau tải tiếp đúng từ byte đã dừng.
 - **Tự động thử lại:** rớt mạng, quá thời gian chờ hay link tải hết hạn đều được thử lại với thời gian chờ tăng dần
   và tải tiếp phần dở. Nút **Retry tất cả** dành cho những gì vẫn lỗi.
@@ -151,8 +160,9 @@ một mùa phim hay một loạt torrent nghĩa là phải thêm từng magnet t
    khoản dịch vụ đã chọn và đọc danh sách file. Theo dõi tiến độ import, thử lại hoặc dừng khi cần.
 3. **Duyệt và chọn.** Mặc định mục mới thêm lên đầu. Lọc theo nhà cung cấp, mở thư mục, tìm kiếm hoặc lọc video rồi
    chọn những file/thư mục cần tải. Nhấp đúp vào video để xem thử trước.
-4. **Tải về.** Bấm **Thêm vào hàng đợi**, chọn nơi lưu và xác nhận. Các tác vụ mới bắt đầu ngay; DebridDock chờ cloud
-   chuẩn bị xong, lấy link trực tiếp và tải file đã chọn về máy, có resume và tự thử lại.
+4. **Tải về.** Bấm **Thêm vào hàng đợi**, chọn nơi lưu (có thể lưu làm mặc định) và xác nhận. File đã tải sẽ được bỏ
+   qua trừ khi bấm **Force download**. Các tác vụ mới bắt đầu ngay; DebridDock chờ cloud chuẩn bị xong, lấy link trực
+   tiếp và tải file đã chọn về máy, có resume và tự thử lại.
 5. **Quản lý cloud.** Mở **Quản lý cloud** để xem và xóa mục trên các tài khoản dịch vụ.
 
 DebridDock không tự kết nối tới peer torrent nào: máy bạn chỉ tải qua HTTPS từ dịch vụ debrid.
@@ -239,8 +249,14 @@ tài khoản gốc và không tiếp tục bằng tài khoản khác.
 **Xóa tất cả cloud** áp dụng bộ lọc hiện tại của Quản lý cloud, gồm cả mục ngoài Thư viện. Cả hai đều giữ file trên máy.
 
 **Hai badge ở menu Thư viện có ý nghĩa gì?**
-Đồng hồ đếm torrent đang chờ danh sách file. Badge file có dấu cộng đếm file mới chưa xem và tự hết khi mở Thư viện.
-Cả hai tính trên mọi dịch vụ, không phụ thuộc bộ lọc Thư viện hiện tại.
+Đồng hồ đếm torrent đang chờ danh sách file. Badge file có dấu cộng đếm file mới chưa xem và tự hết khi mở Thư viện;
+torrent có mọi file đã vào hàng đợi hoặc đã tải thì không được tính. Cả hai tính trên mọi dịch vụ, không phụ thuộc
+bộ lọc Thư viện hiện tại.
+
+**Nếu thêm vào hàng đợi một file đã tải rồi thì sao?**
+File đó được bỏ qua và toast báo số file đã bỏ qua. Bấm **Force download** trong hộp chọn nơi lưu để tải lại thành
+một file riêng. Việc bỏ qua dựa vào dấu "đã tải" của Thư viện, nên sau khi xóa Thư viện, hoặc khi thêm từ Quản lý
+cloud, lần tải lặp lại sẽ được lưu thành file mới.
 
 **Dung lượng còn lại của TorBox là gì?**
 Đó là **dung lượng lưu trữ AirLock còn lại**, tính từ hạn mức và dung lượng đã dùng do TorBox trả về. Dữ liệu sử dụng

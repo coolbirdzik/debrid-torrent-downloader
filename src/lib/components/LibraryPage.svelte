@@ -39,13 +39,11 @@
   import CircleHalf from 'phosphor-svelte/lib/CircleHalf';
   import CircleDashed from 'phosphor-svelte/lib/CircleDashed';
   import Clock from 'phosphor-svelte/lib/Clock';
-  import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
   import TextAa from 'phosphor-svelte/lib/TextAa';
   import SortAscending from 'phosphor-svelte/lib/SortAscending';
   import SortDescending from 'phosphor-svelte/lib/SortDescending';
   import { app } from '../app.svelte';
-  import CloudArrowDown from 'phosphor-svelte/lib/CloudArrowDown';
-  import { breadcrumbs, draftId, formatBytes, isStatusDone, isStatusPartial, magnetOf, remoteOf, thumbRequest, type Entry, type HeaderSort, type SourceFilter } from '../browser';
+  import { breadcrumbs, draftId, formatBytes, isHandled, isStatusDone, isStatusPartial, magnetOf, remoteOf, thumbRequest, type Entry, type HeaderSort, type SourceFilter } from '../browser';
   import Thumb from './Thumb.svelte';
   import { PROVIDERS, providerLabel, type Settings } from '../types';
   import Select from './Select.svelte';
@@ -78,17 +76,33 @@
     if (entry.pending) {
       if (app.settings.libraryImportPaused) return t('Import đã tạm dừng');
       if (!app.usableProviders.includes(entry.draft.provider)) return t('Chờ kết nối tài khoản để import');
-      if (entry.draft.inspectionError && !library.cloudView(entry.draft)) return t('Chờ thử lại import');
-      return t('Chờ đọc');
+      const cloud = library.cloudView(entry.draft);
+      if (entry.draft.inspectionError && !cloud) return t('Chờ thử lại import');
+      // Say what the service is doing (queued, fetching metadata…) instead of a generic wait.
+      return cloud ? t(cloud.label) : t('Chờ đọc');
     }
+    if (entry.kind === 'folder') return t('{0}/{1} đã tải', entry.downloaded, entry.total);
+    return fullStatus(entry);
+  }
+
+  /** The long form, for tooltips: the row itself stays short. */
+  function fullStatus(entry: Entry): string {
+    if (entry.pending) return entry.draft.inspectionError ? tm(entry.draft.inspectionError) : statusLabel(entry);
     const state = isStatusDone(entry) ? t('Đã tải xong') : isStatusPartial(entry) ? t('Đã tải một phần') : t('Chưa tải');
     if (entry.kind === 'folder') return t('{0}/{1} file · {2}', entry.downloaded, entry.total, state);
     return !isStatusDone(entry) && !isStatusPartial(entry) && entry.queued ? t('Đã có trong hàng đợi') : state;
   }
 
-  const sizeLabel = (entry: Entry) => (entry.kind === 'folder' ? t('{0} file', entry.fileCount) : formatBytes(entry.size));
-  const kindLabel = (entry: Entry) => t(({ folder: 'Thư mục', video: 'Video', audio: 'Âm thanh', image: 'Hình ảnh', archive: 'Tệp nén', document: 'Tài liệu', other: 'File' })[entry.videoKind]);
-  const newlyImported = (entry: Entry) => app.imported.has(draftId(entry.draft));
+  /** A bar only when there is a number to show, or a real failure: a state without a percentage (Real-Debrid waiting
+   * for file selection) or a pending torrent the service has not started fetching would only draw an empty bar. */
+  const showsHostBar = (entry: Entry, view: CloudView | undefined): view is CloudView =>
+    !!view && (view.tone === 'warn' || (view.progress !== null && !(entry.pending && view.progress <= 0)));
+
+  // A torrent still being read has no file list yet: "0 files" would be wrong.
+  const sizeLabel = (entry: Entry) => (entry.pending ? '—' : entry.kind === 'folder' ? t('{0} file', entry.fileCount) : formatBytes(entry.size));
+  // Files already queued or downloaded are not New, even right after their torrent was imported.
+  const newlyImported = (entry: Entry) => app.imported.has(draftId(entry.draft)) && !isHandled(entry);
+  const canRetryImport = (entry: Entry) => entry.pending && library.isImportError(entry.draft) && app.usableProviders.includes(entry.draft.provider);
   const dateLabel = (entry: Entry) => (entry.addedAt ? new Date(entry.addedAt).toLocaleString(languageTag(app.settings.language), { dateStyle: 'short', timeStyle: 'short' }) : '—');
 
   async function paste() {
@@ -142,7 +156,7 @@
     { value: 'name', label: t('Theo tên'), short: t('Tên') }
   ]);
   const currentSort = $derived(sorts.find((s) => s.value === app.settings.browserSort) ?? sorts[0]);
-  const columnLabels = $derived({ name: t('Tên file'), source: t('Nguồn'), size: t('Dung lượng'), added: t('Ngày thêm'), status: t('Loại / Trạng thái') });
+  const columnLabels = $derived({ name: t('Tên file'), source: t('Nguồn'), size: t('Dung lượng'), added: t('Ngày thêm'), status: t('Trạng thái') });
   const sortShort = $derived(library.header ? columnLabels[library.header.column] : currentSort.short);
   let sortOpen = $state(false);
   let sortBox: HTMLDivElement | undefined = $state();
@@ -178,6 +192,9 @@
       ...(canPlay(entry) ? [{ label: t('Phát video'), icon: Play, weight: 'fill', action: () => play(entry) } as const] : []),
       'separator',
       { label: t('Thêm vào hàng đợi'), icon: DownloadSimple, disabled: !library.canQueue, action: () => library.queueSelected() },
+      ...(library.selectedImportErrors.length > 0
+        ? [{ label: t('Thử lại import ({0})', library.selectedImportErrors.length), icon: ArrowsClockwise, tone: 'blue', weight: 'bold', action: () => library.retryImport(library.selectedImportErrors) } as const]
+        : []),
       'separator',
       { label: t('Sao chép tên'), icon: TextAa, tone: 'teal', action: () => copyText(names.join('\n'), { key: 'Đã sao chép {0} tên.', args: [String(names.length)] }) },
       { label: t('Sao chép magnet link'), icon: Link, tone: 'purple', disabled: magnets.length === 0, action: () => copyText(magnets.join('\n'), { key: 'Đã sao chép {0} magnet link.', args: [String(magnets.length)] }) },
@@ -227,6 +244,12 @@
     const remote = remoteOf(entry, app.jobs);
     return remote && entry.file ? { ...remote, fileId: entry.file.id, title: entry.name, provider: entry.draft.provider } : null;
   }
+  const cloudDescription = (view: CloudView, entry: Entry) => [
+    t('Tiến độ dịch vụ tải về cloud'), providerLabel(entry.draft.provider), t(view.label),
+    view.progress === null ? '' : `${view.progress.toFixed(0)}%`, view.speed && view.tone === 'busy' ? `${formatBytes(view.speed)}/s` : ''
+  ].filter(Boolean).join(' · ');
+  // A failed cloud copy fills the bar in red; a state without a percentage (waiting for file selection) leaves it empty.
+  const hostWidth = (view: CloudView) => view.progress ?? (view.tone === 'warn' ? 100 : 0);
   const thumbOf = (entry: Entry) => thumbRequest(entry, app.jobs, app.cloudOf(entry.draft)?.status);
   const canPlay = (entry: Entry) => playSource(entry) !== null;
   function play(entry: Entry) {
@@ -262,18 +285,15 @@
   {:else}<File {size} weight="duotone" />{/if}
 {/snippet}
 
-{#snippet progressCell(view: CloudView, entry: Entry)}
-  {@const label = t(view.label)}
-  {@const value = view.progress === null ? '' : `${view.progress.toFixed(0)}%`}
-  {@const description = [providerLabel(entry.draft.provider), label, value, view.speed ? `${formatBytes(view.speed)}/s` : ''].filter(Boolean).join(' · ')}
-  <span class="status-cell" title={description}>
-    <span class="status-line">
-      <span class="caption cloud {view.tone}">{#if view.tone === 'warn'}<WarningCircle size={14} weight="duotone" />{:else}<CloudArrowDown size={14} weight="duotone" />{/if}<span class="ell">{label}</span></span>
-      {#if value}<b class="progress-value">{value}</b>{/if}
+<!-- How far the service has fetched the torrent into its own cloud. Services report it per torrent, so every file of
+     the torrent shows the same value. The color carries the state; the words are in the tooltip. -->
+{#snippet hostProgress(view: CloudView, entry: Entry)}
+  {@const description = cloudDescription(view, entry)}
+  <span class="host-progress {view.tone}" title={description}>
+    <span class="bar mini" role="progressbar" aria-label={`${entry.name} · ${description}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={view.progress ?? undefined}>
+      <span style:width="{hostWidth(view)}%"></span>
     </span>
-    {#if view.progress !== null && view.tone === 'busy'}
-      <span class="bar mini" role="progressbar" aria-label={`${entry.name} · ${description}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={view.progress}><span style:width="{view.progress}%"></span></span>
-    {/if}
+    <b class="progress-value">{view.progress === null ? '—' : `${view.progress.toFixed(0)}%`}</b>
   </span>
 {/snippet}
 
@@ -286,8 +306,14 @@
 {/snippet}
 
 {#snippet localStatus(entry: Entry)}
-  <span class="local-status" class:done={isStatusDone(entry)} class:partial={isStatusPartial(entry)} class:queued={entry.queued && !isStatusDone(entry) && !isStatusPartial(entry)} title={entry.pending && entry.draft.inspectionError ? tm(entry.draft.inspectionError) : statusLabel(entry)}>
+  <span class="local-status" class:done={isStatusDone(entry)} class:partial={isStatusPartial(entry)} class:queued={entry.queued && !isStatusDone(entry) && !isStatusPartial(entry)} title={fullStatus(entry)}>
     <span class="status-icon" aria-hidden="true">{@render statusIcon(entry)}</span><span class="ell">{statusLabel(entry)}</span>
+    {#if canRetryImport(entry)}
+      <button class="retry-import" disabled={library.retrying} title={t('Thử lại import torrent này ngay')} aria-label={t('Thử lại import')}
+        onmousedown={(e) => e.stopPropagation()} onclick={(e) => { e.stopPropagation(); void library.retryImport([entry.draft]); }} ondblclick={(e) => e.stopPropagation()}>
+        <ArrowsClockwise size={13} weight="bold" />
+      </button>
+    {/if}
   </span>
 {/snippet}
 
@@ -422,9 +448,7 @@
               </div>
               <div class="tile-name"><b>{entry.name}</b></div>
               <span class="caption">{sizeLabel(entry)}</span>
-              {#if cloud}
-                {@render progressCell(cloud, entry)}
-              {/if}
+              {#if showsHostBar(entry, cloud)}{@render hostProgress(cloud, entry)}{/if}
               {@render localStatus(entry)}
             </div>
           {/snippet}
@@ -449,13 +473,12 @@
               </div>
               <div class="source">
                 <span class="tag">{providerLabel(entry.draft.provider)}</span>
-                {#if cloud}{@render progressCell(cloud, entry)}{/if}
               </div>
               <span>{sizeLabel(entry)}</span>
               <span class="caption">{dateLabel(entry)}</span>
               <div class="type-status">
                 {@render localStatus(entry)}
-                <span class="file-kind"><span class="kind-{entry.videoKind}" aria-hidden="true">{@render kindIcon(entry, 12)}</span>{kindLabel(entry)}</span>
+                {#if showsHostBar(entry, cloud)}{@render hostProgress(cloud, entry)}{/if}
               </div>
             </div>
           {/snippet}
@@ -469,6 +492,9 @@
         <span class="caption">{t('{0} thư mục · {1} file · {2}', library.entries.filter((e) => e.kind === 'folder').length, library.entries.filter((e) => e.kind === 'file').length, formatBytes(library.entries.reduce((s, e) => s + e.size, 0)))}</span>
       </div>
       <div class="actions">
+        {#if library.selectedImportErrors.length > 0}
+          <button class="btn" disabled={library.retrying} onclick={() => library.retryImport(library.selectedImportErrors)} title={t('Thử lại import các torrent bị lỗi đã chọn')}><span class="ic blue"><ArrowsClockwise size={16} weight="bold" /></span>{t('Thử lại import ({0})', library.selectedImportErrors.length)}</button>
+        {/if}
         {#if library.selectedEntries.length > 0}
           <button class="btn danger" disabled={library.clearing} onclick={() => library.removeSelected()} title={t('Bỏ khỏi thư viện')}><span class="ic red"><Trash size={16} weight="duotone" /></span>{t('Bỏ khỏi thư viện')}</button>
         {/if}
@@ -546,7 +572,7 @@
   .search { position: relative; flex: 1; }
   .search .ic { position: absolute; left: 13px; top: 10px; }
   .search input { padding-left: 36px; border-radius: 999px; }
-  .cols { display: grid; grid-template-columns: 46px minmax(200px, 1fr) 180px 90px 132px 166px; align-items: center; padding: 0 16px 0 0; }
+  .cols { display: grid; grid-template-columns: 46px minmax(200px, 1fr) 112px 90px 132px 210px; align-items: center; padding: 0 16px 0 0; }
   .head-row { height: 34px; margin: 0 8px; color: var(--muted); font-size: 11px; font-weight: 600; }
   .head-row span:first-child { grid-column: 1; }
   .head-row span:nth-child(2) { padding-left: 0; }
@@ -560,14 +586,15 @@
   .name-line { display: flex; align-items: center; gap: 7px; min-width: 0; }
   .new-badge { flex: none; padding: 1px 6px; border-radius: 999px; background: var(--selected); color: var(--accent); font-size: 9px; font-weight: 700; line-height: 14px; }
   .preview .new-badge { position: absolute; top: 5px; left: 5px; }
-  .type-status { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .type-status { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .local-status { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 12px; font-weight: 500; }
   .local-status.done { color: var(--success); }
   .local-status.partial { color: var(--partial); }
   .local-status.queued { color: var(--accent); }
   .status-icon { display: inline-flex; flex: none; }
-  .file-kind { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
-  .file-kind > span { display: inline-flex; }
+  .retry-import { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 999px; background: var(--subtle); color: var(--accent); cursor: pointer; transition: background 0.15s; }
+  .retry-import:hover:not(:disabled) { background: var(--hover); }
+  .retry-import:disabled { opacity: 0.5; cursor: default; }
   .tile .local-status { font-size: 10px; }
   .empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 24px; }
   .tile { position: relative; width: 160px; height: 206px; padding: 12px; border-radius: 20px; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s, box-shadow 0.15s; }
@@ -585,17 +612,17 @@
   /* Source: a quiet tag, so the file-type colors stay the loudest thing in a row. */
   .tag { display: inline-block; max-width: 100%; padding: 2px 8px; border-radius: 999px; background: var(--subtle); color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .source { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
-  .source .status-cell { align-self: stretch; }
-  .status-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding-right: 8px; }
-  .status-line { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
-  .progress-value { flex: none; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--accent); }
-  .tile .status-cell { padding-right: 0; }
-  .tile .status-cell .caption { font-size: 10px; }
-  .cloud { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
-  .cloud :global(svg) { flex: none; }
-  .cloud.busy { color: var(--accent); }
-  .cloud.ready { color: var(--success); }
-  .cloud.warn { color: var(--danger); }
+  .host-progress { display: flex; align-items: center; gap: 6px; min-width: 0; padding-right: 8px; }
+  .host-progress .bar { flex: 1; min-width: 24px; }
+  .host-progress .bar > span { background: var(--accent); }
+  .host-progress.ready .bar > span { background: var(--success); }
+  .host-progress.warn .bar > span { background: var(--danger); }
+  .host-progress.idle .bar > span { background: var(--muted); }
+  .progress-value { flex: none; min-width: 28px; text-align: right; font-size: 10px; line-height: 12px; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .host-progress.ready .progress-value { color: var(--success); }
+  .host-progress.warn .progress-value { color: var(--danger); }
+  .host-progress.idle .progress-value { color: var(--muted); }
+  .tile .host-progress { padding-right: 0; }
   .bar.mini { height: 4px; }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; flex-wrap: wrap; }
   @media (max-width: 1100px) {
@@ -608,7 +635,8 @@
     .toolbar { padding-top: 8px; }
     .toolbar.second { padding-top: 6px; padding-bottom: 6px; }
     .foot { padding-top: 8px; padding-bottom: 8px; }
-    .cols { grid-template-columns: 42px minmax(140px, 1fr) 144px 72px 106px 132px; }
+    .cols { grid-template-columns: 42px minmax(140px, 1fr) 100px 72px 106px 168px; }
+    .host-progress { gap: 4px; padding-right: 4px; }
   }
   .sum { display: flex; flex-direction: column; min-width: 0; }
 </style>

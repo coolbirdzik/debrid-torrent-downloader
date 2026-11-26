@@ -538,5 +538,19 @@
   "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "라이브러리에서 완전히 제거하는 토렌트 {0}개의 클라우드 사본을 삭제합니다. 관련 다운로드는 중지되고 대기열에서 제거됩니다. 로컬 파일은 유지됩니다. 클라우드 삭제는 취소할 수 없습니다.",
   "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "라이브러리에서 항목 {0}개를 제거하고 표시된 토렌트의 클라우드 사본을 삭제합니다. 관련 다운로드는 중지되고 대기열에서 제거됩니다. 로컬 파일은 유지됩니다. 클라우드 삭제는 취소할 수 없습니다.",
   "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "{0}을(를) {1}에 추가하는 중입니다. 클라우드 ID가 생기면 삭제를 다시 시도하세요.",
-  "Không xác định được tài khoản cloud của torrent.": "이 토렌트의 클라우드 계정을 확인할 수 없습니다."
+  "Không xác định được tài khoản cloud của torrent.": "이 토렌트의 클라우드 계정을 확인할 수 없습니다.",
+  "Thử lại import ({0})": "가져오기 다시 시도 ({0})",
+  "Thử lại import torrent này ngay": "이 토렌트 가져오기를 지금 다시 시도",
+  "Thử lại import": "가져오기 다시 시도",
+  "Thử lại import các torrent bị lỗi đã chọn": "선택한 오류 토렌트 가져오기 다시 시도",
+  "Lưu làm thư mục tải về mặc định": "기본 다운로드 폴더로 저장",
+  "{0} file đã tải về máy. Bấm Force download để tải lại thành file mới.": "{0}개 파일은 이미 다운로드되었습니다. Force download를 누르면 새 파일로 다시 다운로드합니다.",
+  "Bỏ qua {0} file đã tải về máy. Bấm Force download để tải cả các file này thành file mới.": "이미 다운로드된 {0}개 파일을 건너뜁니다. Force download를 누르면 이 파일들도 새 파일로 다시 다운로드합니다.",
+  "Tải lại cả file đã có trên máy; bản mới được lưu thành file khác, không ghi đè.": "이 컴퓨터에 이미 있는 파일도 다시 다운로드합니다. 새 사본은 별도 파일로 저장되며 덮어쓰지 않습니다.",
+  "Đang thử lại import {0} torrent.": "토렌트 {0}개 가져오기를 다시 시도하는 중입니다.",
+  "Bỏ qua {0} file đã tải về máy.": "이미 다운로드된 {0}개 파일을 건너뛰었습니다.",
+  "{0} đang xếp hàng torrent này · chờ lượt tải đồng thời…": "{0}에서 이 토렌트를 대기열에 넣었습니다 · 빈 활성 슬롯을 기다리는 중…",
+  "{0} đang giữ torrent trong hàng chờ vì tài khoản hết lượt tải đồng thời. App sẽ tự kiểm tra lại.": "계정에 비어 있는 활성 다운로드 슬롯이 없어 {0}에서 토렌트를 대기열에 보관하고 있습니다. 앱이 자동으로 다시 확인합니다.",
+  "Tiến độ dịch vụ tải về cloud": "서비스 클라우드 다운로드 진행률",
+  "{0}/{1} đã tải": "{0}/{1} 완료"
 }

@@ -31,6 +31,8 @@ export interface Entry {
   downloaded: number;
   partial: number;
   queued: boolean;
+  /** Files in the queue that are not yet downloaded or partial (for a folder: among its descendants). */
+  queuedFiles: number;
   pending: boolean;
   videoKind: Kind;
 }
@@ -167,6 +169,55 @@ export function queuedLookup(jobs: Job[], library: Draft[] = []): QueuedLookup {
   };
 }
 
+/**
+ * Files already saved on this computer. Like `queuedLookup`, a file finished from one service also counts on another
+ * service that holds the same torrent.
+ */
+export function downloadedLookup(library: Draft[]): QueuedLookup {
+  const shared = sharedSources(library);
+  const identities = new Set<string>();
+  if (shared.size) {
+    for (const draft of library) {
+      if (!shared.has(draft.sourceKey.toLowerCase()) || draft.downloadedFileIds.length === 0) continue;
+      const done = setOf(draft.downloadedFileIds);
+      for (const file of draft.files) if (done.has(file.id)) identities.add(fileIdentity(draft, file));
+    }
+  }
+  return (draft, fileId, file) => {
+    if (draft.downloadedFileIds.length > 0 && setOf(draft.downloadedFileIds).has(fileId)) return true;
+    return file !== undefined && identities.size > 0 && shared.has(draft.sourceKey.toLowerCase()) && identities.has(fileIdentity(draft, file));
+  };
+}
+
+/** Which files a queue action adds. */
+export interface QueuePlan {
+  /** Files neither downloaded nor queued. */
+  fresh: QueueRequest[];
+  /** `fresh` plus downloaded files not already waiting in an unfinished job: what Force download adds. */
+  forced: QueueRequest[];
+  /** Downloaded files that only Force download adds. */
+  downloaded: number;
+  /** Files skipped because they are already waiting in the queue. */
+  duplicates: number;
+}
+
+export const requestFileCount = (requests: QueueRequest[]) => requests.reduce((sum, request) => sum + request.fileIds.length, 0);
+
+/**
+ * Split a selection: a downloaded file is skipped (unless forced) even while its finished job row is still in the
+ * queue; any other queued file is always skipped.
+ */
+export function planQueue(entries: Entry[], jobs: Job[], library: Draft[], rank?: Rank): QueuePlan {
+  const queued = queuedLookup(jobs, library);
+  const unfinished = queuedLookup(jobs.filter((job) => job.state !== 'completed'), library);
+  const done = downloadedLookup(library);
+  const fresh = queueRequests(entries, (draft, id, file) => done(draft, id, file) || queued(draft, id, file), rank);
+  const forced = queueRequests(entries, (draft, id, file) => (done(draft, id, file) ? unfinished(draft, id, file) : queued(draft, id, file)), rank);
+  // Every selected file lands in one bucket: fresh, forceable, or already queued (including a forced copy still on its way).
+  const duplicates = queuedFileCount(entries, (draft, id, file) => (done(draft, id, file) ? unfinished(draft, id, file) : queued(draft, id, file)));
+  return { fresh, forced, downloaded: Math.max(0, requestFileCount(forced) - requestFileCount(fresh)), duplicates };
+}
+
 /** Higher means a better service to download a torrent from (for example: already complete in its cloud). */
 export type Rank = (draft: Draft) => number;
 
@@ -203,29 +254,32 @@ interface Aggregate {
   total: number;
   downloaded: number;
   partial: number;
+  queued: number;
   bytes: number;
 }
 
 /** One pass over a torrent's visible files: counts for every folder prefix. */
-function aggregate(draft: Draft, files: TorrentFile[]): Map<string, Aggregate> {
+function aggregate(draft: Draft, files: TorrentFile[], isQueued?: QueuedLookup): Map<string, Aggregate> {
   const downloaded = setOf(draft.downloadedFileIds);
   const partial = setOf(draft.partialFileIds);
   const map = new Map<string, Aggregate>();
-  const bump = (key: string, file: TorrentFile) => {
-    const entry = map.get(key) ?? { total: 0, downloaded: 0, partial: 0, bytes: 0 };
+  const bump = (key: string, file: TorrentFile, queued: boolean) => {
+    const entry = map.get(key) ?? { total: 0, downloaded: 0, partial: 0, queued: 0, bytes: 0 };
     entry.total++;
     entry.bytes += file.bytes;
     if (downloaded.has(file.id)) entry.downloaded++;
     else if (partial.has(file.id)) entry.partial++;
+    else if (queued) entry.queued++;
     map.set(key, entry);
   };
   for (const file of files) {
     const parts = normalize(file.path).split('/').filter(Boolean);
+    const queued = !downloaded.has(file.id) && !partial.has(file.id) && (isQueued?.(draft, file.id, file) ?? false);
     let prefix = '';
-    bump('', file);
+    bump('', file, queued);
     for (let i = 0; i < parts.length - 1; i++) {
       prefix = prefix ? `${prefix}/${parts[i]}` : parts[i];
-      bump(prefix.toLowerCase(), file);
+      bump(prefix.toLowerCase(), file, queued);
     }
   }
   return map;
@@ -252,6 +306,19 @@ export function isStatusDone(entry: Entry) {
 export function isStatusPartial(entry: Entry) {
   return !isStatusDone(entry) && (entry.downloaded > 0 || entry.partial > 0);
 }
+/** Every file of the entry is queued, downloaded or partly downloaded: the user already acted on it, so it is no longer New. */
+export function isHandled(entry: Entry) {
+  return entry.total > 0 && entry.downloaded + entry.partial + entry.queuedFiles >= entry.total;
+}
+
+/** A torrent whose visible files are all queued, downloaded or partly downloaded. */
+export function isDraftHandled(draft: Draft, isQueued: QueuedLookup): boolean {
+  const files = visibleFiles(draft);
+  if (files.length === 0) return false;
+  const downloaded = setOf(draft.downloadedFileIds);
+  const partial = setOf(draft.partialFileIds);
+  return files.every((file) => downloaded.has(file.id) || partial.has(file.id) || isQueued(draft, file.id, file));
+}
 
 export function buildEntries(library: Draft[], source: SourceFilter, jobs: Job[], query: BrowserQuery): Entry[] {
   const isQueued = queuedLookup(jobs, library);
@@ -262,23 +329,25 @@ export function buildEntries(library: Draft[], source: SourceFilter, jobs: Job[]
   const entries: Entry[] = [];
   const fileEntry = (draft: Draft, file: TorrentFile, downloaded: Set<number>, partial: Set<number>): Entry => {
     const isDone = downloaded.has(file.id);
+    const isPartial = !isDone && partial.has(file.id);
+    const queued = isQueued(draft, file.id, file);
     return {
       key: `file:${draftId(draft)}:${file.id}`, kind: 'file', draft, file, folderPath: '', name: baseName(file.path), location: `${draft.name} / ${displayPath(draft, file)}`,
-      size: file.bytes, fileCount: 1, addedAt: draft.addedAt ? Date.parse(draft.addedAt) : 0, total: 1, downloaded: isDone ? 1 : 0, partial: !isDone && partial.has(file.id) ? 1 : 0,
-      queued: isQueued(draft, file.id, file), pending: false, videoKind: kindOf(file.path)
+      size: file.bytes, fileCount: 1, addedAt: draft.addedAt ? Date.parse(draft.addedAt) : 0, total: 1, downloaded: isDone ? 1 : 0, partial: isPartial ? 1 : 0,
+      queued, queuedFiles: queued && !isDone && !isPartial ? 1 : 0, pending: false, videoKind: kindOf(file.path)
     };
   };
   const folderEntry = (draft: Draft, path: string, name: string, stats: Aggregate | undefined, pending: boolean): Entry => ({
     key: `folder:${draftId(draft)}:${path.toLowerCase()}`, kind: 'folder', draft, file: null, folderPath: path, name, location: draft.name, size: stats?.bytes ?? 0,
     fileCount: stats?.total ?? 0, addedAt: draft.addedAt ? Date.parse(draft.addedAt) : 0, total: stats?.total ?? 0, downloaded: stats?.downloaded ?? 0, partial: stats?.partial ?? 0,
-    queued: false, pending, videoKind: 'folder'
+    queued: false, queuedFiles: stats?.queued ?? 0, pending, videoKind: 'folder'
   });
 
   if (!open && !recursive) {
     // Home: one row per torrent.
     for (const draft of drafts) {
       const files = visibleFiles(draft);
-      entries.push(folderEntry(draft, '', draft.name, aggregate(draft, files).get(''), draft.files.length === 0));
+      entries.push(folderEntry(draft, '', draft.name, aggregate(draft, files, isQueued).get(''), draft.files.length === 0));
     }
   } else {
     const scope = open ? [open] : drafts;
@@ -289,7 +358,7 @@ export function buildEntries(library: Draft[], source: SourceFilter, jobs: Job[]
       if (!recursive) {
         const base = location.path;
         const prefix = prefixOf(base);
-        const stats = aggregate(draft, files);
+        const stats = aggregate(draft, files, isQueued);
         const folders = new Map<string, string>();
         for (const file of filterFiles(files, '', false, base)) {
           const rest = normalize(file.path).replace(/^\/+/, '').slice(prefix.length);
@@ -391,8 +460,11 @@ export function queueRequests(entries: Entry[], isQueued: QueuedLookup, rank?: R
   return [...groups.values()];
 }
 
+/** Files neither queued nor already downloaded. */
 export function remainingRequests(library: Draft[], source: SourceFilter, jobs: Job[], rank?: Rank): QueueRequest[] {
-  const isQueued = queuedLookup(jobs, library);
+  const queued = queuedLookup(jobs, library);
+  const done = downloadedLookup(library);
+  const isQueued: QueuedLookup = (draft, id, file) => done(draft, id, file) || queued(draft, id, file);
   const drafts = activeDrafts(library, source);
   const candidates = drafts.flatMap((draft) => visibleFiles(draft).filter((file) => !isQueued(draft, file.id, file)).map((file) => ({ draft, file })));
   const chosen = oneServicePerFile(candidates, rank);

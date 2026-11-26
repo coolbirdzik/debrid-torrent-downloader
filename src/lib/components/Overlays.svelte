@@ -2,22 +2,27 @@
   import { open as pickFolder } from '@tauri-apps/plugin-dialog';
   import FolderSimple from 'phosphor-svelte/lib/FolderSimple';
   import Plus from 'phosphor-svelte/lib/Plus';
+  import ArrowsClockwise from 'phosphor-svelte/lib/ArrowsClockwise';
   import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
   import { app } from '../app.svelte';
   import { answer, dialog } from '../confirm.svelte';
-  import { answerDestination, destinationDialog, isAbsolutePath } from '../destination.svelte';
+  import { answerDestination, canMakeDefault, destinationDialog, isAbsolutePath } from '../destination.svelte';
   import { t, tm } from '../i18n.svelte';
   import { answerProviders, providerDialog, toggleAllProviders, toggleProvider } from '../providers.svelte';
   import { providerLabel } from '../types';
 
   let cancelButton: HTMLButtonElement | undefined = $state();
   let confirmButton: HTMLButtonElement | undefined = $state();
+  let directoryInput: HTMLInputElement | undefined = $state();
   $effect(() => {
     if (dialog.open) cancelButton?.focus();
   });
-  // Land on the confirm button so a quick Enter accepts the Settings folder.
+  // Land on the confirm button so a quick Enter accepts the Settings folder. When only Force download could confirm,
+  // land on the folder instead: Enter must never re-download files on its own.
   $effect(() => {
-    if (destinationDialog.open) confirmButton?.focus();
+    if (!destinationDialog.open) return;
+    if (destinationDialog.files === 0) directoryInput?.focus();
+    else confirmButton?.focus();
   });
   let addButton: HTMLButtonElement | undefined = $state();
   $effect(() => {
@@ -30,6 +35,7 @@
   };
 
   const validDirectory = $derived(isAbsolutePath(destinationDialog.directory));
+  const offerDefault = $derived(canMakeDefault(destinationDialog.directory));
 
   async function browse() {
     const picked = await pickFolder({ directory: true, multiple: false, title: t('Chọn thư mục'), defaultPath: destinationDialog.directory.trim() || undefined });
@@ -64,15 +70,26 @@
     <div class="dialog card" role="dialog" aria-modal="true" aria-labelledby="destination-title">
     <form class="form" onsubmit={(event) => { event.preventDefault(); answerDestination(true); }}>
       <h2 id="destination-title" class="section">{t('Thêm vào hàng đợi')}</h2>
-      <p>{destinationDialog.files === null ? t('Thư mục lưu') : t('Lưu {0} file vào thư mục:', destinationDialog.files)}</p>
+      <p>{!destinationDialog.files ? t('Thư mục lưu') : t('Lưu {0} file vào thư mục:', destinationDialog.files)}</p>
       <div class="pair">
-        <input type="text" bind:value={destinationDialog.directory} aria-label={t('Thư mục lưu')} aria-invalid={!validDirectory} spellcheck="false" />
+        <input type="text" bind:this={directoryInput} bind:value={destinationDialog.directory} aria-label={t('Thư mục lưu')} aria-invalid={!validDirectory} spellcheck="false" />
         <button type="button" class="btn outline icon" onclick={browse} title={t('Chọn thư mục')} aria-label={t('Chọn thư mục')}><span class="ic amber"><FolderSimple size={17} weight="duotone" /></span></button>
       </div>
       {#if !validDirectory}<p class="invalid">{t('Chọn một đường dẫn lưu đầy đủ.')}</p>{/if}
+      {#if offerDefault}
+        <label class="choice plain"><input type="checkbox" bind:checked={destinationDialog.makeDefault} />{t('Lưu làm thư mục tải về mặc định')}</label>
+      {/if}
+      {#if destinationDialog.downloaded > 0}
+        <p class="notice"><WarningCircle size={16} weight="duotone" aria-hidden="true" /><span>{destinationDialog.files === 0
+          ? t('{0} file đã tải về máy. Bấm Force download để tải lại thành file mới.', destinationDialog.downloaded)
+          : t('Bỏ qua {0} file đã tải về máy. Bấm Force download để tải cả các file này thành file mới.', destinationDialog.downloaded)}</span></p>
+      {/if}
       <div class="actions">
         <button type="button" class="btn outline" onclick={() => answerDestination(false)}>{t('Hủy')}</button>
-        <button type="submit" class="btn primary" bind:this={confirmButton} disabled={!validDirectory}><Plus size={16} weight="bold" />{t('Thêm vào hàng đợi')}</button>
+        {#if destinationDialog.downloaded > 0}
+          <button type="button" class="btn outline" disabled={!validDirectory} onclick={() => answerDestination(true, true)} title={t('Tải lại cả file đã có trên máy; bản mới được lưu thành file khác, không ghi đè.')}><span class="ic amber"><ArrowsClockwise size={16} weight="bold" /></span>{t('Force download ({0})', (destinationDialog.files ?? 0) + destinationDialog.downloaded)}</button>
+        {/if}
+        <button type="submit" class="btn primary" bind:this={confirmButton} disabled={!validDirectory || destinationDialog.files === 0}><Plus size={16} weight="bold" />{t('Thêm vào hàng đợi')}</button>
       </div>
     </form>
     </div>
@@ -121,6 +138,8 @@
   .form { display: flex; flex-direction: column; gap: 12px; }
   .pair { display: flex; gap: 8px; }
   .invalid { color: var(--danger); font-size: 12px; }
+  .dialog .notice { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--subtle); color: var(--partial); font-size: 12px; }
+  .notice :global(svg) { flex: none; margin-top: 2px; }
   .choices { display: flex; flex-direction: column; gap: 2px; padding: 4px; border-radius: 16px; background: var(--subtle); }
   .choice { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 12px; cursor: pointer; transition: background 0.15s; }
   .choice:hover { background: var(--hover); }
@@ -129,7 +148,7 @@
   .choice.plain:hover { background: none; color: var(--ink); }
   .who { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
   .who small { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+  .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 8px; }
   .danger-fill, .danger-fill:hover:not(:disabled) { background: var(--icon-red); color: #fff; }
   .toasts { position: fixed; right: 20px; bottom: 48px; display: flex; flex-direction: column; gap: 8px; z-index: 70; max-width: 420px; }
   .toast { padding: 11px 16px; border-radius: 16px; background: var(--glass-strong); box-shadow: var(--float); backdrop-filter: blur(20px); }

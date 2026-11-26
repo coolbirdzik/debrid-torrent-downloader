@@ -223,6 +223,9 @@ export interface LibraryRemoval {
   purged: LibraryPatch[];
 }
 
+/** A service status after which the torrent will never finish (mirrors `stream::failed_status`). */
+export const failedCloudStatus = (status: string | undefined) => status === 'magnet_error' || status === 'error' || status === 'virus' || status === 'dead';
+
 export const canRetry = (job: Job) => !job.isRemoving && !job.isActive && !job.isStopping && job.state === 'failed';
 export const canResume = (job: Job) => !job.isRemoving && !job.isActive && !job.isStopping && ['queued', 'paused', 'stopped'].includes(job.state);
 export const canStop = (job: Job) => !job.isRemoving && !job.isStopping && (job.isActive || ['queued', 'paused'].includes(job.state));

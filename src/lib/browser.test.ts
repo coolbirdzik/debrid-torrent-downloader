@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeDrafts, breadcrumbs, buildEntries, draftId, filterFiles, formatBytes, isStatusDone, isStatusPartial, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, downloadedRemoval, type BrowserQuery } from './browser';
+import { activeDrafts, breadcrumbs, buildEntries, draftId, filterFiles, formatBytes, isDraftHandled, isHandled, isStatusDone, isStatusPartial, planQueue, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, downloadedRemoval, type BrowserQuery } from './browser';
 import type { Draft, Job } from './types';
 
 const file = (id: number, path: string, bytes = 100) => ({ id, path, bytes, selected: 1 });
@@ -144,6 +144,65 @@ describe('queueing', () => {
     const lookup = queuedLookup([job({ selectedFileIds: [1] })]);
     expect(queueRequests([season], lookup)).toEqual([{ provider: 'realDebrid', sourceKey: 'btih:AAA', fileIds: [2] }]);
     expect(remainingCount([d], 'realDebrid', [job({ selectedFileIds: [1, 2] })])).toBe(2);
+  });
+});
+
+describe('already downloaded files', () => {
+  const flat = (d: Draft) => buildEntries([d], 'all', [], query({ location: { draft: draftId(d), path: '', flat: true } }));
+
+  it('skips downloaded files unless forced, even while their finished job is still in the queue', () => {
+    const d = draft({ downloadedFileIds: [1] });
+    const finished = job({ selectedFileIds: [1], state: 'completed' });
+    const plan = planQueue(flat(d), [finished], [d]);
+    expect(plan.fresh.map((r) => ({ ...r, fileIds: r.fileIds.sort() }))).toEqual([{ provider: 'realDebrid', sourceKey: 'btih:AAA', fileIds: [2, 3, 4] }]);
+    expect(plan.forced[0].fileIds.sort()).toEqual([1, 2, 3, 4]);
+    expect(plan.downloaded).toBe(1);
+    expect(plan.duplicates).toBe(0);
+  });
+
+  it('offers only Force download when every selected file is downloaded', () => {
+    const d = draft({ downloadedFileIds: [1, 2, 3, 4] });
+    const plan = planQueue(flat(d), [], [d]);
+    expect(plan.fresh).toEqual([]);
+    expect(plan.downloaded).toBe(4);
+  });
+
+  it('does not force a second copy while one is still on its way, and still skips plain queued files', () => {
+    const d = draft({ downloadedFileIds: [1] });
+    const plan = planQueue(flat(d), [job({ selectedFileIds: [1, 2], state: 'downloading' })], [d]);
+    expect(plan.forced).toEqual([{ provider: 'realDebrid', sourceKey: 'btih:AAA', fileIds: [3, 4] }]);
+    expect(plan.downloaded).toBe(0);
+    expect(plan.duplicates).toBe(2);
+  });
+
+  it('counts a file downloaded from one service as downloaded on the other', () => {
+    const rd = draft({ downloadedFileIds: [1] });
+    const tb = draft({ provider: 'torBox', files: [file(11, '/Show/S01/ep1.mkv'), file(12, '/Show/S01/ep2.mkv'), file(13, '/Show/S02/ep1.mkv'), file(14, '/Show/notes.txt', 5)] });
+    const plan = planQueue(buildEntries([tb], 'torBox', [], query({ location: { draft: draftId(tb), path: '', flat: true } })), [], [rd, tb]);
+    expect(plan.fresh.flatMap((r) => r.fileIds).sort()).toEqual([12, 13, 14]);
+    expect(plan.downloaded).toBe(1);
+  });
+
+  it('leaves downloaded files out of "all remaining"', () => {
+    expect(remainingCount([draft({ downloadedFileIds: [1, 2] })], 'all', [])).toBe(2);
+  });
+});
+
+describe('New badge', () => {
+  it('drops for queued, downloaded or partial files, and for folders once all their files are', () => {
+    const d = draft({ downloadedFileIds: [3], partialFileIds: [4] });
+    const jobs = [job({ selectedFileIds: [1] })];
+    const files = buildEntries([d], 'all', jobs, query({ location: { draft: draftId(d), path: '', flat: true } }));
+    expect(files.filter(isHandled).map((e) => e.file!.id).sort()).toEqual([1, 3, 4]);
+    const folders = buildEntries([d], 'all', jobs, query({ location: { draft: draftId(d), path: 'Show', flat: false } }));
+    expect(isHandled(folders.find((e) => e.name === 'S01')!)).toBe(false);
+    expect(isHandled(folders.find((e) => e.name === 'S02')!)).toBe(true);
+    const [root] = buildEntries([d], 'all', jobs, query());
+    expect(isHandled(root)).toBe(false);
+    const [all] = buildEntries([d], 'all', [job({ selectedFileIds: [1, 2] })], query());
+    expect(isHandled(all)).toBe(true);
+    expect(isDraftHandled(d, queuedLookup([job({ selectedFileIds: [1, 2] })], [d]))).toBe(true);
+    expect(isDraftHandled(d, queuedLookup(jobs, [d]))).toBe(false);
   });
 });
 

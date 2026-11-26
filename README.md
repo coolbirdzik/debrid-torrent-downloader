@@ -63,12 +63,16 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 - **Import progress** shows the processed count and percentage for the active pass, with ready, pending and error
   counts across all services. Stop an import, retry pending items, or see when it is waiting for an account or a
   retry. Pending imports survive app restarts and are retried while import is unpaused; use Retry to resume paused
-  work.
-  The **Type / Status** column shows each torrent's service percentage and progress bar, including while metadata
-  is pending; imports without progress data show their waiting state. Grid view shows the same information.
+  work. A torrent whose import failed has a **retry button** on its row; select several and use **Retry import** in
+  the footer or the right-click menu to retry them together. A torrent the service marked as failed (for example a
+  magnet error) is added to the service again instead of re-reading the dead copy.
+  The **Status** column shows each file's local state and, below it, a bar with how far the service has fetched the
+  torrent into its cloud (blue: fetching, green: ready, red: failed, grey: waiting or paused). Hover for details.
+  Pending imports show what the service is doing, such as queued on the service. Grid view shows the same bar.
 - Two separate **Library menu badges** show pending torrents and new unseen files. Opening Library clears the
   unseen-file badge; the pending badge remains until metadata arrives. The same file on several services counts once
-  in the new-file badge.
+  in the new-file badge. Files you have already queued or downloaded lose their **New** label, and a torrent stops
+  counting as new once all of its files are queued or downloaded.
 - Each file shows whether it is **downloaded, partly downloaded or already queued**, and keeps that mark after you
   clear the queue or restart the app.
 - Remove files or folders from the library without touching your disk or the service, with undo (Ctrl+Z).
@@ -123,6 +127,11 @@ unrestricting every link and feeding the links to a download manager. DebridDock
 
 - **Queue selected files, or everything that is left** in the library, with one click. Downloads start right away.
   Adding selected files that are already queued shows a warning toast with the duplicate count; only new files are added.
+- **Already downloaded files are skipped** by default, even when their finished row is still in the queue, and
+  **Queue all remaining** leaves them out too. To get a file again, click **Force download** in the destination dialog:
+  it is saved as a new file next to the existing one (for example `name (2).mkv`), never over it.
+- The destination dialog can **save the chosen folder as the default download folder**, so you do not need to visit
+  Settings.
 - **Resumable downloads** (`Range` + `If-Range`): stop, pause or close the app and continue from the exact byte later.
 - **Automatic retry:** a dropped connection, a timeout or an expired download link is retried with back-off and
   resumes the partial file. **Retry all** is there for anything that still fails.
@@ -153,7 +162,8 @@ unrestricting every link and feeding the links to a download manager. DebridDock
    chosen service(s) and reads their file lists. Follow import progress and retry or stop pending work as needed.
 3. **Browse and pick.** Library defaults to newest added first. Filter by provider, open folders, search or filter to
    videos, then select the files or folders you want. Double-click a video to stream it first.
-4. **Download.** Click **Add to queue**, choose a destination and confirm. New queue entries start immediately;
+4. **Download.** Click **Add to queue**, choose a destination (optionally save it as the default) and confirm. Files
+   already downloaded are skipped unless you click **Force download**. New queue entries start immediately;
    DebridDock waits for cloud preparation, gets direct links and downloads your selected files with resume and retry.
 5. **Manage cloud.** Open **Cloud files** to inspect and delete remote items across your accounts.
 
@@ -243,7 +253,13 @@ outside the Library. Both keep local files.
 
 **What do the two Library badges mean?**
 The clock counts torrents still waiting for a file list. The file-plus badge counts new unseen files and clears when
-you open Library. Both cover all services, regardless of the current Library filter.
+you open Library; torrents whose files are all queued or downloaded are not counted. Both cover all services,
+regardless of the current Library filter.
+
+**What happens if I queue a file I already downloaded?**
+It is skipped, and a toast tells you how many files were skipped. Click **Force download** in the destination dialog
+to download it again as a separate file. Skipping relies on the Library's downloaded marks, so after clearing the
+Library, or when queueing from Cloud files, a repeated download is saved as a new file instead.
 
 **What does TorBox's remaining space mean?**
 It is **AirLock storage remaining**, calculated from the quota and usage returned by TorBox. The separate 30-day

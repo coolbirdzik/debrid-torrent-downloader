@@ -538,5 +538,19 @@
   "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Delete the cloud copies of the {0} torrents being fully removed from the Library. Related downloads will stop and be removed from the queue. Local files are kept. Cloud deletion cannot be undone.",
   "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "Remove {0} items from the Library and delete the cloud copies of visible torrents. Related downloads will stop and be removed from the queue. Local files are kept. Cloud deletion cannot be undone.",
   "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "{0} is being added to {1}. Retry deletion when the job has a cloud ID.",
-  "Không xác định được tài khoản cloud của torrent.": "The cloud account for this torrent is unknown."
+  "Không xác định được tài khoản cloud của torrent.": "The cloud account for this torrent is unknown.",
+  "Thử lại import ({0})": "Retry import ({0})",
+  "Thử lại import torrent này ngay": "Retry importing this torrent now",
+  "Thử lại import": "Retry import",
+  "Thử lại import các torrent bị lỗi đã chọn": "Retry importing the selected failed torrents",
+  "Lưu làm thư mục tải về mặc định": "Save as the default download folder",
+  "{0} file đã tải về máy. Bấm Force download để tải lại thành file mới.": "{0} files are already downloaded. Click Force download to download them again as new files.",
+  "Bỏ qua {0} file đã tải về máy. Bấm Force download để tải cả các file này thành file mới.": "Skipping {0} files already downloaded. Click Force download to also download them again as new files.",
+  "Tải lại cả file đã có trên máy; bản mới được lưu thành file khác, không ghi đè.": "Also re-download files already on this computer; the new copies are saved as separate files, nothing is overwritten.",
+  "Đang thử lại import {0} torrent.": "Retrying import of {0} torrents.",
+  "Bỏ qua {0} file đã tải về máy.": "Skipped {0} files already downloaded.",
+  "{0} đang xếp hàng torrent này · chờ lượt tải đồng thời…": "{0} has queued this torrent · waiting for a free active slot…",
+  "{0} đang giữ torrent trong hàng chờ vì tài khoản hết lượt tải đồng thời. App sẽ tự kiểm tra lại.": "{0} is holding the torrent in its queue because the account has no free active download slot. The app will check again automatically.",
+  "Tiến độ dịch vụ tải về cloud": "Service download to its cloud",
+  "{0}/{1} đã tải": "{0}/{1} downloaded"
 }

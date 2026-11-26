@@ -538,5 +538,19 @@
   "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "同时删除这 {0} 个从资料库完整移除的种子的云端副本。相关下载将停止并移出队列。本地文件会保留。云端删除无法撤销。",
   "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "从资料库移除 {0} 项，并删除可见种子的云端副本。相关下载将停止并移出队列。本地文件会保留。云端删除无法撤销。",
   "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "正在将 {0} 添加到 {1}。请在任务获得云端 ID 后重试删除。",
-  "Không xác định được tài khoản cloud của torrent.": "无法确定此种子的云端账户。"
+  "Không xác định được tài khoản cloud của torrent.": "无法确定此种子的云端账户。",
+  "Thử lại import ({0})": "重试导入 ({0})",
+  "Thử lại import torrent này ngay": "立即重试导入此种子",
+  "Thử lại import": "重试导入",
+  "Thử lại import các torrent bị lỗi đã chọn": "重试导入所选的出错种子",
+  "Lưu làm thư mục tải về mặc định": "保存为默认下载文件夹",
+  "{0} file đã tải về máy. Bấm Force download để tải lại thành file mới.": "{0} 个文件已下载。点击 Force download 可作为新文件重新下载。",
+  "Bỏ qua {0} file đã tải về máy. Bấm Force download để tải cả các file này thành file mới.": "跳过 {0} 个已下载的文件。点击 Force download 可将它们也作为新文件重新下载。",
+  "Tải lại cả file đã có trên máy; bản mới được lưu thành file khác, không ghi đè.": "同时重新下载此电脑上已有的文件；新副本另存为单独文件，不会覆盖任何内容。",
+  "Đang thử lại import {0} torrent.": "正在重试导入 {0} 个种子。",
+  "Bỏ qua {0} file đã tải về máy.": "已跳过 {0} 个已下载的文件。",
+  "{0} đang xếp hàng torrent này · chờ lượt tải đồng thời…": "{0} 已将此种子排队 · 正在等待空闲的活动下载槽…",
+  "{0} đang giữ torrent trong hàng chờ vì tài khoản hết lượt tải đồng thời. App sẽ tự kiểm tra lại.": "由于账户没有空闲的活动下载槽，{0} 将种子保留在其队列中。应用会自动重新检查。",
+  "Tiến độ dịch vụ tải về cloud": "服务下载到云端的进度",
+  "{0}/{1} đã tải": "已下载 {0}/{1}"
 }

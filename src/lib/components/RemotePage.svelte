@@ -205,8 +205,9 @@
     const selected = new Set(queueable.map(remoteKey));
     queueing = true;
     try {
-      const directory = await askDestination({ directory: app.settings.outputDirectory });
-      if (directory === null || disposed) return;
+      const destination = await askDestination({ directory: app.settings.outputDirectory });
+      if (destination === null || disposed) return;
+      const { directory } = destination;
       const rows = queueableRemoteRows(view.rows.filter((row) => selected.has(remoteKey(row))), remoteQueuedKeys(app.jobs));
       if (rows.length === 0) {
         app.toast({ key: 'Không có file mới được thêm vào hàng đợi.', args: [] }, 'warning');

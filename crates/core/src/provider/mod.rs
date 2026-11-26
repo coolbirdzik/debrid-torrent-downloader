@@ -31,6 +31,8 @@ pub struct Timing {
     pub transfer_retry: Duration,
     /// First wait before a job that failed on a connection problem runs again on its own (doubles each time).
     pub job_retry: Duration,
+    /// How often a torrent held in the service's own waiting list is checked again.
+    pub queued_poll: Duration,
 }
 
 impl Default for Timing {
@@ -43,6 +45,7 @@ impl Default for Timing {
             inspect_poll: Duration::from_secs(2),
             transfer_retry: Duration::from_secs(3),
             job_retry: Duration::from_secs(10),
+            queued_poll: Duration::from_secs(300),
         }
     }
 }
@@ -51,8 +54,19 @@ impl Timing {
     /// Near-zero waits for tests.
     pub fn fast() -> Self {
         let tick = Duration::from_millis(5);
-        Timing { gate_realdebrid: tick, gate_other: tick, retry_base: tick, poll: tick, inspect_poll: tick, transfer_retry: tick, job_retry: tick }
+        Timing { gate_realdebrid: tick, gate_other: tick, retry_base: tick, poll: tick, inspect_poll: tick, transfer_retry: tick, job_retry: tick, queued_poll: tick }
     }
+}
+
+/// Where a torrent the service queued (`Error::Queued`) is now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum QueuedState {
+    /// The service started it: this is its torrent ID.
+    Started(String),
+    /// Still in the service's waiting list.
+    Waiting,
+    /// Neither waiting nor started: add it again.
+    Missing,
 }
 
 #[async_trait]
@@ -78,6 +92,10 @@ pub trait Debrid: Send + Sync {
     async fn cloud_delete(&self, kind: CloudKind, id: &str) -> Result<()> {
         if kind == CloudKind::Torrent { self.delete(id).await }
         else { Err(crate::error::Error::invalid("Unsupported cloud download type.")) }
+    }
+    /// Look up a torrent the service queued, by its info hash (hex, any case). Read-only: never adds anything.
+    async fn queued_state(&self, _hash: &str) -> Result<QueuedState> {
+        Ok(QueuedState::Missing)
     }
     async fn torbox_account(&self) -> Result<TorBoxAccount> {
         Err(crate::error::Error::invalid("TorBox account information is unavailable for this provider."))

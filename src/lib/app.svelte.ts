@@ -1,7 +1,8 @@
 import { getVersion } from '@tauri-apps/api/app';
+import { untrack } from 'svelte';
 import { api, on, toMsg } from './api';
 import { setLanguage } from './i18n.svelte';
-import { activeDrafts } from './browser';
+import { activeDrafts, isDraftHandled, queuedLookup } from './browser';
 import type { AccountInfo, CloudState, Draft, Job, Marks, Msg, Provider, Settings, Snapshot, TorBoxAccount, UpdateInfo, User } from './types';
 import { canRetry, canResume, PROVIDERS } from './types';
 
@@ -31,11 +32,18 @@ class AppState {
   private importSequence = 0;
   private libraryGeneration = 0;
   private clearedLibraryDrafts = new Map<string, string | null>();
-  /** Count the same completed imports marked New in the Library, across every service and filter. */
-  libraryBadges = $derived({
-    newImports: activeDrafts(this.library).filter((draft) => draft.files.length > 0 && this.imported.has(cloudKey(draft))).length
-  });
   jobs = $state.raw<Job[]>([]);
+  /** Only queue membership, not progress: rows and badges that depend on it are not rebuilt on every progress event. */
+  queueSignature = $derived(this.jobs.map((job) => `${job.id}:${job.provider}:${job.sourceKey}:${job.selectedFileIds?.length ?? 'all'}`).join(','));
+  /** Count the same completed imports marked New in the Library, across every service and filter: a torrent whose files
+   * are all queued or downloaded is no longer New. */
+  libraryBadges = $derived.by(() => {
+    this.queueSignature;
+    const fresh = activeDrafts(this.library).filter((draft) => draft.files.length > 0 && this.imported.has(cloudKey(draft)));
+    if (fresh.length === 0) return { newImports: 0 };
+    const isQueued = queuedLookup(untrack(() => this.jobs), this.library);
+    return { newImports: fresh.filter((draft) => !isDraftHandled(draft, isQueued)).length };
+  });
   /** Cloud progress per Library torrent (key: `provider|sourcekey`), kept apart so it never rebuilds the rows. */
   cloud = $state.raw<Map<string, CloudState>>(new Map());
   /** Every service; `hasToken`/`user` below mirror the one chosen in Settings. */

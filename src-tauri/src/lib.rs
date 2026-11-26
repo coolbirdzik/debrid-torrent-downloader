@@ -4,7 +4,7 @@ mod theme;
 mod taskbar;
 mod thumbs;
 
-use app::{AddResult, App, DeleteOutcome, LibraryPatch, LibraryRemoval, QueueItem, RemoteList, RemoteQueueItem, RemoteQueueResult, SettingsPatch, Snapshot};
+use app::{AddResult, App, DeleteOutcome, DraftKey, LibraryPatch, LibraryRemoval, QueueItem, RemoteList, RemoteQueueItem, RemoteQueueResult, SettingsPatch, Snapshot};
 use rdbatch_core::error::Error;
 use rdbatch_core::stream::{StreamList, StreamSource};
 use rdbatch_core::models::{CloudKind, Msg, Provider, Settings, TorBoxAccount, User};
@@ -72,8 +72,8 @@ fn library_cancel_inspect(app: Shared) {
 }
 
 #[tauri::command]
-fn library_retry(app: Shared) {
-    app.inner().library_retry()
+fn library_retry(app: Shared, keys: Option<Vec<DraftKey>>) {
+    app.inner().library_retry(keys)
 }
 
 #[tauri::command]

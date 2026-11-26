@@ -26,9 +26,10 @@ export const api = {
   libraryRemove: (patches: LibraryPatch[], deleteCloud: boolean, purge = false) => call<LibraryRemoval>('library_remove', { patches, deleteCloud, purge }),
   libraryReset: () => call<void>('library_reset'),
   libraryCancelInspect: () => call<void>('library_cancel_inspect'),
-  libraryRetry: () => call<void>('library_retry'),
+  /** Without keys, every unread torrent is read again. */
+  libraryRetry: (keys?: { provider: Provider; sourceKey: string }[]) => call<void>('library_retry', { keys: keys ?? null }),
   libraryRefresh: () => call<Snapshot>('library_refresh'),
-  queueAdd: (items: { provider: Provider; sourceKey: string; fileIds: number[]; outputDirectory?: string }[]) => call<string[]>('queue_add', { items }),
+  queueAdd: (items: { provider: Provider; sourceKey: string; fileIds: number[]; outputDirectory?: string; force?: boolean }[]) => call<string[]>('queue_add', { items }),
   queueStart: (ids?: string[]) => call<void>('queue_start', { ids: ids ?? null }),
   queuePause: () => call<void>('queue_pause'),
   queueStop: (ids?: string[]) => call<void>('queue_stop', { ids: ids ?? null }),

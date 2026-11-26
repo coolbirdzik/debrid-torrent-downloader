@@ -538,5 +538,19 @@
   "Xóa cả bản cloud của {0} torrent được bỏ hết khỏi thư viện. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "ライブラリから完全に除く {0} 件のトレントのクラウドコピーを削除します。関連するダウンロードは停止し、キューから削除されます。ローカルファイルは保持されます。クラウドからの削除は元に戻せません。",
   "Xóa {0} mục khỏi thư viện và xóa bản cloud của các torrent đang hiển thị. Tác vụ tải liên quan sẽ bị dừng và xóa khỏi hàng đợi. File trên máy được giữ lại. Không thể hoàn tác xóa cloud.": "ライブラリから {0} 件を除き、表示中のトレントのクラウドコピーを削除します。関連するダウンロードは停止し、キューから削除されます。ローカルファイルは保持されます。クラウドからの削除は元に戻せません。",
   "{0} đang thêm lên {1}. Thử xóa lại khi tác vụ có ID cloud.": "{0} を {1} に追加中です。タスクにクラウド ID が付与されてから削除を再試行してください。",
-  "Không xác định được tài khoản cloud của torrent.": "このトレントのクラウドアカウントを特定できません。"
+  "Không xác định được tài khoản cloud của torrent.": "このトレントのクラウドアカウントを特定できません。",
+  "Thử lại import ({0})": "インポートを再試行 ({0})",
+  "Thử lại import torrent này ngay": "このトレントのインポートを今すぐ再試行",
+  "Thử lại import": "インポートを再試行",
+  "Thử lại import các torrent bị lỗi đã chọn": "選択したエラーのトレントのインポートを再試行",
+  "Lưu làm thư mục tải về mặc định": "既定のダウンロードフォルダーとして保存",
+  "{0} file đã tải về máy. Bấm Force download để tải lại thành file mới.": "{0} 個のファイルはダウンロード済みです。Force download を押すと新しいファイルとして再ダウンロードします。",
+  "Bỏ qua {0} file đã tải về máy. Bấm Force download để tải cả các file này thành file mới.": "ダウンロード済みの {0} 個のファイルをスキップします。Force download を押すとこれらも新しいファイルとして再ダウンロードします。",
+  "Tải lại cả file đã có trên máy; bản mới được lưu thành file khác, không ghi đè.": "このコンピューターにあるファイルも再ダウンロードします。新しいコピーは別ファイルとして保存され、上書きはしません。",
+  "Đang thử lại import {0} torrent.": "{0} 個のトレントのインポートを再試行しています。",
+  "Bỏ qua {0} file đã tải về máy.": "ダウンロード済みの {0} 個のファイルをスキップしました。",
+  "{0} đang xếp hàng torrent này · chờ lượt tải đồng thời…": "{0} がこのトレントをキューに入れました · 空きのアクティブ枠を待っています…",
+  "{0} đang giữ torrent trong hàng chờ vì tài khoản hết lượt tải đồng thời. App sẽ tự kiểm tra lại.": "アカウントに空きのアクティブダウンロード枠がないため、{0} がトレントをキューに保持しています。アプリが自動的に再確認します。",
+  "Tiến độ dịch vụ tải về cloud": "サービスのクラウドへのダウンロード進捗",
+  "{0}/{1} đã tải": "{0}/{1} 完了"
 }

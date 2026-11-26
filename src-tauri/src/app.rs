@@ -8,7 +8,7 @@ use chrono::Utc;
 use rdbatch_core::engine::{Allocator, DownloadSlots, Engine, Queue, Session};
 use rdbatch_core::error::{Error, Result};
 use rdbatch_core::models::{CloudKind, CloudState, Draft, Job, JobState, Msg, Persisted, Provider, RemoteRef, RemoteTorrent, Settings, TorBoxAccount, TorrentInfo, User};
-use rdbatch_core::provider::{self, Debrid, Timing};
+use rdbatch_core::provider::{self, Debrid, QueuedState, Timing};
 use rdbatch_core::store::Store;
 use rdbatch_core::stream::{self, StreamList, StreamSource};
 use rdbatch_core::{parser, paths, search};
@@ -154,6 +154,17 @@ pub struct QueueItem {
     /// Download folder chosen for this queue entry; `None` uses the Settings folder.
     #[serde(default)]
     pub output_directory: Option<String>,
+    /// Queue files already saved on this computer again; each gets a new name next to the existing copy.
+    #[serde(default)]
+    pub force: bool,
+}
+
+/// One Library torrent: a service and its source key.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftKey {
+    pub provider: Provider,
+    pub source_key: String,
 }
 
 #[derive(Serialize)]
@@ -767,14 +778,29 @@ impl App {
         self.save_now();
     }
 
-    /// Retry now: forget the back-off on every uninspected torrent and resume a paused import.
-    pub fn library_retry(self: &Arc<Self>) {
-        {
+    /// Retry now: forget the back-off on the given uninspected torrents (every one when `None`) and resume a paused
+    /// import. A torrent the service reported as failed is added again instead of re-reading the dead copy, which
+    /// stays in `remote_refs` so removing it from the Library can still delete it.
+    pub fn library_retry(self: &Arc<Self>, keys: Option<Vec<DraftKey>>) {
+        let changed: Vec<Draft> = {
             let mut data = self.data.lock().unwrap();
             data.settings.library_import_paused = false;
-            for draft in data.library.iter_mut().filter(|d| d.files.is_empty()) {
+            let wanted = |d: &Draft| keys.as_ref().is_none_or(|keys| keys.iter().any(|k| k.provider == d.provider && same_key(&k.source_key, &d.source_key)));
+            let mut changed = Vec::new();
+            for draft in data.library.iter_mut().filter(|d| d.files.is_empty() && !d.is_hidden && wanted(d)) {
                 draft.next_inspection_at = None;
+                draft.inspection_attempts = 0;
+                if draft.cloud.as_ref().is_some_and(|c| stream::failed_status(&c.status)) {
+                    draft.torrent_id = None;
+                    draft.remote_account = None;
+                    draft.cloud = None;
+                    changed.push(draft.clone());
+                }
             }
+            changed
+        };
+        for draft in changed {
+            self.emit("draft", draft);
         }
         self.mark_dirty();
         self.clone().start_inspection();
@@ -910,6 +936,22 @@ impl App {
     /// Add a draft's source to its service and record the new torrent on the draft.
     async fn add_for_draft(&self, engine: &Engine, provider: Provider, key: &str, username: &str, source: &str) -> Result<String> {
         let id = engine.add_source(source).await?;
+        Ok(self.record_draft_torrent(provider, key, username, id))
+    }
+
+    /// The service queued this draft's torrent earlier: find it by hash instead of adding it again. `Ok(None)` means
+    /// it is no longer queued nor started, so it should be added again.
+    async fn resolve_queued_draft(&self, engine: &Engine, provider: Provider, key: &str, username: &str) -> Result<Option<String>> {
+        let Some(hash) = key.get(..5).filter(|p| p.eq_ignore_ascii_case("btih:")).map(|_| &key[5..]) else { return Ok(None) };
+        match engine.queued_state(hash).await? {
+            QueuedState::Started(id) => Ok(Some(self.record_draft_torrent(provider, key, username, id))),
+            QueuedState::Waiting => Err(Error::Queued(provider)),
+            QueuedState::Missing => Ok(None),
+        }
+    }
+
+    /// Record a draft's remote torrent: on the draft and in `remote_refs`, saved before any further request.
+    fn record_draft_torrent(&self, provider: Provider, key: &str, username: &str, id: String) -> String {
         let name = self.with_draft(provider, key, |d| {
             d.torrent_id = Some(id.clone());
             d.remote_account = Some(username.to_string());
@@ -924,7 +966,7 @@ impl App {
         });
         // Persist the remote ID before any further request; retries reuse it.
         self.save_now();
-        Ok(id)
+        id
     }
 
     /// Check the current file list and cloud progress without waiting for metadata to become available.
@@ -950,16 +992,20 @@ impl App {
 
     /// Add one torrent to its service (once) and check its file list. Returns false when cancelled.
     async fn inspect_one(&self, engine: &Engine, provider: Provider, key: &str, username: &str, cancel: &CancellationToken) -> bool {
-        let Some((source, existing_id)) = self.with_draft(provider, key, |d| {
+        let Some((source, existing_id, queued)) = self.with_draft(provider, key, |d| {
             d.inspection_error = None;
             d.next_inspection_at = None;
-            (d.source.clone(), d.torrent_id.clone())
+            (d.source.clone(), d.torrent_id.clone(), is_held_in_service_queue(d))
         }) else { return true; };
         let outcome = async {
             let stored = existing_id.is_some();
             let mut torrent_id = match existing_id {
                 Some(id) => id,
-                None => self.add_for_draft(engine, provider, key, username, &source).await?,
+                // Never add a torrent the service is already holding in its queue: that only fails as a duplicate.
+                None => match if queued { self.resolve_queued_draft(engine, provider, key, username).await? } else { None } {
+                    Some(id) => id,
+                    None => self.add_for_draft(engine, provider, key, username, &source).await?,
+                },
             };
             match self.inspect_remote(engine, provider, key, &torrent_id, cancel).await {
                 // The torrent was deleted on the service before it could be read: add the source again, once, instead of
@@ -996,6 +1042,10 @@ impl App {
                 self.notifier.marks_stale.store(true, Ordering::SeqCst);
             }
             Err(Error::Cancelled) => return false,
+            Err(Error::Queued(_)) => {
+                let wait = self.timing.queued_poll;
+                self.with_draft(provider, key, |d| hold_in_service_queue(d, wait));
+            }
             Err(error) => {
                 self.with_draft(provider, key, |d| back_off(d, error.friendly()));
             }
@@ -1097,9 +1147,15 @@ impl App {
             let jobs = self.queue.snapshot();
             for (item, target) in items.into_iter().zip(targets) {
                 let Some(draft) = data.library.iter_mut().find(|d| d.provider == item.provider && same_key(&d.source_key, &item.source_key)) else { continue };
-                let queued = |id: i32| jobs.iter().any(|j| j.provider == draft.provider && same_key(&j.source_key, &draft.source_key) && j.selected_file_ids.as_ref().map(|s| s.contains(&id)).unwrap_or(true));
+                // A downloaded file is skipped unless forced, even while its finished job row is still in the queue, and
+                // a forced copy is not queued again while another one is still on its way. Any other file already in a
+                // job is never queued twice.
+                let downloaded = |id: i32| draft.downloaded_file_ids.contains(&id);
+                let in_job = |id: i32, finished: bool| jobs.iter().any(|j| (finished || j.state != JobState::Completed) && j.provider == draft.provider
+                    && same_key(&j.source_key, &draft.source_key) && j.selected_file_ids.as_ref().map(|s| s.contains(&id)).unwrap_or(true));
+                let wanted = |id: i32| if downloaded(id) { item.force && !in_job(id, false) } else { !in_job(id, true) };
                 let mut seen = HashSet::new();
-                let files: Vec<_> = item.file_ids.iter().filter(|id| seen.insert(**id)).filter_map(|id| draft.files.iter().find(|f| f.id == *id)).filter(|f| !queued(f.id)).cloned().collect();
+                let files: Vec<_> = item.file_ids.iter().filter(|id| seen.insert(**id)).filter_map(|id| draft.files.iter().find(|f| f.id == *id)).filter(|f| wanted(f.id)).cloned().collect();
                 if files.is_empty() {
                     continue;
                 }
@@ -1560,6 +1616,20 @@ fn back_off(draft: &mut Draft, error: Msg) {
     draft.inspection_error = Some(error);
     let wait = 30u64 * 2u64.pow(draft.inspection_attempts.min(4));
     draft.next_inspection_at = Some(Utc::now() + chrono::Duration::seconds(wait as i64));
+}
+
+/// The service holds the torrent in its own queue (no free active slot): a normal wait, not an error. The `queued`
+/// cloud status without a torrent ID marks it, so the next pass looks it up instead of adding it again.
+fn hold_in_service_queue(draft: &mut Draft, wait: Duration) {
+    draft.inspection_error = None;
+    draft.inspection_attempts = 0;
+    draft.cloud = Some(CloudState { status: "queued".into(), ..Default::default() });
+    draft.next_inspection_at = Some(Utc::now() + chrono::Duration::from_std(wait).unwrap_or_else(|_| chrono::Duration::minutes(5)));
+}
+
+/// Real-Debrid also reports `queued` for torrents it did add; only a TorBox draft without a torrent ID is held.
+fn is_held_in_service_queue(draft: &Draft) -> bool {
+    draft.provider == Provider::TorBox && draft.torrent_id.is_none() && draft.cloud.as_ref().is_some_and(|c| c.status == "queued")
 }
 
 /// A healthy torrent can report progress before it has any files to import. Recheck on a later background pass.

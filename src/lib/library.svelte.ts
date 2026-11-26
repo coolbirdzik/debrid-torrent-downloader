@@ -3,9 +3,9 @@ import { api } from './api';
 import { app } from './app.svelte';
 import { confirmAction } from './confirm.svelte';
 import { askDestination } from './destination.svelte';
-import { activeDrafts, buildEntries, downloadedRemoval, draftId, isStatusDone, queueRequests, queuedFileCount, queuedLookup, remainingCount, remainingRequests, removalPatches, visibleFiles, type Entry, type HeaderSort, type Location, type Rank, type SourceFilter } from './browser';
+import { activeDrafts, buildEntries, downloadedRemoval, draftId, isStatusDone, planQueue, remainingCount, remainingRequests, removalPatches, requestFileCount, visibleFiles, type Entry, type HeaderSort, type Location, type QueueRequest, type Rank, type SourceFilter } from './browser';
 import { chooseProviders } from './providers.svelte';
-import { PROVIDERS, type Draft, type Job, type LibraryPatch, type Provider } from './types';
+import { failedCloudStatus, PROVIDERS, type Draft, type Job, type LibraryPatch, type Provider } from './types';
 import { emptySelection, selectAll, selectItem, selectionKey } from './selection';
 
 /** Distinct magnets, links and .torrent paths in the add box. */
@@ -41,12 +41,10 @@ class LibraryState {
   /** Which service's torrents are shown. */
   source = $state<SourceFilter>('all');
 
-  // Only membership of the queue matters to the rows, not progress: a string signature keeps the (large) row list from
-  // being rebuilt on every progress event.
-  private queueSignature = $derived(app.jobs.map((job) => `${job.id}:${job.provider}:${job.sourceKey}:${job.selectedFileIds?.length ?? 'all'}`).join(','));
-
   entries = $derived.by<Entry[]>(() => {
-    this.queueSignature;
+    // Only membership of the queue matters to the rows, not progress: the signature keeps the (large) row list from
+    // being rebuilt on every progress event.
+    app.queueSignature;
     const jobs = untrack(() => app.jobs);
     return buildEntries(app.library, this.source, jobs, {
       location: this.location, search: this.search, videosOnly: this.videosOnly, sort: app.settings.browserSort, header: this.header, imported: app.imported
@@ -58,7 +56,7 @@ class LibraryState {
   /** Services that have torrents in the Library, in the fixed order: the source filter offers only these. */
   sources = $derived(PROVIDERS.map((p) => p.id).filter((id) => app.library.some((d) => d.provider === id && !d.isHidden)));
   remaining = $derived.by(() => {
-    this.queueSignature;
+    app.queueSignature;
     return remainingCount(app.library, this.source, untrack(() => app.jobs));
   });
   /** Queue jobs take ownership of a draft's remote torrent when files are queued. */
@@ -88,7 +86,12 @@ class LibraryState {
       }
       if (jobs.some(job => job.state === 'downloading' || job.state === 'completed'))
         return { label: 'Sẵn sàng', progress: 100, tone: 'ready' };
-      return;
+      // Queued, paused, stopped or failed jobs keep the last service progress they saw; it is not refreshed meanwhile.
+      const last = jobs.reduce((best, job) => (job.remoteProgress > best.remoteProgress ? job : best));
+      const progress = Math.max(0, Math.min(100, last.remoteProgress));
+      if (progress >= 100) return { label: 'Sẵn sàng', progress: 100, tone: 'ready' };
+      const label = ({ queued: 'Chờ xử lý', paused: 'Tạm dừng', stopped: 'Đã dừng', failed: 'Có lỗi' } as Partial<Record<Job['state'], string>>)[last.state] ?? 'Dịch vụ đang tải';
+      return { label, progress, tone: 'idle' };
     }
     const progress = Number.isFinite(cloud.progress) ? Math.max(0, Math.min(100, cloud.progress)) : null;
     switch (cloud.status) {
@@ -125,6 +128,24 @@ class LibraryState {
   /** Finished files across the whole Library (for the current service filter), whatever folder is open. */
   downloaded = $derived(downloadedRemoval(app.library, this.source));
   canRemoveFolder = $derived(this.location.draft !== null && !this.location.flat);
+  /** Selected torrents whose import failed and can be read again now. */
+  selectedImportErrors = $derived(this.importErrorsOf(this.selectedEntries));
+  retrying = $state(false);
+
+  /** A torrent that could not be read: it reported an error, or its service gave up on it. */
+  isImportError(draft: Draft): boolean {
+    if (draft.files.length > 0 || draft.isHidden) return false;
+    return !!draft.inspectionError || failedCloudStatus(app.cloudOf(draft)?.status);
+  }
+
+  /** Failed imports among the entries, once per torrent, limited to services with a token. */
+  importErrorsOf(entries: Entry[]): Draft[] {
+    const found = new Map<string, Draft>();
+    for (const entry of entries) {
+      if (entry.pending && this.isImportError(entry.draft) && app.usableProviders.includes(entry.draft.provider)) found.set(draftId(entry.draft), entry.draft);
+    }
+    return [...found.values()];
+  }
 
   private timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -215,11 +236,20 @@ class LibraryState {
     this.header = null;
   }
 
-  async retryImport() {
-    await app.run(async () => {
-      await api.libraryRetry();
-      app.settings = { ...app.settings, libraryImportPaused: false };
-    });
+  /** Read the given torrents again now (every unread torrent when none are given); also resumes a paused import. */
+  async retryImport(drafts?: Draft[]) {
+    if (drafts && drafts.length === 0) return;
+    this.retrying = true;
+    try {
+      const done = await app.run(async () => {
+        await api.libraryRetry(drafts?.map(({ provider, sourceKey }) => ({ provider, sourceKey })));
+        app.settings = { ...app.settings, libraryImportPaused: false };
+        return true;
+      });
+      if (done && drafts) app.toast({ key: 'Đang thử lại import {0} torrent.', args: [String(drafts.length)] });
+    } finally {
+      this.retrying = false;
+    }
   }
 
   async refresh() {
@@ -337,24 +367,26 @@ class LibraryState {
     try {
       this.flush();
       const entries = this.selectedEntries;
-      let lookup = queuedLookup(untrack(() => app.jobs), app.library);
-      let requests = queueRequests(entries, lookup, this.rank);
-      if (requests.length === 0) {
-        this.warnQueued(queuedFileCount(entries, lookup));
-        return;
-      }
-      const directory = await this.askDirectory(requests);
-      if (directory === null) return;
-      // A file can enter the queue while the destination dialog is open. Recheck the original selection.
-      lookup = queuedLookup(untrack(() => app.jobs), app.library);
-      requests = queueRequests(entries, lookup, this.rank);
-      const duplicates = queuedFileCount(entries, lookup);
-      if (requests.length === 0) {
+      const plan = () => planQueue(entries, untrack(() => app.jobs), app.library, this.rank);
+      let { fresh, forced, downloaded, duplicates } = plan();
+      // Files that are only downloaded still open the dialog: Force download is how they are queued again.
+      if (forced.length === 0) {
         this.warnQueued(duplicates);
         return;
       }
+      const answer = await askDestination({ files: requestFileCount(fresh), downloaded, directory: app.settings.outputDirectory });
+      if (answer === null) return;
+      // A file can enter the queue or finish while the destination dialog is open. Recheck the original selection.
+      ({ fresh, forced, downloaded, duplicates } = plan());
+      const requests = answer.force ? forced : fresh;
+      if (requests.length === 0) {
+        this.warnQueued(duplicates);
+        if (!answer.force) this.warnDownloaded(downloaded);
+        return;
+      }
       this.clearSelection();
-      await this.queueAndStart(requests, directory, duplicates);
+      await this.queueAndStart(requests, answer.directory, duplicates, answer.force);
+      if (!answer.force) this.warnDownloaded(downloaded);
     } finally {
       this.queueing = false;
     }
@@ -367,10 +399,10 @@ class LibraryState {
       this.flush();
       const requests = remainingRequests(app.library, this.source, untrack(() => app.jobs), this.rank);
       if (requests.length === 0) return;
-      const directory = await this.askDirectory(requests);
-      if (directory === null) return;
+      const answer = await askDestination({ files: requestFileCount(requests), directory: app.settings.outputDirectory });
+      if (answer === null) return;
       this.clearSelection();
-      await this.queueAndStart(requests, directory);
+      await this.queueAndStart(requests, answer.directory);
     } finally {
       this.queueing = false;
     }
@@ -380,15 +412,13 @@ class LibraryState {
     if (count > 0) app.toast({ key: '{0} file đã có trong hàng đợi, bỏ qua file trùng.', args: [String(count)] }, 'warning');
   }
 
-  /** Where to save: the Settings folder is offered first. `null` means the user cancelled. */
-  private askDirectory(requests: Parameters<typeof api.queueAdd>[0]): Promise<string | null> {
-    const files = requests.reduce((sum, request) => sum + request.fileIds.length, 0);
-    return askDestination({ files, directory: app.settings.outputDirectory });
+  private warnDownloaded(count: number) {
+    if (count > 0) app.toast({ key: 'Bỏ qua {0} file đã tải về máy.', args: [String(count)] }, 'warning');
   }
 
   /** New queue rows start downloading right away; other queued, paused or stopped rows are left alone. */
-  private async queueAndStart(requests: Parameters<typeof api.queueAdd>[0], directory: string, duplicates = 0) {
-    const created = await app.run(() => api.queueAdd(requests.map((request) => ({ ...request, outputDirectory: directory }))));
+  private async queueAndStart(requests: QueueRequest[], directory: string, duplicates = 0, force = false) {
+    const created = await app.run(() => api.queueAdd(requests.map((request) => ({ ...request, outputDirectory: directory, force }))));
     if (!created) return;
     this.warnQueued(duplicates);
     if (!created.length) {

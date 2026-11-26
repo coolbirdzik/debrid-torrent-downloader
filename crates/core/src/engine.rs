@@ -7,7 +7,7 @@ use crate::downloader::{self, TransferProgress};
 use crate::error::{Error, Result};
 use crate::models::{format_bytes, Job, JobFile, JobState, Msg, Provider, TorrentInfo};
 use crate::paths;
-use crate::provider::{Debrid, Timing};
+use crate::provider::{Debrid, QueuedState, Timing};
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -223,6 +223,11 @@ impl Engine {
         self.api.add_torrent(bytes).await
     }
 
+    /// Where a torrent the service queued instead of adding is now (read-only).
+    pub async fn queued_state(&self, hash: &str) -> Result<QueuedState> {
+        self.api.queued_state(hash).await
+    }
+
     /// Inspection never selects files or starts local transfers.
     pub async fn inspect(&self, torrent_id: &str, ct: &CancellationToken) -> Result<TorrentInfo> {
         self.inspect_with_progress(torrent_id, ct, |_| {}).await
@@ -311,9 +316,31 @@ impl Engine {
         Ok(buffer)
     }
 
-    /// Add a job's source to the service and record the new torrent on the job.
-    async fn add_for_job(&self, id: &str, source: &str, ct: &CancellationToken) -> Result<String> {
-        let created = guard(ct, self.add_source(source)).await?;
+    /// Add a job's source to the service and record the new torrent on the job. When the service only queues it (no
+    /// free active slot), wait for it to start by looking it up by hash, without adding it again.
+    async fn add_for_job(&self, id: &str, source: &str, source_key: &str, ct: &CancellationToken) -> Result<String> {
+        let created = loop {
+            match guard(ct, self.add_source(source)).await {
+                Err(Error::Queued(provider)) => {
+                    let Some(hash) = source_key.get(..5).filter(|p| p.eq_ignore_ascii_case("btih:")).map(|_| &source_key[5..]) else {
+                        return Err(Error::Queued(provider));
+                    };
+                    let started = loop {
+                        self.set(id, JobState::Waiting, Msg::new("{0} đang xếp hàng torrent này · chờ lượt tải đồng thời…", &[&provider.label()]));
+                        pause(ct, self.timing.queued_poll).await?;
+                        match guard(ct, self.api.queued_state(hash)).await? {
+                            QueuedState::Started(torrent_id) => break Some(torrent_id),
+                            QueuedState::Waiting => continue,
+                            QueuedState::Missing => break None,
+                        }
+                    };
+                    if let Some(torrent_id) = started {
+                        break torrent_id;
+                    }
+                }
+                other => break other?,
+            }
+        };
         self.queue.mutate(id, |j| {
             j.torrent_id = Some(created.clone());
             j.remote_account = self.account.clone();
@@ -360,7 +387,7 @@ impl Engine {
         let mut torrent_id = match job.torrent_id.clone() {
             Some(existing) => existing,
             None if job.cloud_kind.is_some() => return Err(Error::operation("Mục cloud không còn trên {0}.", &[&label])),
-            None => self.add_for_job(id, &job.source, ct).await?,
+            None => self.add_for_job(id, &job.source, &job.source_key, ct).await?,
         };
 
         let selected_ids = job.selected_file_ids.clone();
@@ -384,7 +411,7 @@ impl Engine {
                         j.remote_progress = 0.0;
                     });
                     self.set(id, JobState::Adding, Msg::new("Đang thêm vào {0}…", &[&label]));
-                    torrent_id = self.add_for_job(id, &job.source, ct).await?;
+                    torrent_id = self.add_for_job(id, &job.source, &job.source_key, ct).await?;
                     selected = false;
                     continue;
                 }
